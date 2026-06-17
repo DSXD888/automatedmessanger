@@ -1,0 +1,26 @@
+# OS / editor cruft
+.DS_Store
+*.swp
+.idea/
+.vscode/
+
+# Secrets & environment — NEVER commit real keys (ClinicCards token, Kyivstar key, Supabase service role)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
+.envrc
+
+# Node / build
+node_modules/
+dist/
+build/
+.turbo/
+*.log
+
+# Supabase local stack / generated
+supabase/.branches/
+supabase/.temp/
+.supabase/
