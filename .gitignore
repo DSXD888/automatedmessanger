@@ -24,3 +24,6 @@ build/
 supabase/.branches/
 supabase/.temp/
 .supabase/
+
+# MCP / tool session caches (e.g. Playwright design-recon dumps — not source)
+.playwright-mcp/

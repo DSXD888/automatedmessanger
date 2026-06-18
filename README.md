@@ -6,14 +6,17 @@ Once daily at **12:00 Europe/Kyiv**, the system reads tomorrow's appointments fr
 
 **Why it exists:** to cut **empty chair-slots** (no-shows + late cancels that go un-refilled) and **free the front desk from daily confirm-calls** — value measured against the clinic's *current manual phone process*, not assumed. (SMS ≈ phone reminders for attendance, so the durable wins are **lower staff cost + faster, refill-enabling cancellation capture + a clean audit trail**; any no-show drop is a measured bonus. Running cost ≈ €55–70/mo all-in. See research §1 / ADR-017.)
 
-**Status:** research + architecture complete as **v2.21, consolidated Planmaxer iteration-1 final**. The iteration integrated four review domains (implementation-readiness · data-layer · patient-experience · business-viability), then closed the cross-plan and architectural-coherence passes; ready for `research-to-spec`. **No application code yet** — this repo currently holds planning/design documents.
+**Live-clinic safety:** Dentino is a live clinic, so the system ships **read-only-until-go-live** — writes/sends are off-by-default + fail-closed, advanced only via a human-authorized staged go-live ladder (shadow → seed → canary → full). See research §6.6 / ADR-024 and AGENTS.md RULE 3.
+
+**Status:** research + architecture complete as **v2.25 (Planmaxer iteration-2: adds ADR-023 hermetic test harness + the §6.5 layered test strategy, and ADR-024 + §6.6 live-clinic staged go-live safety, on the v2.23 design-system base)**. Iteration 1 integrated four review domains (implementation-readiness · data-layer · patient-experience · business-viability) and the design system; iteration 2 added the **hermetic no-real-egress test harness** (one outbound-HTTP chokepoint, cassette-throws-on-miss, `APP_ENV` boot guard, CI egress-deny) and the **read-only-until-go-live** lifecycle layer (off-by-default + fail-closed `SEND_MODE`/`CRM_WRITE_MODE` flags + allowlist guard + the `shadow → seed → canary → full` ladder, mirrored by AGENTS.md RULE 3). Ready for `research-to-spec`. **No application code yet** — this repo currently holds planning/design documents.
 
 ## Repository layout
 
 | Path | What it is |
 |---|---|
-| `docs/research/` | The canonical **research + architecture document** — the v2.21 source of truth (ADRs, data model, state machine, API design). |
-| `docs/your-tasks.md` | Business/owner action items (Kyivstar account, alpha sender-ID registration, ClinicCards key, DNS). |
+| `docs/research/` | The canonical **research + architecture document** — the v2.25 source of truth (ADRs, data model, state machine, test strategy + hermetic harness, live-clinic go-live safety, API design). |
+| `docs/design/` | **Visual source of truth** (ADR-022 / §5.8): brand system, design tokens, re-traced logo, and the two reviewable mockups (confirm page + dashboard). |
+| `docs/your-tasks.md` | Business/owner action items (Kyivstar account, alpha sender-ID registration, ClinicCards key, DNS, official logo). |
 | `docs/planmaxer/` | Planmaxer review artifacts: handoff prompts, reviewer responses, reintegration prompts, and iteration archives. |
 | `docs/harmonymaxer/` | Earlier documentation-harmonization artifacts. |
 

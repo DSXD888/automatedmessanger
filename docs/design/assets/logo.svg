@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Dentino wordmark lockup — re-traced inline-ready SVG (extract-not-link, ADR-022).
+  Faithful to dentino.com.ua: navy #0A3576 mark + wide-tracked "DENTINO" + grey studio sub-label,
+  with a sparing rose #F23A5B sparkle (the brand's accent). No external assets / fonts / refs.
+  Wordmark uses the project system-font stack so it matches the page chrome and stays selectable text
+  when inlined; the tooth glyph is pure vector so it renders identically on any device.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 232 40" role="img"
+     aria-label="Dentino — Стоматологічна студія, Львів" fill="none">
+  <!-- tooth mark (re-traced from the brand's group-11 molar) -->
+  <path d="M20 5C13.5 5 9 8.5 9 14c0 3.5 1.5 6.5 2.5 10C12.4 27 12.8 34 15.2 34c2 0 1.6-6.5 3-9
+           .6-1.1 3-1.1 3.6 0 1.4 2.5 1 9 3 9 2.4 0 2.8-7 3.7-10C31.5 20.5 33 17.5 33 14 33 8.5 28.5 5 22 5
+           20.8 5 20 5 20 5Z"
+        fill="#0A3576"/>
+  <!-- rose sparkle accent (decorative; passes the 3:1 non-text bar) -->
+  <path d="M30 6.2l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9z" fill="#F23A5B"/>
+  <!-- wordmark -->
+  <text x="50" y="25" font-family="system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif"
+        font-size="22" font-weight="700" letter-spacing="4.2" fill="#0A3576">DENTINO</text>
+  <!-- studio sub-label -->
+  <text x="51" y="35" font-family="system-ui,-apple-system,'Segoe UI',Roboto,Arial,sans-serif"
+        font-size="6.2" font-weight="700" letter-spacing="1.6" fill="#51606F">СТОМАТОЛОГІЧНА СТУДІЯ · ЛЬВІВ</text>
+</svg>

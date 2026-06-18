@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow,noarchive">
+<title>Підтвердження запису · Dentino</title>
+<!--
+  CONFIRM-PAGE MOCKUP — Dentino reminder UI (docs/design/mockups/confirm-page.html)
+  Reference build for supabase/functions/confirm/index.ts. Self-contained: inline <style>,
+  inline <svg> (no SVG namespace attribute — HTML5 supplies it, so the file carries zero external-URL strings),
+  system fonts, relative same-origin form actions, tel: links. No external asset of any kind.
+  This is a STORYBOARD: it stacks the four flow states (each card = one server-rendered page).
+  The grey "▸ ЕКРАН …" chips are review annotations, not part of the shipped page chrome.
+  Tokens: docs/design/design-tokens.json · System: docs/design/dentino-design-system.md (ADR-022).
+-->
+<style>
+  :root{
+    --brand:#0A3576; --brand-2:#708AB2; --accent:#F23A5B;
+    --bg:#EBEDEF; --card:#FFFFFF; --subtle:#F4F6F8; --border:#D7DCE3;
+    --ink:#14213A; --muted:#51606F; --on-brand:#FFFFFF;
+    --danger:#B3261E; --success:#0F5132;
+    --r-card:12px; --r-btn:8px;
+    --stack:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,"Noto Sans","Liberation Sans",sans-serif;
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:var(--stack); font-size:18px; line-height:1.5;
+    padding:20px 14px 40px;
+  }
+  .page{max-width:480px; margin:0 auto}
+  .anno{
+    font-size:12px; font-weight:700; letter-spacing:.06em; color:var(--muted);
+    text-transform:uppercase; margin:26px 4px 8px;
+  }
+  .anno:first-of-type{margin-top:0}
+  .card{
+    background:var(--card); border:1px solid var(--border); border-radius:var(--r-card);
+    box-shadow:0 1px 2px rgba(20,33,58,.06),0 4px 12px rgba(20,33,58,.05);
+    padding:22px 20px 20px; overflow:hidden;
+  }
+  /* ---- brand header ---- */
+  .brand{display:flex; align-items:center; gap:10px; padding-bottom:16px; border-bottom:1px solid var(--border)}
+  .brand svg{flex:0 0 auto}
+  .brand .wm{display:flex; flex-direction:column; line-height:1.05}
+  .brand .name{font-size:22px; font-weight:700; letter-spacing:.16em; color:var(--brand)}
+  .brand .sub{font-size:11px; font-weight:700; letter-spacing:.13em; color:var(--muted); margin-top:3px}
+  /* ---- appointment fact ---- */
+  .fact{margin:18px 0 6px}
+  .fact .lead{font-size:16px; color:var(--muted); margin:0 0 6px}
+  .fact .who{font-size:18px; font-weight:500; color:var(--ink); margin:0 0 6px}
+  .fact .when{font-size:32px; line-height:1.18; font-weight:700; color:var(--brand); margin:0}
+  .fact .where{font-size:16px; color:var(--muted); margin:8px 0 0}
+  h1.title{font-size:22px; font-weight:700; color:var(--ink); margin:4px 0 14px}
+  /* ---- buttons (all >=48px; 56px primary) ---- */
+  .btn{
+    display:flex; align-items:center; justify-content:center; gap:8px; width:100%;
+    min-height:56px; padding:14px 18px; margin-top:12px;
+    font-family:inherit; font-size:18px; font-weight:700; text-align:center;
+    border-radius:var(--r-btn); border:2px solid transparent; cursor:pointer;
+    text-decoration:none; -webkit-appearance:none; appearance:none;
+  }
+  .btn-primary{background:var(--brand); color:var(--on-brand); border-color:var(--brand)}
+  .btn-outline{background:var(--card); color:var(--brand); border-color:var(--brand)}
+  .btn-danger{background:var(--card); color:var(--danger); border-color:var(--danger); font-size:17px}
+  .btn-call{background:var(--brand); color:var(--on-brand); border-color:var(--brand)}
+  .btn-ghost{background:transparent; color:var(--muted); border-color:transparent; min-height:48px; font-weight:500; font-size:16px}
+  .btn:focus-visible, a:focus-visible, button:focus-visible{outline:3px solid var(--brand); outline-offset:2px}
+  /* ---- supporting copy ---- */
+  .why{font-size:16px; color:var(--muted); margin:18px 0 0}
+  .note{
+    display:flex; gap:10px; align-items:flex-start;
+    background:var(--subtle); border:1px solid var(--border); border-left:4px solid var(--brand);
+    border-radius:8px; padding:12px 14px; margin:14px 0 0; font-size:15px; color:var(--ink);
+  }
+  .note svg{flex:0 0 auto; margin-top:1px}
+  .phone-row{margin-top:16px}
+  .phone-row .label{font-size:15px; color:var(--muted); margin:0 0 4px}
+  .reschedule{background:var(--subtle); border:1px solid var(--border); border-radius:10px; padding:14px; margin:16px 0 0}
+  .reschedule p{margin:0 0 4px; font-size:16px; color:var(--ink)}
+  hr.sep{border:0; border-top:1px solid var(--border); margin:18px 0}
+  .foot{margin-top:18px; padding-top:14px; border-top:1px solid var(--border); font-size:14px; color:var(--muted)}
+  .foot form{display:inline}
+  .foot button.link{
+    background:none; border:0; padding:8px 0; min-height:44px; font-family:inherit; font-size:14px;
+    color:var(--muted); text-decoration:underline; cursor:pointer;
+  }
+  .foot .resub{display:block; margin-top:2px}
+  /* ---- closure pages ---- */
+  .crest{display:flex; justify-content:center; margin:4px 0 10px}
+  .closure-success .when, .closure h1.title{color:var(--brand)}
+  .pill{display:inline-block; font-size:13px; font-weight:700; padding:4px 10px; border-radius:999px}
+  .pill-ok{background:#E7F0EA; color:var(--success)}
+  .pill-info{background:#E9EEF7; color:var(--brand)}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ════════ ЕКРАН 1 · сторінка запису (GET /r/<token>) ════════ -->
+  <p class="anno">▸ Екран 1 — сторінка запису (GET, лише показ)</p>
+  <main class="card" aria-label="Нагадування про запис">
+    <header class="brand">
+      <!-- tooth mark (decorative) + rose sparkle -->
+      <svg width="34" height="34" viewBox="0 0 40 40" aria-hidden="true" focusable="false" fill="none">
+        <path d="M20 5C13.5 5 9 8.5 9 14c0 3.5 1.5 6.5 2.5 10C12.4 27 12.8 34 15.2 34c2 0 1.6-6.5 3-9 .6-1.1 3-1.1 3.6 0 1.4 2.5 1 9 3 9 2.4 0 2.8-7 3.7-10C31.5 20.5 33 17.5 33 14 33 8.5 28.5 5 22 5 20.8 5 20 5 20 5Z" fill="#0A3576"/>
+        <path d="M30 6.2l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9z" fill="#F23A5B"/>
+      </svg>
+      <span class="wm">
+        <span class="name">DENTINO</span>
+        <span class="sub">СТОМАТОЛОГІЧНА СТУДІЯ · ЛЬВІВ</span>
+      </span>
+    </header>
+
+    <section class="fact">
+      <p class="lead">Нагадування про ваш запис</p>
+      <p class="who">Олена К.</p>
+      <p class="when">18 червня, 14:30</p>
+      <p class="where">Стоматологія Dentino, Львів</p>
+    </section>
+
+    <!-- Confirm = one tap, filled primary, first position -->
+    <form method="post" action="/r/8xP4mZQ9tA2bC7dEfGhJkL/action">
+      <input type="hidden" name="action" value="confirm">
+      <input type="hidden" name="nonce" value="b7f3a1c0-confirm-nonce-demo">
+      <button class="btn btn-primary" type="submit">Підтвердити запис</button>
+    </form>
+    <!-- Cancel = secondary outline, second position, leads to interstitial (no write on this step) -->
+    <a class="btn btn-outline" href="/r/8xP4mZQ9tA2bC7dEfGhJkL?step=cancel">Скасувати запис</a>
+
+    <p class="why">Ви отримали це повідомлення, бо у вас запланований запис у клініці Dentino, Львів.</p>
+
+    <p class="note">
+      <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none">
+        <path d="M12 2l8 3v6c0 5-3.4 8.6-8 11-4.6-2.4-8-6-8-11V5l8-3z" fill="none" stroke="#0A3576" stroke-width="1.8" stroke-linejoin="round"/>
+        <path d="M8.5 12.2l2.3 2.3 4.7-4.9" fill="none" stroke="#0A3576" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <span>Ми не просимо оплату, банківські дані, паролі або SMS-коди.</span>
+    </p>
+
+    <div class="phone-row">
+      <p class="label">Маєте питання? Зателефонуйте у клініку:</p>
+      <a class="btn btn-ghost" href="tel:+380679876111" style="justify-content:flex-start;color:var(--brand);font-weight:700">
+        ☎ +380 67 987 6111
+      </a>
+    </div>
+
+    <div class="foot">
+      <form method="post" action="/r/8xP4mZQ9tA2bC7dEfGhJkL/action">
+        <input type="hidden" name="action" value="unsubscribe">
+        <input type="hidden" name="nonce" value="b7f3a1c0-unsub-nonce-demo">
+        <button class="link" type="submit">Відписатися від нагадувань</button>
+      </form>
+      <span class="resub">Щоб відновити нагадування, зверніться до реєстратури.</span>
+    </div>
+  </main>
+
+  <!-- ════════ ЕКРАН 2 · інтерстиціал скасування (reschedule-first) ════════ -->
+  <p class="anno">▸ Екран 2 — підтвердження скасування (перенести важливіше за скасувати)</p>
+  <main class="card" aria-label="Скасувати запис?">
+    <header class="brand">
+      <svg width="34" height="34" viewBox="0 0 40 40" aria-hidden="true" focusable="false" fill="none">
+        <path d="M20 5C13.5 5 9 8.5 9 14c0 3.5 1.5 6.5 2.5 10C12.4 27 12.8 34 15.2 34c2 0 1.6-6.5 3-9 .6-1.1 3-1.1 3.6 0 1.4 2.5 1 9 3 9 2.4 0 2.8-7 3.7-10C31.5 20.5 33 17.5 33 14 33 8.5 28.5 5 22 5 20.8 5 20 5 20 5Z" fill="#0A3576"/>
+        <path d="M30 6.2l.9 2.1 2.1.9-2.1.9-.9 2.1-.9-2.1-2.1-.9 2.1-.9z" fill="#F23A5B"/>
+      </svg>
+      <span class="wm"><span class="name">DENTINO</span><span class="sub">СТОМАТОЛОГІЧНА СТУДІЯ · ЛЬВІВ</span></span>
+    </header>
+
+    <h1 class="title">Скасувати запис?</h1>
+    <p class="who" style="font-size:18px;color:var(--ink)">Ваш запис у Dentino: <strong>18 червня, о 14:30</strong>.</p>
+
+    <!-- foregrounded reschedule (the retained-revenue path) -->
+    <div class="reschedule">
+      <p>Потрібен інший час? Краще перенести, ніж скасувати — зателефонуйте нам:</p>
+      <a class="btn btn-call" href="tel:+380679876111">☎ +380 67 987 6111</a>
+    </div>
+
+    <!-- destructive confirm = the second, nonce-backed POST (single-use lock) -->
+    <form method="post" action="/r/8xP4mZQ9tA2bC7dEfGhJkL/action">
+      <input type="hidden" name="action" value="cancel">
+      <input type="hidden" name="nonce" value="b7f3a1c0-cancel-nonce-demo">
+      <button class="btn btn-danger" type="submit">Скасувати запис без перенесення</button>
+    </form>
+
+    <!-- safe back-out -->
+    <a class="btn btn-ghost" href="/r/8xP4mZQ9tA2bC7dEfGhJkL">← Ні, залишити запис</a>
+  </main>
+
+  <!-- ════════ ЕКРАН 3 · сторінка-подяка після підтвердження ════════ -->
+  <p class="anno">▸ Екран 3 — після підтвердження (тепла сторінка-закриття)</p>
+  <main class="card closure closure-success" aria-label="Запис підтверджено">
+    <div class="crest">
+      <svg width="56" height="56" viewBox="0 0 64 64" aria-hidden="true" focusable="false" fill="none">
+        <circle cx="32" cy="32" r="28" fill="#E9EEF7"/>
+        <path d="M21 33l7.5 7.5L44 24" fill="none" stroke="#0A3576" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+    <p class="pill pill-ok" style="display:block;text-align:center;width:max-content;margin:0 auto 10px">Запис підтверджено</p>
+    <p style="text-align:center;font-size:20px;color:var(--ink);margin:0 0 6px">Дякуємо, Олена!</p>
+    <p style="text-align:center;font-size:16px;color:var(--muted);margin:0">
+      Ваш запис підтверджено. Чекаємо вас завтра о <strong style="color:var(--brand)">14:30</strong> у Dentino.
+    </p>
+    <hr class="sep">
+    <a class="btn btn-ghost" href="tel:+380679876111" style="justify-content:center;color:var(--brand);font-weight:700">☎ +380 67 987 6111</a>
+  </main>
+
+  <!-- ════════ ЕКРАН 4 · сторінка після скасування (досі пропонує перенесення) ════════ -->
+  <p class="anno">▸ Екран 4 — після скасування (досі пропонує перенесення)</p>
+  <main class="card closure" aria-label="Запис скасовано">
+    <p class="pill pill-info" style="display:block;text-align:center;width:max-content;margin:0 auto 10px">Запис скасовано</p>
+    <p style="text-align:center;font-size:16px;color:var(--ink);margin:0 0 4px">
+      Запис скасовано. Дякуємо, що повідомили нас.
+    </p>
+    <p style="text-align:center;font-size:16px;color:var(--muted);margin:0">
+      Хочете обрати інший час? Зателефонуйте:
+    </p>
+    <a class="btn btn-call" href="tel:+380679876111">☎ +380 67 987 6111</a>
+    <p class="note" style="border-left-color:var(--brand)">
+      <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none">
+        <circle cx="12" cy="12" r="9.2" fill="none" stroke="#0A3576" stroke-width="1.8"/>
+        <path d="M12 7.5v5.2M12 16.2h.01" stroke="#0A3576" stroke-width="1.9" stroke-linecap="round"/>
+      </svg>
+      <span>Скасували помилково? Зателефонуйте — адміністратор допоможе: ☎ +380 67 987 6111</span>
+    </p>
+  </main>
+
+</div>
+</body>
+</html>

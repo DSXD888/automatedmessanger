@@ -1,0 +1,76 @@
+{
+  "$meta": {
+    "name": "Dentino reminder-UI design tokens",
+    "source": "https://dentino.com.ua (WordPress / theme 'bamboo' / LiteSpeed) — recon 2026-06-18",
+    "method": "Playwright MCP getComputedStyle extraction + in-browser WCAG-2.x contrast measurement",
+    "rule": "extract-not-link (ADR-022): values re-implemented inline; brand colours contrast-adjusted to WCAG-AA; webfonts substituted with a Cyrillic-complete system stack",
+    "appliesTo": ["supabase/functions/confirm (inline CSS)", "apps/dashboard (theme)"]
+  },
+  "color": {
+    "brand": {
+      "primary": "#0A3576",
+      "secondary": "#708AB2",
+      "accent": "#F23A5B",
+      "_accentNote": "accent is DECORATIVE only on the confirm page (3.80:1 on white — fails AA text); use #C32847 (5.65:1) if an accent must carry legible text/icon meaning"
+    },
+    "surface": {
+      "bg": "#FFFFFF",
+      "bgWarm": "#FFFDFA",
+      "card": "#FFFFFF",
+      "subtle": "#EBEDEF",
+      "border": "#D7DCE3"
+    },
+    "text": {
+      "default": "#14213A",
+      "muted": "#51606F",
+      "onBrand": "#FFFFFF",
+      "_mutedNote": "darkened from the site's #8B8D8F (3.33:1 — fails AA) to #51606F (6.46:1 — passes)"
+    },
+    "action": {
+      "confirm": "#0A3576",
+      "confirmText": "#FFFFFF",
+      "cancel": "#FFFFFF",
+      "cancelText": "#0A3576",
+      "cancelBorder": "#0A3576",
+      "_cancelNote": "Cancel is a navy OUTLINE secondary (navy text on white) — distinguished from the filled-navy Confirm by FILL + POSITION + LABEL, never colour alone (ADR-014/§5.2)",
+      "destructive": "#B3261E",
+      "destructiveText": "#FFFFFF",
+      "_destructiveNote": "#B3261E = 6.54:1 — used only for the interstitial's 'cancel without rescheduling' label/outline; the danger hue is a SUPPLEMENTARY cue, the explicit label is the primary one",
+      "success": "#0F5132",
+      "successText": "#FFFFFF",
+      "_successNote": "#0F5132 text on white = 9.36:1 — post-confirm closure page accent"
+    },
+    "focusRing": "#0A3576"
+  },
+  "type": {
+    "stack": "system-ui, -apple-system, \"Segoe UI\", Roboto, \"Helvetica Neue\", Arial, \"Noto Sans\", \"Liberation Sans\", sans-serif",
+    "substitutes": "Gotham Pro / Gotham Pro Medium / Gotham Pro Bold (self-hosted .woff2 on dentino.com.ua)",
+    "basePx": 18,
+    "scalePx": [14, 16, 18, 22, 28, 32],
+    "lineHeight": 1.5,
+    "weights": { "regular": 400, "medium": 500, "bold": 700 },
+    "wordmarkLetterSpacingEm": 0.18,
+    "_note": "site body is 12px on a desktop marketing scale; the confirm page deliberately resets to an 18px accessible base (constraint 7). Date/time is the largest element at 32px."
+  },
+  "space": [4, 8, 12, 16, 24, 32],
+  "radius": { "card": 12, "button": 8, "pill": 999 },
+  "shadow": {
+    "none": "none",
+    "card": "0 1px 2px rgba(20,33,58,0.06), 0 4px 12px rgba(20,33,58,0.05)",
+    "_note": "live site is flat (no box-shadows); a single very soft card shadow is the only addition, to lift the receipt card on low-end screens"
+  },
+  "layout": {
+    "pageMaxWidthPx": 480,
+    "tapTargetMinPx": 48,
+    "buttonHeightPx": 56
+  },
+  "contrastMeasured": {
+    "textOnBg": 16.05,
+    "mutedOnBg": 6.46,
+    "confirmOnBg": 11.77,
+    "cancelOnBg": 11.77,
+    "destructiveOnBg": 6.54,
+    "successOnBg": 9.36,
+    "_note": "WCAG-2.x ratios, measured in-browser 2026-06-18; each text pair MUST be >= 4.5:1. textOnBg=#14213A/#FFFFFF; mutedOnBg=#51606F/#FFFFFF; confirmOnBg=#FFFFFF/#0A3576; cancelOnBg=#0A3576/#FFFFFF; destructiveOnBg=#FFFFFF/#B3261E; successOnBg=#0F5132/#FFFFFF"
+  }
+}
