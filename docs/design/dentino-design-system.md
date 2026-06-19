@@ -107,8 +107,15 @@ system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto San
   screen-reader-robust treatment, and faithful to how the site itself renders the name.
 - **Favicon:** production serves a same-origin tooth icon (or `204`); the mockup ships **no favicon
   link** so the artifact stays provably zero-external-request.
-- **Owner ask:** the clinic's *official* vector logo + brand-colour swatches would beat this scraped
-  re-trace — see the open question in the README / `your-tasks.md`.
+- **Owner-provided (2026-06-19):** the official vector logo is now in
+  `assets/Dentino-logo-black.{ai,eps,pdf}` and `assets/Dentino-logo-white.{ai,eps,pdf}` (both **black**
+  and **white**, 1-page vectors). The real mark is a **two-tooth line-art glyph** above a wide-tracked
+  **"DENTINO"** wordmark with **«СТОМАТОЛОГІЧНА СТУДІЯ»** and a **"BY RAK & RAK"** sub-line —
+  **monochrome, no rose accent in the mark itself.** At confirm-page build time it replaces the
+  re-traced `logo.svg` — extracted to inline SVG (no external assets — ADR-022), using the **black**
+  version recoloured **navy `#0A3576`** for white-background surfaces and the **white** version for any
+  dark surface. *(The earlier re-trace used a single tooth + rose sparkle; the official two-tooth mark
+  supersedes it — the re-trace stays as a fallback.)*
 
 ---
 
