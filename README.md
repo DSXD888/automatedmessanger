@@ -14,16 +14,16 @@ Once daily at **12:00 Europe/Kyiv**, the system reads tomorrow's appointments fr
 
 | Path | What it is |
 |---|---|
-| `docs/research/` | The canonical **research + architecture document** — the v2.25 source of truth (ADRs, data model, state machine, test strategy + hermetic harness, live-clinic go-live safety, API design). |
+| `docs/research/` | The canonical **research + architecture document** — the v2.26 source of truth (ADRs, data model, state machine, test strategy + hermetic harness, live-clinic go-live safety, API design). |
 | `docs/design/` | **Visual source of truth** (ADR-022 / §5.8): brand system, design tokens, re-traced logo, and the two reviewable mockups (confirm page + dashboard). |
-| `docs/your-tasks.md` | Business/owner action items (Kyivstar account, alpha sender-ID registration, ClinicCards key, DNS, official logo). |
+| `docs/your-tasks.md` | Business/owner action items (TurboSMS account, alpha sender-ID registration, ClinicCards key, DNS, official logo). |
 | `docs/planmaxer/` | Planmaxer review artifacts: handoff prompts, reviewer responses, reintegration prompts, and iteration archives. |
 | `docs/harmonymaxer/` | Earlier documentation-harmonization artifacts. |
 
 ## Planned stack (per the research doc)
 
-Supabase Pro (Postgres + `pg_cron` + Edge Functions on Deno + Auth + Vault) · TypeScript + Hono engine · Next.js dashboard · Kyivstar SMS (registered alpha sender `DentinoLviv`, with UA-aggregator fallback if delivery gates fail) · external Healthchecks/Cronitor heartbeat · dedicated app-only origin `r.dentino.com.ua` · EU region.
+Supabase Pro (Postgres + `pg_cron` + Edge Functions on Deno + Auth + Vault) · TypeScript + Hono engine · Next.js dashboard · **TurboSMS** SMS (UA-native aggregator, self-service signup; registered alpha sender `DentinoLviv`; **AlphaSMS** fallback route) · external Healthchecks/Cronitor heartbeat · dedicated app-only origin `r.dentino.com.ua` · EU region.
 
 ## Security
 
-**No secrets are stored in this repository.** API keys (ClinicCards token, Kyivstar key, Supabase service-role) live only in `.env` (git-ignored) / Supabase Vault. This is a **private** repository — keep it private (it details internal architecture, security-token design, and a real clinic's operations).
+**No secrets are stored in this repository.** API keys (ClinicCards token, TurboSMS API token, Supabase service-role) live only in `.env` (git-ignored) / Supabase Vault. This is a **private** repository — keep it private (it details internal architecture, security-token design, and a real clinic's operations).

@@ -4,7 +4,7 @@
 .idea/
 .vscode/
 
-# Secrets & environment — NEVER commit real keys (ClinicCards token, Kyivstar key, Supabase service role)
+# Secrets & environment — NEVER commit real keys (ClinicCards token, TurboSMS API token, Supabase service role)
 .env
 .env.*
 !.env.example

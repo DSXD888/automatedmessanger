@@ -45,7 +45,7 @@ file deletion) and Rule 2 (bead discipline). It applies to every layer, every ag
 
 1. **No dev/test/CI run may send a real SMS or write to the real ClinicCards CRM — ever.** Tests use the
    **stub `smsSender`** (records would-send intent, never dispatches), **local Supabase** (`supabase
-   start`), and **recorded cassettes** — never the real Kyivstar/ClinicCards keys. An un-stubbed real
+   start`), and **recorded cassettes** — never the real TurboSMS/ClinicCards keys. An un-stubbed real
    call is a **test failure**, not a real-world action (see the test-strategy "no real egress" gate).
 
 2. **The live keys are READ-ONLY-UNTIL-GO-LIVE.** Once the live ClinicCards key exists (owner task
@@ -61,7 +61,7 @@ file deletion) and Rule 2 (bead discipline). It applies to every layer, every ag
    The allowlist holds **only** staff-provided numbers and owner-created designated test visit-ids —
    **never real patient data.** Only the human flip to `full` lifts the allowlist.
 
-4. **Prod keys never touch dev/CI.** Real `CLINICCARDS_TOKEN` / `KYIVSTAR_API_KEY` / real base URLs live
+4. **Prod keys never touch dev/CI.** Real `CLINICCARDS_TOKEN` / `SMS_PROVIDER_API_KEY` (TurboSMS) / real base URLs live
    **only** in the deployed prod Vault. An `APP_ENV` boot guard **hard-fails** a `full`/live mode or a
    real base URL under `APP_ENV=test`/`dev`. Never paste a secret into chat, the repo, a committed
    `.env`, or a CI secret (owner task C2 hands keys into Vault only). The public confirm function never
