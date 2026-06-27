@@ -40,7 +40,7 @@ table in the design system).
 
 ## Open question for the clinic owner
 
-Do you have the **official `DentinoLviv` vector logo + brand-colour swatches**? An official vector
+Do you have the **official `Dentino` vector logo + brand-colour swatches**? An official vector
 beats this scraped re-trace (it would replace `assets/logo.svg` and confirm the exact navy/rose
 values). Tracked as a light owner task in `docs/your-tasks.md`.
 

@@ -28,7 +28,7 @@ At ~20 SMS/day the whole UA-aggregator price field spans only ~€28–53/mo, so
 | `SMS_PROVIDER` | `turbosms` (\| `alphasms` fallback) |
 | `SMS_PROVIDER_BASE_URL` | `https://api.turbosms.ua` |
 | `SMS_PROVIDER_API_KEY` | TurboSMS HTTP-API token (Vault) |
-| `SMS_SENDER_ID` | `DentinoLviv` |
+| `SMS_SENDER_ID` | `Dentino` |
 | `SMS_DLR_WEBHOOK_SECRET` | webhook secret; verify `signature == SHA1(secret + id)` |
 | `SMS_IDEMPOTENCY_MODE` | `strict_dedupe` (via `sequence_id`) · `none` fallback baseline |
 
@@ -42,7 +42,7 @@ Up to 5000 recipients/call (we send 1). Request:
 {
   "sequence_id": "<≤40-char idempotency key>",
   "recipients": ["380671234567"],
-  "sms": { "sender": "DentinoLviv", "text": "<Ukrainian text + confirm/cancel link>" }
+  "sms": { "sender": "Dentino", "text": "<Ukrainian text + confirm/cancel link>" }
 }
 ```
 Fields: `recipients` (array, `380XXXXXXXXX`, required) · `sms.sender` (alpha-name, activated, required) · `sms.text` (UTF-8; cap **661 Cyrillic = 10 segments**, required) · `sequence_id` (optional idempotency) · `start_time`/`start_date` (optional deferred, ≤14 days) · `sms.is_flash` (optional). **No per-recipient tag/client-id** — correlate per message via the returned `message_id`. ✅
@@ -98,7 +98,7 @@ The earlier draft treated a "transactional **template** registry" as the SMS URL
 
 ## Onboarding & compliance (owner-facing — `your-tasks.md` A1 + signup guide)
 - **Self-service signup** (phone+email+password; no sales call); anti-fraud may route some signups to support.
-- **Alpha-name `DentinoLviv`** (11 chars = the ≤11 limit): cabinet → Senders → SMS Senders → Add. **One submission → national-names register** (Kyivstar+Vodafone+lifecell; Ukraine-map status icon = national/preserved). Needs clinic full name + **ЄДРПОУ (ТОВ) or РНОКПП/ІПН (ФОП)**, a website whose contacts page shows org+tax-id, name **aligned to the domain**.
+- **Alpha-name `Dentino`** (7 chars, within the ≤11 limit): cabinet → Senders → SMS Senders → Add. **One submission → national-names register** (Kyivstar+Vodafone+lifecell; Ukraine-map status icon = national/preserved). Needs clinic full name + **ЄДРПОУ (ТОВ) or РНОКПП/ІПН (ФОП)**, a website whose contacts page shows org+tax-id, name **aligned to the domain**.
 - **Vodafone guarantee letter required ONLY for ФОП** → **registering as ТОВ avoids it.** ⚠️ verify if ФОП.
 - **Lead time:** TurboSMS/CRM guides say 1–10 business days; others up to ~4 weeks; operators intake only on the **5th/15th/25th** → **budget 2–4 weeks**.
 - **Medical content → WRITTEN TurboSMS sign-off** before go-live (Terms §3). ⚠️ Gate 1.
@@ -111,7 +111,7 @@ The earlier draft treated a "transactional **template** registry" as the SMS URL
 
 ## The 4 owner verify-gates (your-tasks A1) — refined by this research
 1. **Transactional-link classification (highest)** — written TurboSMS confirmation the link reminder is transactional (not advertising-rate) **+ medical-content sign-off**. (Note: the formal "template/416" path is **Viber**, not SMS.)
-2. **All-operator alpha coverage** — one `DentinoLviv` submission covers Kyivstar+Vodafone+lifecell (national register). Docs confirm via the Ukraine-map icon; verify in cabinet.
+2. **All-operator alpha coverage** — one `Dentino` submission covers Kyivstar+Vodafone+lifecell (national register). Docs confirm via the Ukraine-map icon; verify in cabinet.
 3. **Ported / MNP** delivery + sender preservation — not explicit on TurboSMS; verify at seed test.
 4. **Per-operator price spread** within ~0.98–1.29 ₴ — accept the range or ask a manager (no per-operator table is published).
 

@@ -15,6 +15,7 @@ Once daily at **12:00 Europe/Kyiv**, the system reads tomorrow's appointments fr
 | Path | What it is |
 |---|---|
 | `docs/research/` | The canonical **research + architecture document** — the v2.26 source of truth (ADRs, data model, state machine, test strategy + hermetic harness, live-clinic go-live safety, API design). |
+| `docs/strategy/` | The **layer strategy** ([`2026-06-27-dentino-layer-strategy.md`](docs/strategy/2026-06-27-dentino-layer-strategy.md)) — the implementation roadmap: 4 sequentially-shippable build layers (L1 hermetic loop → L2 reliability spine → L3 operations → L4 hardening), the day-1 invariant set, and the build-shippable-vs-go-live distinction. Owns *sequencing*; cites the research doc for architecture. |
 | `docs/design/` | **Visual source of truth** (ADR-022 / §5.8): brand system, design tokens, re-traced logo, and the two reviewable mockups (confirm page + dashboard). |
 | `docs/your-tasks.md` | Business/owner action items (TurboSMS account, alpha sender-ID registration, ClinicCards key, DNS, official logo). |
 | `docs/planmaxer/` | Planmaxer review artifacts: handoff prompts, reviewer responses, reintegration prompts, and iteration archives. |
@@ -22,7 +23,7 @@ Once daily at **12:00 Europe/Kyiv**, the system reads tomorrow's appointments fr
 
 ## Planned stack (per the research doc)
 
-Supabase Pro (Postgres + `pg_cron` + Edge Functions on Deno + Auth + Vault) · TypeScript + Hono engine · Next.js dashboard · **TurboSMS** SMS (UA-native aggregator, self-service signup; registered alpha sender `DentinoLviv`; **AlphaSMS** fallback route) · external Healthchecks/Cronitor heartbeat · dedicated app-only origin `r.dentino.com.ua` · EU region.
+Supabase Pro (Postgres + `pg_cron` + Edge Functions on Deno + Auth + Vault) · TypeScript + Hono engine · Next.js dashboard · **TurboSMS** SMS (UA-native aggregator, self-service signup; registered alpha sender `Dentino`; **AlphaSMS** fallback route) · external Healthchecks/Cronitor heartbeat · dedicated app-only origin `r.dentino.com.ua` · EU region.
 
 ## Security
 
