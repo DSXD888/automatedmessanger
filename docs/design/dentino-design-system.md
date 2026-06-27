@@ -113,8 +113,9 @@ system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto San
   **"DENTINO"** wordmark with **«СТОМАТОЛОГІЧНА СТУДІЯ»** and a **"BY RAK & RAK"** sub-line —
   **monochrome, no rose accent in the mark itself.** At confirm-page build time it replaces the
   re-traced `logo.svg` — extracted to inline SVG (no external assets — ADR-022), using the **black**
-  version recoloured **navy `#0A3576`** for white-background surfaces and the **white** version for any
-  dark surface. *(The earlier re-trace used a single tooth + rose sparkle; the official two-tooth mark
+  version **as-is** on white-background surfaces and the **white** version on dark surfaces —
+  **the brand/clinic colours are black and white, and the logo is always black & white (it is never
+  recoloured or tinted).** *(The earlier re-trace used a single tooth + rose sparkle; the official two-tooth mark
   supersedes it — the re-trace stays as a fallback.)*
 
 ---
