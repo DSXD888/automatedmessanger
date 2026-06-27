@@ -21,7 +21,7 @@
 
 ## ▶ During the build
 
-- [ ] **B1 — Approve the Ukrainian patient-facing copy** I'll send: the two **SMS bodies** (default + compact), the **confirm/cancel page**, the **reschedule-first Cancel interstitial**, the **anti-scam line**, and the **footer opt-out**.
+- [ ] **B1 — Approve the Ukrainian patient-facing copy** I'll send: the two **SMS bodies** (default + name-overflow fallback), the **confirm/cancel page**, the **reschedule-first Cancel interstitial**, the **anti-scam line**, and the **footer opt-out**.
 - [ ] **B2 — Cross-operator test numbers** for the deliverability seed test: ideally **3+ each on Kyivstar, Vodafone UA, lifecell**, **2+ ported/MNP**, and one **staff** phone.
 - [ ] **B3 — Staff email(s)** that should log into the dashboard (Supabase Auth).
 
