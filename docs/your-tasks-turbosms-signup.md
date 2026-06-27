@@ -1,6 +1,6 @@
 # TurboSMS — self-service signup guide (owner task A1)
 
-> Companion to `docs/your-tasks.md` task **A1**. This replaces the old "what to say on the Kyivstar call" guide — TurboSMS is **self-service, no sales call**. EN first, **Українською нижче**.
+> Companion to `docs/your-tasks.md` task **A1**. TurboSMS is **self-service — no sales call**. EN first, **Українською нижче**.
 > **Don't paste API tokens or secrets into chat** — hand them over per task **C2** (into Supabase Vault / `.env`).
 
 ---
@@ -11,10 +11,9 @@
 2. **Verify the business.** Upload the clinic's **ЄДРПОУ** (if a ТОВ) or **ІПН / РНОКПП** (if a ФОП). **If you are a ФОП you also need a Vodafone guarantee letter** — TurboSMS will tell you the template; ТОВ does not need it.
 3. **Submit the alpha sender name `DentinoLviv`** (exactly 11 characters, **no space**) into the **national-names register**. This is the long pole (~**10 business days**).
    - ✅ **Verify gate 2:** ask/confirm that **one** submission covers **all three operators — Kyivstar, Vodafone, lifecell** (the national register), not just one.
-4. **Register the transactional template** (cabinet → **«Шаблони»** → type **«Транзакційний»**). Paste the approved Ukrainian reminder body. The link must be a **static prefix `https://r.dentino.com.ua/r/`** + a **variable token**, and the template **must not start or end with a variable** (ours ends on the static phone line — fine).
-   - ⚠️ **Verify gate 1 (most important):** get **written confirmation from a TurboSMS manager** that this **link-bearing template counts as transactional** — *not* reclassified to the pricier *advertising* rate.
-   - ⚠️ **Do not edit a template after approval** — editing re-classifies it as advertising. Finalize the copy first (I'll send you the final wording, task B1).
-5. **Medical-content sign-off.** Email TurboSMS the template(s) for **prior written medical-content approval** (required for clinic messages).
+4. **Get the link-bearing reminder pre-cleared (no SMS template to register).** There is **no SMS "transactional template"** to set up — a registered template that the text must match is a **Viber** feature (rejection code 416), *not* SMS. For SMS the pre-clearance is the **alpha-name** (step 3) + the **medical sign-off** (step 5) + keeping the text **purely service (no promotions)**.
+   - ⚠️ **Verify gate 1 (most important):** get **written confirmation from TurboSMS** that the **link-bearing reminder is accepted as a service SMS**. Note: SMS has **no** transactional-vs-advertising *rate* split (that's Viber); the SMS rate lever is keeping `DentinoLviv` **national**. Finalize the copy first (I'll send the final wording, task B1).
+5. **Medical-content sign-off.** Email TurboSMS the **final Ukrainian reminder text** for **prior written medical-content approval** (required for clinic/healthcare messages — Terms §3).
 6. **Top up a small balance** (1 UAH minimum is enough to start; there's **no SMS monthly floor**). You also get **10 free test SMS**.
 7. **Issue the API token + set up the delivery-receipt (DLR) webhook secret** in the cabinet. **Hand both to me (task C2)** — token + webhook secret — into Supabase Vault. Don't send them in chat.
 8. **The other two things to verify** (at signup or during the C4 seed test — not blockers):
@@ -31,10 +30,9 @@
 2. **Підтвердіть бізнес.** Завантажте **ЄДРПОУ** клініки (якщо ТОВ) або **ІПН / РНОКПП** (якщо ФОП). **Якщо ви ФОП — потрібен ще гарантійний лист для Vodafone** (TurboSMS дасть шаблон); для ТОВ він не потрібен.
 3. **Подайте альфа-ім'я відправника `DentinoLviv`** (рівно 11 символів, **без пробілу**) до **національного реєстру імен**. Це найдовший етап (~**10 робочих днів**).
    - ✅ **Перевірка 2:** уточніть, що **одна** заявка покриває **всіх трьох операторів — Kyivstar, Vodafone, lifecell** (національний реєстр), а не лише одного.
-4. **Зареєструйте транзакційний шаблон** (кабінет → **«Шаблони»** → тип **«Транзакційний»**). Вставте погоджений український текст нагадування. Посилання має бути **статичним префіксом `https://r.dentino.com.ua/r/`** + **змінний токен**, і шаблон **не може починатися або закінчуватися змінною** (наш закінчується статичним рядком з телефоном — це ок).
-   - ⚠️ **Перевірка 1 (найважливіша):** отримайте **письмове підтвердження від менеджера TurboSMS**, що цей шаблон **із посиланням вважається транзакційним**, а *не* перекласифікується на дорожчий *рекламний* тариф.
-   - ⚠️ **Не редагуйте шаблон після затвердження** — редагування перекласифікує його на рекламний. Спершу узгодьте остаточний текст (надішлю вам, завдання B1).
-5. **Погодження медичного контенту.** Надішліть шаблон(и) на email TurboSMS для **попереднього письмового погодження медичного контенту** (обов'язково для повідомлень клініки).
+4. **Узгодьте текст із посиланням (для SMS немає шаблону, який треба реєструвати).** Для SMS **немає «транзакційного шаблону»**, який потрібно створювати — реєстрація шаблону, під який має підходити текст, це функція **Viber** (код відмови 416), а **не** SMS. Для SMS попереднє узгодження = **альфа-ім'я** (крок 3) + **погодження медичного контенту** (крок 5) + суто **сервісний текст (без реклами)**.
+   - ⚠️ **Перевірка 1 (найважливіша):** отримайте **письмове підтвердження від TurboSMS**, що **нагадування з посиланням приймається як сервісне SMS**. Зверніть увагу: для SMS **немає** поділу на транзакційний/рекламний *тариф* (це Viber); важіль ціни для SMS — тримати `DentinoLviv` у **національному реєстрі**. Спершу узгодьте остаточний текст (надішлю вам, завдання B1).
+5. **Погодження медичного контенту.** Надішліть **остаточний український текст нагадування** на email TurboSMS для **попереднього письмового погодження медичного контенту** (обов'язково для повідомлень клініки — Умови §3).
 6. **Поповніть невеликий баланс** (достатньо мінімуму 1 грн; **немає щомісячного мінімуму на SMS**). Також ви отримаєте **10 безкоштовних тестових SMS**.
 7. **Створіть API-токен + налаштуйте секрет вебхука для звітів про доставку (DLR)** у кабінеті. **Передайте мені (завдання C2)** — токен + секрет вебхука — у Supabase Vault. Не надсилайте їх у чат.
 8. **Ще дві речі для перевірки** (під час реєстрації або в тесті C4 — не блокують роботу):
