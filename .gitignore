@@ -27,3 +27,6 @@ supabase/.temp/
 
 # MCP / tool session caches (e.g. Playwright design-recon dumps — not source)
 .playwright-mcp/
+
+# layermaxxer pipeline run-state marker (ephemeral local counter, like .beads/.run)
+docs/layermaxxer/.run
