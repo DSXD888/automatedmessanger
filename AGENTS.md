@@ -18,6 +18,10 @@ If I tell you to do something, even if it goes against what follows below, YOU M
 
 ---
 
+<!-- BEGIN: AGENTS.md Rule 2 (managed by install-bead-wrappers skill) -->
+<!-- NOTE: the rule below is PROJECT-CUSTOMIZED (richer than the skill's default).
+     These markers exist only so a future `install-bead-wrappers` run detects RULE 2
+     as already present and does NOT append a duplicate generic block. Keep the markers. -->
 ## RULE NUMBER 2: BEAD CLAIM DISCIPLINE — USE THE WRAPPERS
 
 For any bead-tracked work in this repo, you MUST use the project wrappers to claim and complete beads:
@@ -32,6 +36,7 @@ You MUST NOT use raw `br update --status=in_progress` or `br close <id>` directl
 If a wrapper errors, fix the underlying problem (agent-mail server down, file reservation conflict, missing `AGENT_MAIL_NAME` env var). Never bypass.
 
 This is a constitutional rule, equal in force to Rule 1 (no file deletion). It applies to every layer and every future stage.
+<!-- END: AGENTS.md Rule 2 -->
 
 ---
 
@@ -245,7 +250,9 @@ An **automated next-day appointment confirm/cancel messaging system** for a dent
 
 ### Key Source of Truth
 
-The foundational architecture is defined in `docs/research/2026-06-16-dentino-appointment-messaging-research.md` (~1600 lines, v2.25). **Always consult this document** for architectural decisions (ADR-001…024), the data model (§5.3), component design (§5.2), concurrency control (§5.7), API design (§5.4), error handling (§5.6), the testing strategy + hermetic harness (§6.5), the live-clinic staged-go-live safety model (§6.6), and the security/compliance model (§4.5, §6.3). It is the single source of truth until application code exists.
+The foundational architecture is defined in `docs/research/2026-06-16-dentino-appointment-messaging-research.md` (~1700 lines, v2.26). **Always consult this document** for architectural decisions (ADR-001…024), the data model (§5.3), component design (§5.2), concurrency control (§5.7), API design (§5.4), error handling (§5.6), the testing strategy + hermetic harness (§6.5), the live-clinic staged-go-live safety model (§6.6), and the security/compliance model (§4.5, §6.3). It is the single source of truth until application code exists.
+
+**For implementation *sequencing*, consult `docs/strategy/2026-06-27-dentino-layer-strategy.md`** — the layer strategy that decomposes the research doc into 4 sequentially-shippable build layers (L1 hermetic guarded loop → L2 reliability spine → L3 operations surface → L4 hardening & go-live readiness), pins the day-1 invariant set, and draws the **build-shippable-vs-go-live-shippable** line (the §6.6 `shadow→seed→canary→full` ladder is a post-build runtime event, not a build layer). It owns rollout order + per-layer Definition-of-Done; the research doc remains the architectural SoT it cites into.
 
 ### Operational Targets (research §6.4)
 

@@ -1,0 +1,678 @@
+#!/usr/bin/env python3
+"""br-claim — atomically claim a bead.
+
+Order (do not reorder):
+  1. resolve agent identity ($AGENT_MAIL_NAME, fallback $AGENT_NAME)
+  2. `br show <id> --json` → check status (open / not closed / not in_progress by another)
+  3. search_messages for `[<id>] Start` → idempotency: skip mail if our own Start exists,
+     abort if a different agent has Start
+  4. file_reservation_paths(...) — FIRST mutating call; failure here aborts (collision detector)
+  5. discover_peers (list_contacts, then list_agents liveness fallback;
+     loud error if neither yields peers and --solo not set);
+     send_message Start to those peers (NEVER silently self)
+  6. `br update <id> --status=in_progress`
+
+Talks to the local mcp-agent-mail server over HTTP at 127.0.0.1:8765 (the same auth
+flow the .claude.json client config uses) via JSON-RPC. Stdlib only.
+"""
+
+import argparse
+from datetime import datetime, timedelta, timezone
+import json
+import os
+import re
+import subprocess
+import sys
+import urllib.error
+import urllib.request
+
+DEFAULT_MCP_URL = "http://127.0.0.1:8765/mcp/"
+DEFAULT_TTL_SECONDS = 3600
+START_IDEMPOTENCY_HOURS = 4
+
+
+def die(msg, code=1):
+    sys.stderr.write(f"br-claim: {msg}\n")
+    sys.exit(code)
+
+
+def warn(msg):
+    sys.stderr.write(f"br-claim: warning: {msg}\n")
+
+
+def resolve_agent_name():
+    name = os.environ.get("AGENT_MAIL_NAME") or os.environ.get("AGENT_NAME")
+    if not name or not name.strip():
+        die(
+            "AGENT_MAIL_NAME not set. Run macro_start_session first or "
+            "export AGENT_MAIL_NAME=<your-agent-name>."
+        )
+    return name.strip()
+
+
+def resolve_bearer_token():
+    """Find the bearer token for the local mcp-agent-mail HTTP MCP server.
+
+    Order:
+      1. AGENT_MAIL_BEARER_TOKEN env var
+      2. ~/.claude.json mcpServers entry (Claude Code install layout)
+      3. ~/.config/mcp-agent-mail/config.env HTTP_BEARER_TOKEN= line (Codex CLI install layout)
+      4. empty
+    """
+    env_tok = os.environ.get("AGENT_MAIL_BEARER_TOKEN", "").strip()
+    if env_tok:
+        return env_tok
+    cfg_path = os.path.expanduser("~/.claude.json")
+    try:
+        with open(cfg_path, "r", encoding="utf-8") as f:
+            cfg = json.load(f)
+    except (OSError, ValueError):
+        cfg = None
+    if cfg:
+        servers = cfg.get("mcpServers", {}) or {}
+        entry = servers.get("mcp-agent-mail", {}) or {}
+        headers = entry.get("headers", {}) or {}
+        auth = headers.get("Authorization", "")
+        if isinstance(auth, str) and auth.lower().startswith("bearer "):
+            return auth[7:].strip()
+    env_file = os.path.expanduser("~/.config/mcp-agent-mail/config.env")
+    try:
+        with open(env_file, "r", encoding="utf-8") as f:
+            for line in f:
+                stripped = line.strip()
+                if not stripped or stripped.startswith("#") or "=" not in stripped:
+                    continue
+                key, _, val = stripped.partition("=")
+                if key.strip() == "HTTP_BEARER_TOKEN":
+                    return val.strip().strip('"').strip("'")
+    except OSError:
+        pass
+    return ""
+
+
+def preflight_health(url, token, tool_label):
+    """Refuse to mutate when the agent-mail server is in known-degraded state.
+
+    Calls MCP health_check; aborts when health_level=red AND the canonical drift
+    signature ('archive inventory is ahead') is present. Echoes the server's own
+    recovery.next_action verbatim so this stays correct if the server text ever
+    changes. Other non-green levels are warned and execution continues.
+    """
+    result = mcp_call(url, token, "health_check", {}, timeout=10)
+    if not isinstance(result, dict):
+        return
+    health_level = (result.get("health_level") or "").lower()
+    sem = result.get("semantic_readiness") or {}
+    detail = sem.get("detail") if isinstance(sem, dict) else ""
+    detail = detail or ""
+    recovery = result.get("recovery") or {}
+    next_action = recovery.get("next_action") if isinstance(recovery, dict) else ""
+    next_action = next_action or ""
+    recovery_mode = (recovery.get("mode") or "").lower() if isinstance(recovery, dict) else ""
+    write_policy = (recovery.get("write_policy") or "").lower() if isinstance(recovery, dict) else ""
+    # Hard block on the actually-enforced server-side write policy. This is the
+    # only signal that empirically means "mutations are refused" (0.3.0+ sets
+    # both fields together; 0.2.x sets recovery.mode alone as informational and
+    # accepts writes anyway — verified 2026-05-21 on 0.2.51 where the latch
+    # persists after reconstruct+repair while mutations succeed). Blocking on
+    # recovery.mode alone would over-block in 0.2.x.
+    if write_policy == "reject_all_mutations":
+        die(
+            "agent-mail write_policy=reject_all_mutations — refusing to mutate.\n"
+            f"  recovery.mode:        {recovery_mode or '(missing)'}\n"
+            f"  recovery.write_policy:{write_policy or '(missing)'}\n"
+            f"  recovery.next_action: {next_action}\n"
+            "  Do not retry until the operator has repaired the SQLite index."
+        )
+    if recovery_mode == "degraded_read_only" and write_policy != "reject_all_mutations":
+        warn(
+            "agent-mail recovery.mode=degraded_read_only but write_policy does not "
+            "reject mutations; proceeding. If writes start failing, stop and run "
+            "`am doctor reconstruct --yes` (with daemon stopped) and re-check."
+        )
+    if health_level == "red" and "archive inventory is ahead" in detail:
+        die(
+            "agent-mail is degraded_read_only — refusing to mutate.\n"
+            f"  semantic_readiness.detail: {detail}\n"
+            f"  recovery.next_action:      {next_action}\n"
+            "  Do not retry until the operator has repaired the SQLite index."
+        )
+    if health_level and health_level not in ("green", "ok"):
+        warn(
+            f"agent-mail health_level={health_level!r} (not green); continuing. "
+            f"detail={detail!r}"
+        )
+
+
+def resolve_project_key():
+    env_key = os.environ.get("AGENT_MAIL_PROJECT_KEY", "").strip()
+    if env_key:
+        return env_key
+    try:
+        out = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            capture_output=True, text=True, check=True,
+        )
+        return out.stdout.strip()
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        die("could not determine project_key (not a git repo and AGENT_MAIL_PROJECT_KEY unset)")
+
+
+def mcp_call(url, token, tool_name, arguments, timeout=30):
+    """JSON-RPC tools/call to the mcp-agent-mail HTTP MCP server.
+
+    Returns the parsed tool-result payload (dict / list / str). Tool errors and
+    HTTP errors raise; the caller decides whether to swallow or abort.
+    """
+    body = json.dumps({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "tools/call",
+        "params": {"name": tool_name, "arguments": arguments},
+    }).encode("utf-8")
+    headers = {
+        "Content-Type": "application/json",
+        "Accept": "application/json, text/event-stream",
+    }
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    req = urllib.request.Request(url, data=body, headers=headers, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            raw = resp.read()
+    except urllib.error.URLError as e:
+        reason = getattr(e, "reason", e)
+        if "refused" in str(reason).lower() or "Connection refused" in str(reason):
+            sys.stderr.write(
+                f"br-claim: agent-mail server not running at {url}. "
+                f"Start it before claiming beads. ({reason})\n"
+            )
+            sys.exit(2)
+        sys.stderr.write(f"br-claim: HTTP error talking to {url}: {reason}\n")
+        sys.exit(2)
+    except (TimeoutError, OSError) as e:
+        sys.stderr.write(f"br-claim: network error talking to {url}: {e}\n")
+        sys.exit(2)
+
+    # Streamable-HTTP MCP servers may return either application/json or
+    # text/event-stream. The current server returns JSON; handle both defensively.
+    text = raw.decode("utf-8", "replace").strip()
+    if text.startswith("event:") or text.startswith("data:"):
+        for line in text.splitlines():
+            if line.startswith("data:"):
+                text = line[5:].strip()
+                break
+    try:
+        envelope = json.loads(text)
+    except ValueError as e:
+        die(f"could not parse MCP response as JSON: {e}; body={text[:200]!r}", code=2)
+
+    if "error" in envelope and envelope["error"]:
+        err = envelope["error"]
+        die(f"MCP {tool_name} error: {err.get('message') or err}", code=1)
+
+    result = envelope.get("result", {}) or {}
+    content = result.get("content", []) or []
+    if content and isinstance(content[0], dict) and "text" in content[0]:
+        text_payload = content[0]["text"]
+        try:
+            return json.loads(text_payload)
+        except ValueError:
+            lower_payload = text_payload.lower()
+            if (
+                "degraded_read_only" in lower_payload
+                or "not write-safe" in lower_payload
+                or "mutating mcp calls are refused" in lower_payload
+            ):
+                die(f"MCP {tool_name} error: {text_payload}", code=1)
+            return text_payload
+    return result
+
+
+class NoPeersError(RuntimeError):
+    """Raised when neither list_contacts nor list_agents yields any peer."""
+
+
+def _parse_iso_ts(value):
+    """Parse an ISO-8601 timestamp; tolerate trailing 'Z' and missing tz."""
+    if not isinstance(value, str) or not value:
+        return None
+    text = value.strip()
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    try:
+        dt = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
+def _normalize_peer_list(payload, *, exclude):
+    """Flatten list_contacts/list_agents response shapes into peer names."""
+    out = []
+    seen = set()
+
+    def _add(name):
+        if not name or not isinstance(name, str):
+            return
+        if name == exclude or name in seen:
+            return
+        seen.add(name)
+        out.append(name)
+
+    items = []
+    if isinstance(payload, list):
+        items = payload
+    elif isinstance(payload, dict):
+        for key in ("contacts", "agents", "result", "results", "items"):
+            value = payload.get(key)
+            if isinstance(value, list):
+                items = value
+                break
+    for entry in items:
+        if isinstance(entry, str):
+            _add(entry)
+        elif isinstance(entry, dict):
+            # Schema varies by source tool:
+            #   list_agents → {"name": ..., "program": ..., "last_active_ts": ...}
+            #   list_contacts (am 0.2.51) → {"to": <peer>, "status": "approved", ...}
+            #                                 (outgoing requests; peer name in `to`)
+            # Some response shapes also use `from` for inbound. Try in priority order.
+            _add(
+                entry.get("name")
+                or entry.get("agent_name")
+                or entry.get("to")
+                or entry.get("peer_name")
+                or entry.get("from")
+            )
+    return out
+
+
+# Sentinel for "auto-derive same_program from self's list_agents entry".
+_AUTO_PROGRAM = object()
+
+
+def discover_peers(
+    url, token, project_key, agent,
+    *,
+    max_idle_seconds=3600,
+    same_program=_AUTO_PROGRAM,
+    allow_solo=False,
+    tool_label="br-claim",
+):
+    """Resolve recipients for Start/Complete mail.
+
+    Strategy:
+      1. list_contacts — preferred explicit handshake links.
+      2. list_agents — liveness fallback, same-program by default.
+      3. No peers — raise loudly unless solo mode was explicitly requested.
+
+    Returns (recipients: list[str], source: str), where source is one of
+    "contacts", "list_agents", or "solo".
+    """
+    contacts_payload = mcp_call(url, token, "list_contacts", {
+        "project_key": project_key, "agent_name": agent,
+    })
+    contacts = _normalize_peer_list(contacts_payload, exclude=agent)
+    if contacts:
+        return contacts, "contacts"
+
+    agents_payload = mcp_call(url, token, "list_agents", {
+        "project_key": project_key,
+    })
+    candidates = []
+    if isinstance(agents_payload, list):
+        candidates = agents_payload
+    elif isinstance(agents_payload, dict):
+        for key in ("agents", "result", "results", "items"):
+            value = agents_payload.get(key)
+            if isinstance(value, list):
+                candidates = value
+                break
+
+    if same_program is _AUTO_PROGRAM:
+        same_program = ""
+        for entry in candidates:
+            if not isinstance(entry, dict):
+                continue
+            name = entry.get("name") or entry.get("agent_name")
+            if name == agent:
+                same_program = entry.get("program") or ""
+                break
+
+    cutoff = datetime.now(timezone.utc) - timedelta(seconds=max_idle_seconds)
+    live = []
+    seen = set()
+    for entry in candidates:
+        if not isinstance(entry, dict):
+            continue
+        name = entry.get("name") or entry.get("agent_name")
+        if not name or name == agent or name in seen:
+            continue
+        if same_program:
+            prog = entry.get("program")
+            if prog and prog != same_program:
+                continue
+        last = entry.get("last_active_ts") or entry.get("inception_ts")
+        ts = _parse_iso_ts(last) if last else None
+        if ts is None or ts >= cutoff:
+            seen.add(name)
+            live.append(name)
+    if live:
+        return live, "list_agents"
+
+    if allow_solo:
+        return [agent], "solo"
+    raise NoPeersError(
+        "no peers discoverable.\n"
+        f"  list_contacts returned [] AND list_agents returned no live peers "
+        f"(idle cutoff: {max_idle_seconds}s, program filter: {same_program!r}).\n"
+        f"  Recovery options:\n"
+        f"    1. Handshake an existing peer:\n"
+        f"         macro_contact_handshake(project_key={project_key!r},\n"
+        f"                                 requester={agent!r}, target=<peer>)\n"
+        f"    2. Confirm a second agent is registered in this project:\n"
+        f"         list_agents(project_key={project_key!r})\n"
+        f"    3. If this really is a swarm of one, opt in explicitly:\n"
+        f"         {tool_label} <bead-id> --solo\n"
+        f"         (or export AGENT_MAIL_ALLOW_SOLO=1)"
+    )
+
+
+def br_show(bead_id):
+    """Return the bead dict, or exit with a clear message."""
+    try:
+        out = subprocess.run(
+            ["br", "show", bead_id, "--json"],
+            capture_output=True, text=True, check=True,
+        )
+    except FileNotFoundError:
+        die("`br` not found on PATH; install beads_rust first")
+    except subprocess.CalledProcessError as e:
+        die(f"`br show {bead_id}` failed: {e.stderr.strip() or e}")
+    try:
+        data = json.loads(out.stdout)
+    except ValueError as e:
+        die(f"could not parse `br show` output: {e}")
+    if isinstance(data, dict) and data.get("error"):
+        err = data["error"]
+        die(f"bead {bead_id}: {err.get('message') or err.get('code')}")
+    if isinstance(data, list):
+        for item in data:
+            if isinstance(item, dict) and item.get("id") == bead_id:
+                return item
+        die(f"bead {bead_id} not found in `br show` output")
+    if isinstance(data, dict) and data.get("id") == bead_id:
+        return data
+    die(f"unexpected `br show` shape for {bead_id}")
+
+
+FILES_HEADING_RE = re.compile(
+    r"^#{2,4}\s*Files?\s*(to|To)\s*(Create|Modify|Edit|Touch).*$",
+    re.MULTILINE | re.IGNORECASE,
+)
+PATH_BACKTICK_RE = re.compile(r"`([^`\n]+\.[A-Za-z0-9_]{1,8})`")
+PATH_BACKTICK_GLOB_RE = re.compile(r"`([^`\n]+/[^`\n]*\*\*?[^`\n]*)`")
+
+
+def parse_files_from_bead(description):
+    """Extract a list of file paths from the bead's description.
+
+    Looks for a heading like `### Files to Create/Modify` and parses backticked
+    paths in the bullets that follow, stopping at the next heading.
+    """
+    m = FILES_HEADING_RE.search(description or "")
+    if not m:
+        return []
+    section = description[m.end():]
+    next_heading = re.search(r"^#{1,6}\s", section, re.MULTILINE)
+    if next_heading:
+        section = section[:next_heading.start()]
+    paths = []
+    for match in PATH_BACKTICK_RE.finditer(section):
+        p = match.group(1).strip()
+        if p and p not in paths:
+            paths.append(p)
+    for match in PATH_BACKTICK_GLOB_RE.finditer(section):
+        p = match.group(1).strip()
+        if p and p not in paths:
+            paths.append(p)
+    return paths
+
+
+def parse_args():
+    p = argparse.ArgumentParser(
+        prog="bin/br-claim",
+        description=(
+            "Atomically claim a bead: reserve files, send [<bead-id>] Start mail, "
+            "set bead status=in_progress."
+        ),
+        epilog=(
+            "Order: file-reservation FIRST (collision detector), then mail, then br update.\n"
+            "Idempotent: if you already sent a Start for this bead in the last "
+            f"{START_IDEMPOTENCY_HOURS}h, mail is skipped."
+        ),
+    )
+    p.add_argument("bead_id", help="Bead ID to claim (e.g. testproject1-4zq.5.3)")
+    p.add_argument(
+        "--paths", nargs="+", default=None,
+        help="Override the file paths to reserve (else parsed from the bead body).",
+    )
+    p.add_argument(
+        "--ttl", type=int, default=DEFAULT_TTL_SECONDS,
+        help=f"Reservation TTL in seconds (default: {DEFAULT_TTL_SECONDS}).",
+    )
+    p.add_argument(
+        "--dry-run", action="store_true",
+        help="Print intentions and exit; make NO changes.",
+    )
+    p.add_argument(
+        "--solo", action="store_true",
+        help=(
+            "Allow self-addressing when no peers are discoverable. "
+            "Use only for genuine single-agent operation. "
+            "Equivalent to AGENT_MAIL_ALLOW_SOLO=1."
+        ),
+    )
+    p.add_argument(
+        "--peer-max-idle-seconds", type=int, default=3600,
+        help=(
+            "When falling back to list_agents (because list_contacts is empty), "
+            "treat agents idle longer than this as not-live. Default: 3600 (1h)."
+        ),
+    )
+    p.add_argument(
+        "--peer-same-program", default=None,
+        help=(
+            "When falling back to list_agents, only include peers whose program "
+            "matches this string. Default: auto-derived from your own program in "
+            "list_agents. Pass '*' to disable the filter. Pass a literal program "
+            "name to force-pin."
+        ),
+    )
+    return p.parse_args()
+
+
+def main():
+    args = parse_args()
+    bead_id = args.bead_id
+
+    agent = resolve_agent_name()
+    token = resolve_bearer_token()
+    project_key = resolve_project_key()
+    url = os.environ.get("AGENT_MAIL_MCP_URL", DEFAULT_MCP_URL)
+
+    # 0. Refuse to mutate when agent-mail is in degraded_read_only.
+    # Runs before --dry-run is honored so dry-run never paints a misleading OK.
+    preflight_health(url, token, "br-claim")
+
+    # 1. Check current bead state.
+    bead = br_show(bead_id)
+    status = (bead.get("status") or "").lower()
+    title = bead.get("title") or "(untitled)"
+    description = bead.get("description") or ""
+    if status == "in_progress":
+        die(f"bead {bead_id} is already in_progress. Refusing to re-claim.")
+    if status == "closed":
+        die(f"bead {bead_id} is closed. Refusing to re-claim.")
+    if status not in ("open", "ready", "blocked", "", "todo"):
+        warn(f"bead {bead_id} has unexpected status={status!r}; proceeding anyway.")
+
+    # 2. Idempotency: search for prior Start mail.
+    search_res = mcp_call(url, token, "search_messages", {
+        "project_key": project_key,
+        "query": f"[{bead_id}] Start",
+        "limit": 20,
+    })
+    prior_self_start = False
+    prior_other_start = None
+    messages = []
+    if isinstance(search_res, dict):
+        for key in ("result", "messages", "results"):
+            value = search_res.get(key)
+            if isinstance(value, list):
+                messages = value
+                break
+    elif isinstance(search_res, list):
+        messages = search_res
+    for msg in messages:
+        if not isinstance(msg, dict):
+            continue
+        subj = msg.get("subject") or ""
+        if f"[{bead_id}] Start" not in subj:
+            continue
+        sender = (
+            msg.get("sender_name") or msg.get("from_agent") or msg.get("from") or msg.get("sender")
+            or ""
+        )
+        if sender and sender == agent:
+            prior_self_start = True
+        elif sender and sender != agent:
+            prior_other_start = sender
+    if prior_other_start:
+        die(
+            f"bead {bead_id} already has Start mail from {prior_other_start!r}; abort."
+        )
+
+    # 3. Determine files to reserve.
+    paths = args.paths or parse_files_from_bead(description)
+    if not paths:
+        die(
+            f"could not determine files to reserve for {bead_id}. "
+            "Pass `--paths <p1> <p2> ...` (the bead body is missing a "
+            "'### Files to Create/Modify' section with backticked paths)."
+        )
+
+    # 4. Build the dry-run / live action plan.
+    print(f"br-claim: bead   = {bead_id}")
+    print(f"br-claim: title  = {title}")
+    print(f"br-claim: agent  = {agent}")
+    print(f"br-claim: project= {project_key}")
+    print(f"br-claim: paths  = {paths}")
+    print(f"br-claim: ttl    = {args.ttl}s, exclusive=true")
+    if prior_self_start:
+        print(f"br-claim: idempotency: prior Start from {agent} found → mail will be SKIPPED")
+
+    if args.dry_run:
+        print("br-claim: DRY-RUN — no changes made.")
+        return 0
+
+    # 5. RESERVE FILES (must precede mail; this is the collision detector).
+    reserve_args = {
+        "project_key": project_key,
+        "agent_name": agent,
+        "paths": paths,
+        "ttl_seconds": args.ttl,
+        "exclusive": True,
+        "reason": bead_id,
+    }
+    res = mcp_call(url, token, "file_reservation_paths", reserve_args)
+    # The server signals conflicts either by raising (handled in mcp_call) or by
+    # returning a dict with 'conflicts' / 'status'. Be defensive.
+    if isinstance(res, dict):
+        if res.get("conflicts"):
+            die(
+                f"FILE_RESERVATION_CONFLICT for {bead_id}: {res['conflicts']!r}. "
+                "Pick a different bead or wait for the holder to release."
+            )
+        if (res.get("status") or "").lower() in ("error", "conflict"):
+            die(f"file_reservation_paths returned error: {res!r}")
+    print(f"br-claim: ✓ reserved {len(paths)} path(s)")
+
+    # 6. SEND START MAIL (unless idempotency says skip).
+    if not prior_self_start:
+        allow_solo = bool(args.solo) or os.environ.get("AGENT_MAIL_ALLOW_SOLO", "").strip() in ("1", "true", "yes")
+        if args.peer_same_program is None:
+            program_arg = _AUTO_PROGRAM
+        elif args.peer_same_program == "*":
+            program_arg = ""
+        else:
+            program_arg = args.peer_same_program
+        try:
+            recipients, source = discover_peers(
+                url, token, project_key, agent,
+                max_idle_seconds=args.peer_max_idle_seconds,
+                same_program=program_arg,
+                allow_solo=allow_solo,
+                tool_label="br-claim",
+            )
+        except NoPeersError as e:
+            die(str(e))
+        if source == "solo":
+            warn(
+                "no peers found — proceeding in solo mode. "
+                "Start mail will be self-addressed (audit-only)."
+            )
+        elif source == "list_agents":
+            warn(
+                "no contacts found; falling back to list_agents liveness filter. "
+                f"Recipients: {recipients!r}. "
+                "Run macro_contact_handshake to make this deterministic."
+            )
+
+        files_md = "\n".join(f"- `{p}`" for p in paths)
+        body_md = (
+            f"Claiming bead **{bead_id}** ({title}).\n\n"
+            f"Files reserved (TTL {args.ttl}s, exclusive):\n{files_md}\n"
+        )
+        send_args = {
+            "project_key": project_key,
+            "sender_name": agent,
+            "to": recipients,
+            "thread_id": bead_id,
+            "subject": f"[{bead_id}] Start: {title}",
+            "body_md": body_md,
+            "ack_required": True,
+            "importance": "normal",
+        }
+        try:
+            mcp_call(url, token, "send_message", send_args)
+            print(f"br-claim: ✓ sent Start mail to {recipients}")
+        except SystemExit:
+            # mcp_call already printed the error and exited; re-raise.
+            raise
+    else:
+        print(f"br-claim: ✓ idempotent — Start mail already sent earlier")
+
+    # 7. UPDATE BR STATE.
+    try:
+        subprocess.run(
+            ["br", "update", bead_id, "--status=in_progress"],
+            check=True,
+        )
+        print(f"br-claim: ✓ br update {bead_id} --status=in_progress")
+    except subprocess.CalledProcessError as e:
+        warn(
+            f"br update failed after mail+reservation succeeded: {e}. "
+            "Re-run br-claim to reconcile (it is idempotent on the mail side)."
+        )
+        # Exit 0: state-of-record (br) trails authority (mail+reservations).
+
+    print(f"br-claim: DONE  · {bead_id} · files reserved: {len(paths)} · mail sent · br=in_progress")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main() or 0)

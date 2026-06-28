@@ -1,0 +1,691 @@
+#!/usr/bin/env python3
+"""br-complete — atomically complete a claimed bead.
+
+Order (do not reorder):
+  1. resolve agent identity
+  2. `br show <id> --json` → status MUST be in_progress
+  3. confirm a `[<id>] Start` from the SAME agent exists in the archive
+     (otherwise the bead was never properly claimed via br-claim)
+  4. resolve commit hash (--commit, else `git log --grep` for `<id>:`)
+  5. verify HEAD == @{u} so the commit is actually on the remote
+  6. discover_peers (list_contacts, then list_agents liveness fallback;
+     loud error if neither yields peers and --solo not set);
+     send_message [<id>] Complete to those peers (NEVER silently self)
+  7. `br close <id> --reason "Completed"`
+  8. `bin/br-sync` + git add .beads/ + commit + pull --rebase + push
+  9. release_file_reservations(agent_name=<self>)
+
+If any step before #9 fails, reservations are NOT released — the user re-runs
+once the underlying issue is fixed.
+"""
+
+import argparse
+from datetime import datetime, timedelta, timezone
+import json
+import os
+import subprocess
+import sys
+import urllib.error
+import urllib.request
+
+DEFAULT_MCP_URL = "http://127.0.0.1:8765/mcp/"
+
+
+def die(msg, code=1):
+    sys.stderr.write(f"br-complete: {msg}\n")
+    sys.exit(code)
+
+
+def warn(msg):
+    sys.stderr.write(f"br-complete: warning: {msg}\n")
+
+
+def resolve_agent_name():
+    name = os.environ.get("AGENT_MAIL_NAME") or os.environ.get("AGENT_NAME")
+    if not name or not name.strip():
+        die(
+            "AGENT_MAIL_NAME not set. Run macro_start_session first or "
+            "export AGENT_MAIL_NAME=<your-agent-name>."
+        )
+    return name.strip()
+
+
+def resolve_bearer_token():
+    """Find the bearer token for the local mcp-agent-mail HTTP MCP server.
+
+    Order:
+      1. AGENT_MAIL_BEARER_TOKEN env var
+      2. ~/.claude.json mcpServers entry (Claude Code install layout)
+      3. ~/.config/mcp-agent-mail/config.env HTTP_BEARER_TOKEN= line (Codex CLI install layout)
+      4. empty
+    """
+    env_tok = os.environ.get("AGENT_MAIL_BEARER_TOKEN", "").strip()
+    if env_tok:
+        return env_tok
+    cfg_path = os.path.expanduser("~/.claude.json")
+    try:
+        with open(cfg_path, "r", encoding="utf-8") as f:
+            cfg = json.load(f)
+    except (OSError, ValueError):
+        cfg = None
+    if cfg:
+        servers = cfg.get("mcpServers", {}) or {}
+        entry = servers.get("mcp-agent-mail", {}) or {}
+        headers = entry.get("headers", {}) or {}
+        auth = headers.get("Authorization", "")
+        if isinstance(auth, str) and auth.lower().startswith("bearer "):
+            return auth[7:].strip()
+    env_file = os.path.expanduser("~/.config/mcp-agent-mail/config.env")
+    try:
+        with open(env_file, "r", encoding="utf-8") as f:
+            for line in f:
+                stripped = line.strip()
+                if not stripped or stripped.startswith("#") or "=" not in stripped:
+                    continue
+                key, _, val = stripped.partition("=")
+                if key.strip() == "HTTP_BEARER_TOKEN":
+                    return val.strip().strip('"').strip("'")
+    except OSError:
+        pass
+    return ""
+
+
+def preflight_health(url, token, tool_label):
+    """Refuse to mutate when the agent-mail server is in known-degraded state.
+
+    Calls MCP health_check; aborts when health_level=red AND the canonical drift
+    signature ('archive inventory is ahead') is present. Echoes the server's own
+    recovery.next_action verbatim so this stays correct if the server text ever
+    changes. Other non-green levels are warned and execution continues.
+    """
+    result = mcp_call(url, token, "health_check", {}, timeout=10)
+    if not isinstance(result, dict):
+        return
+    health_level = (result.get("health_level") or "").lower()
+    sem = result.get("semantic_readiness") or {}
+    detail = sem.get("detail") if isinstance(sem, dict) else ""
+    detail = detail or ""
+    recovery = result.get("recovery") or {}
+    next_action = recovery.get("next_action") if isinstance(recovery, dict) else ""
+    next_action = next_action or ""
+    recovery_mode = (recovery.get("mode") or "").lower() if isinstance(recovery, dict) else ""
+    write_policy = (recovery.get("write_policy") or "").lower() if isinstance(recovery, dict) else ""
+    # Hard block on the actually-enforced server-side write policy. This is the
+    # only signal that empirically means "mutations are refused" (0.3.0+ sets
+    # both fields together; 0.2.x sets recovery.mode alone as informational and
+    # accepts writes anyway — verified 2026-05-21 on 0.2.51 where the latch
+    # persists after reconstruct+repair while mutations succeed). Blocking on
+    # recovery.mode alone would over-block in 0.2.x.
+    if write_policy == "reject_all_mutations":
+        die(
+            "agent-mail write_policy=reject_all_mutations — refusing to mutate.\n"
+            f"  recovery.mode:        {recovery_mode or '(missing)'}\n"
+            f"  recovery.write_policy:{write_policy or '(missing)'}\n"
+            f"  recovery.next_action: {next_action}\n"
+            "  Do not retry until the operator has repaired the SQLite index."
+        )
+    if recovery_mode == "degraded_read_only" and write_policy != "reject_all_mutations":
+        warn(
+            "agent-mail recovery.mode=degraded_read_only but write_policy does not "
+            "reject mutations; proceeding. If writes start failing, stop and run "
+            "`am doctor reconstruct --yes` (with daemon stopped) and re-check."
+        )
+    if health_level == "red" and "archive inventory is ahead" in detail:
+        die(
+            "agent-mail is degraded_read_only — refusing to mutate.\n"
+            f"  semantic_readiness.detail: {detail}\n"
+            f"  recovery.next_action:      {next_action}\n"
+            "  Do not retry until the operator has repaired the SQLite index."
+        )
+    if health_level and health_level not in ("green", "ok"):
+        warn(
+            f"agent-mail health_level={health_level!r} (not green); continuing. "
+            f"detail={detail!r}"
+        )
+
+
+def resolve_project_key():
+    env_key = os.environ.get("AGENT_MAIL_PROJECT_KEY", "").strip()
+    if env_key:
+        return env_key
+    try:
+        out = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            capture_output=True, text=True, check=True,
+        )
+        return out.stdout.strip()
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        die("could not determine project_key (not a git repo and AGENT_MAIL_PROJECT_KEY unset)")
+
+
+def mcp_call(url, token, tool_name, arguments, timeout=30):
+    body = json.dumps({
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "tools/call",
+        "params": {"name": tool_name, "arguments": arguments},
+    }).encode("utf-8")
+    headers = {
+        "Content-Type": "application/json",
+        "Accept": "application/json, text/event-stream",
+    }
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    req = urllib.request.Request(url, data=body, headers=headers, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            raw = resp.read()
+    except urllib.error.URLError as e:
+        reason = getattr(e, "reason", e)
+        if "refused" in str(reason).lower() or "Connection refused" in str(reason):
+            sys.stderr.write(
+                f"br-complete: agent-mail server not running at {url}. "
+                f"Start it before completing beads. ({reason})\n"
+            )
+            sys.exit(2)
+        sys.stderr.write(f"br-complete: HTTP error talking to {url}: {reason}\n")
+        sys.exit(2)
+    except (TimeoutError, OSError) as e:
+        sys.stderr.write(f"br-complete: network error talking to {url}: {e}\n")
+        sys.exit(2)
+
+    text = raw.decode("utf-8", "replace").strip()
+    if text.startswith("event:") or text.startswith("data:"):
+        for line in text.splitlines():
+            if line.startswith("data:"):
+                text = line[5:].strip()
+                break
+    try:
+        envelope = json.loads(text)
+    except ValueError as e:
+        die(f"could not parse MCP response as JSON: {e}; body={text[:200]!r}", code=2)
+
+    if "error" in envelope and envelope["error"]:
+        err = envelope["error"]
+        die(f"MCP {tool_name} error: {err.get('message') or err}", code=1)
+
+    result = envelope.get("result", {}) or {}
+    content = result.get("content", []) or []
+    if content and isinstance(content[0], dict) and "text" in content[0]:
+        text_payload = content[0]["text"]
+        try:
+            return json.loads(text_payload)
+        except ValueError:
+            lower_payload = text_payload.lower()
+            if (
+                "degraded_read_only" in lower_payload
+                or "not write-safe" in lower_payload
+                or "mutating mcp calls are refused" in lower_payload
+            ):
+                die(f"MCP {tool_name} error: {text_payload}", code=1)
+            return text_payload
+    return result
+
+
+class NoPeersError(RuntimeError):
+    """Raised when neither list_contacts nor list_agents yields any peer."""
+
+
+def _parse_iso_ts(value):
+    """Parse an ISO-8601 timestamp; tolerate trailing 'Z' and missing tz."""
+    if not isinstance(value, str) or not value:
+        return None
+    text = value.strip()
+    if text.endswith("Z"):
+        text = text[:-1] + "+00:00"
+    try:
+        dt = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt
+
+
+def _normalize_peer_list(payload, *, exclude):
+    """Flatten list_contacts/list_agents response shapes into peer names."""
+    out = []
+    seen = set()
+
+    def _add(name):
+        if not name or not isinstance(name, str):
+            return
+        if name == exclude or name in seen:
+            return
+        seen.add(name)
+        out.append(name)
+
+    items = []
+    if isinstance(payload, list):
+        items = payload
+    elif isinstance(payload, dict):
+        for key in ("contacts", "agents", "result", "results", "items"):
+            value = payload.get(key)
+            if isinstance(value, list):
+                items = value
+                break
+    for entry in items:
+        if isinstance(entry, str):
+            _add(entry)
+        elif isinstance(entry, dict):
+            # Schema varies by source tool:
+            #   list_agents → {"name": ..., "program": ..., "last_active_ts": ...}
+            #   list_contacts (am 0.2.51) → {"to": <peer>, "status": "approved", ...}
+            #                                 (outgoing requests; peer name in `to`)
+            # Some response shapes also use `from` for inbound. Try in priority order.
+            _add(
+                entry.get("name")
+                or entry.get("agent_name")
+                or entry.get("to")
+                or entry.get("peer_name")
+                or entry.get("from")
+            )
+    return out
+
+
+# Sentinel for "auto-derive same_program from self's list_agents entry".
+_AUTO_PROGRAM = object()
+
+
+def discover_peers(
+    url, token, project_key, agent,
+    *,
+    max_idle_seconds=3600,
+    same_program=_AUTO_PROGRAM,
+    allow_solo=False,
+    tool_label="br-complete",
+):
+    """Resolve recipients for Start/Complete mail.
+
+    Strategy:
+      1. list_contacts — preferred explicit handshake links.
+      2. list_agents — liveness fallback, same-program by default.
+      3. No peers — raise loudly unless solo mode was explicitly requested.
+
+    Returns (recipients: list[str], source: str), where source is one of
+    "contacts", "list_agents", or "solo".
+    """
+    contacts_payload = mcp_call(url, token, "list_contacts", {
+        "project_key": project_key, "agent_name": agent,
+    })
+    contacts = _normalize_peer_list(contacts_payload, exclude=agent)
+    if contacts:
+        return contacts, "contacts"
+
+    agents_payload = mcp_call(url, token, "list_agents", {
+        "project_key": project_key,
+    })
+    candidates = []
+    if isinstance(agents_payload, list):
+        candidates = agents_payload
+    elif isinstance(agents_payload, dict):
+        for key in ("agents", "result", "results", "items"):
+            value = agents_payload.get(key)
+            if isinstance(value, list):
+                candidates = value
+                break
+
+    if same_program is _AUTO_PROGRAM:
+        same_program = ""
+        for entry in candidates:
+            if not isinstance(entry, dict):
+                continue
+            name = entry.get("name") or entry.get("agent_name")
+            if name == agent:
+                same_program = entry.get("program") or ""
+                break
+
+    cutoff = datetime.now(timezone.utc) - timedelta(seconds=max_idle_seconds)
+    live = []
+    seen = set()
+    for entry in candidates:
+        if not isinstance(entry, dict):
+            continue
+        name = entry.get("name") or entry.get("agent_name")
+        if not name or name == agent or name in seen:
+            continue
+        if same_program:
+            prog = entry.get("program")
+            if prog and prog != same_program:
+                continue
+        last = entry.get("last_active_ts") or entry.get("inception_ts")
+        ts = _parse_iso_ts(last) if last else None
+        if ts is None or ts >= cutoff:
+            seen.add(name)
+            live.append(name)
+    if live:
+        return live, "list_agents"
+
+    if allow_solo:
+        return [agent], "solo"
+    raise NoPeersError(
+        "no peers discoverable.\n"
+        f"  list_contacts returned [] AND list_agents returned no live peers "
+        f"(idle cutoff: {max_idle_seconds}s, program filter: {same_program!r}).\n"
+        f"  Recovery options:\n"
+        f"    1. Handshake an existing peer:\n"
+        f"         macro_contact_handshake(project_key={project_key!r},\n"
+        f"                                 requester={agent!r}, target=<peer>)\n"
+        f"    2. Confirm a second agent is registered in this project:\n"
+        f"         list_agents(project_key={project_key!r})\n"
+        f"    3. If this really is a swarm of one, opt in explicitly:\n"
+        f"         {tool_label} <bead-id> --solo\n"
+        f"         (or export AGENT_MAIL_ALLOW_SOLO=1)"
+    )
+
+
+def br_show(bead_id):
+    try:
+        out = subprocess.run(
+            ["br", "show", bead_id, "--json"],
+            capture_output=True, text=True, check=True,
+        )
+    except FileNotFoundError:
+        die("`br` not found on PATH; install beads_rust first")
+    except subprocess.CalledProcessError as e:
+        die(f"`br show {bead_id}` failed: {e.stderr.strip() or e}")
+    try:
+        data = json.loads(out.stdout)
+    except ValueError as e:
+        die(f"could not parse `br show` output: {e}")
+    if isinstance(data, dict) and data.get("error"):
+        err = data["error"]
+        die(f"bead {bead_id}: {err.get('message') or err.get('code')}")
+    if isinstance(data, list):
+        for item in data:
+            if isinstance(item, dict) and item.get("id") == bead_id:
+                return item
+        die(f"bead {bead_id} not found in `br show` output")
+    if isinstance(data, dict) and data.get("id") == bead_id:
+        return data
+    die(f"unexpected `br show` shape for {bead_id}")
+
+
+def find_commit_for_bead(bead_id):
+    """Return the most recent commit SHA whose subject begins with `<bead-id>:`."""
+    try:
+        out = subprocess.run(
+            ["git", "log", "-1", "--format=%H", f"--grep=^{bead_id}:"],
+            capture_output=True, text=True, check=True,
+        )
+    except subprocess.CalledProcessError as e:
+        die(f"git log failed: {e.stderr.strip() or e}")
+    sha = out.stdout.strip()
+    if not sha:
+        die(
+            f"could not find a commit with subject `{bead_id}: ...`. "
+            f"Pass --commit <sha> explicitly, or commit your work first."
+        )
+    return sha
+
+
+def verify_pushed(commit_sha):
+    """Confirm HEAD matches its upstream tracking branch (i.e. local is pushed)."""
+    try:
+        head = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            capture_output=True, text=True, check=True,
+        ).stdout.strip()
+    except subprocess.CalledProcessError as e:
+        die(f"git rev-parse HEAD failed: {e.stderr.strip() or e}")
+
+    try:
+        upstream = subprocess.run(
+            ["git", "rev-parse", "@{u}"],
+            capture_output=True, text=True, check=True,
+        ).stdout.strip()
+    except subprocess.CalledProcessError:
+        die(
+            "no upstream tracking branch. Set one (`git push -u origin <branch>`) "
+            "and try again."
+        )
+
+    if head != upstream:
+        die(
+            f"local HEAD ({head[:8]}) is ahead of/behind upstream ({upstream[:8]}). "
+            "Run `git pull --rebase && git push` first."
+        )
+
+    # Also check that the named commit is actually reachable from upstream.
+    try:
+        subprocess.run(
+            ["git", "merge-base", "--is-ancestor", commit_sha, "@{u}"],
+            check=True, capture_output=True,
+        )
+    except subprocess.CalledProcessError:
+        die(
+            f"commit {commit_sha[:8]} is not an ancestor of upstream. "
+            "Push the branch containing this commit and try again."
+        )
+
+
+def parse_args():
+    p = argparse.ArgumentParser(
+        prog="bin/br-complete",
+        description=(
+            "Atomically complete a claimed bead: send [<bead-id>] Complete mail, "
+            "close the bead, sync .beads/, push, release reservations."
+        ),
+        epilog=(
+            "Run AFTER `git commit -m \"<bead-id>: ...\"` and `git push`. "
+            "br-complete refuses to proceed if the commit isn't on the remote."
+        ),
+    )
+    p.add_argument("bead_id", help="Bead ID to complete (e.g. testproject1-4zq.5.3)")
+    p.add_argument(
+        "--commit", default=None,
+        help="Explicit commit SHA for the Complete-mail body (else parsed from git log).",
+    )
+    p.add_argument(
+        "--dry-run", action="store_true",
+        help="Print intentions and exit; make NO changes.",
+    )
+    p.add_argument(
+        "--solo", action="store_true",
+        help=(
+            "Allow self-addressing when no peers are discoverable. "
+            "Use only for genuine single-agent operation. "
+            "Equivalent to AGENT_MAIL_ALLOW_SOLO=1."
+        ),
+    )
+    p.add_argument(
+        "--peer-max-idle-seconds", type=int, default=3600,
+        help=(
+            "When falling back to list_agents (because list_contacts is empty), "
+            "treat agents idle longer than this as not-live. Default: 3600 (1h)."
+        ),
+    )
+    p.add_argument(
+        "--peer-same-program", default=None,
+        help=(
+            "When falling back to list_agents, only include peers whose program "
+            "matches this string. Default: auto-derived from your own program in "
+            "list_agents. Pass '*' to disable the filter. Pass a literal program "
+            "name to force-pin."
+        ),
+    )
+    return p.parse_args()
+
+
+def main():
+    args = parse_args()
+    bead_id = args.bead_id
+
+    agent = resolve_agent_name()
+    token = resolve_bearer_token()
+    project_key = resolve_project_key()
+    url = os.environ.get("AGENT_MAIL_MCP_URL", DEFAULT_MCP_URL)
+
+    # 0. Refuse to mutate when agent-mail is in degraded_read_only.
+    # Runs before --dry-run is honored so dry-run never paints a misleading OK.
+    preflight_health(url, token, "br-complete")
+
+    # 1. Verify bead is in_progress.
+    bead = br_show(bead_id)
+    status = (bead.get("status") or "").lower()
+    title = bead.get("title") or "(untitled)"
+    if status != "in_progress":
+        die(
+            f"bead {bead_id} is not in_progress (status={status!r}). "
+            "Did you forget to run bin/br-claim, or is this the wrong bead?"
+        )
+
+    # 2. Confirm we (this agent) sent the Start mail.
+    search_res = mcp_call(url, token, "search_messages", {
+        "project_key": project_key,
+        "query": f"[{bead_id}] Start",
+        "limit": 20,
+    })
+    messages = []
+    if isinstance(search_res, dict):
+        for key in ("result", "messages", "results"):
+            value = search_res.get(key)
+            if isinstance(value, list):
+                messages = value
+                break
+    elif isinstance(search_res, list):
+        messages = search_res
+    self_start_found = False
+    for msg in messages:
+        if not isinstance(msg, dict):
+            continue
+        subj = msg.get("subject") or ""
+        if f"[{bead_id}] Start" not in subj:
+            continue
+        sender = (
+            msg.get("sender_name") or msg.get("from_agent") or msg.get("from") or msg.get("sender")
+            or ""
+        )
+        if sender == agent:
+            self_start_found = True
+            break
+    if not self_start_found:
+        die(
+            f"no `[{bead_id}] Start` mail from {agent!r} in the archive. "
+            "This bead was not claimed via bin/br-claim. Refusing to send a "
+            "Complete without a corresponding Start."
+        )
+
+    # 3. Resolve commit hash and verify pushed.
+    commit_sha = (args.commit or "").strip() or find_commit_for_bead(bead_id)
+    verify_pushed(commit_sha)
+
+    print(f"br-complete: bead   = {bead_id}")
+    print(f"br-complete: title  = {title}")
+    print(f"br-complete: agent  = {agent}")
+    print(f"br-complete: commit = {commit_sha}")
+
+    if args.dry_run:
+        print("br-complete: DRY-RUN — no changes made.")
+        return 0
+
+    # 4. SEND COMPLETE MAIL.
+    allow_solo = bool(args.solo) or os.environ.get("AGENT_MAIL_ALLOW_SOLO", "").strip() in ("1", "true", "yes")
+    if args.peer_same_program is None:
+        program_arg = _AUTO_PROGRAM
+    elif args.peer_same_program == "*":
+        program_arg = ""
+    else:
+        program_arg = args.peer_same_program
+    try:
+        recipients, source = discover_peers(
+            url, token, project_key, agent,
+            max_idle_seconds=args.peer_max_idle_seconds,
+            same_program=program_arg,
+            allow_solo=allow_solo,
+            tool_label="br-complete",
+        )
+    except NoPeersError as e:
+        die(str(e))
+    if source == "solo":
+        warn(
+            "no peers found — proceeding in solo mode. "
+            "Complete mail will be self-addressed (audit-only)."
+        )
+    elif source == "list_agents":
+        warn(
+            "no contacts found; falling back to list_agents liveness filter. "
+            f"Recipients: {recipients!r}. "
+            "Run macro_contact_handshake to make this deterministic."
+        )
+
+    body_md = (
+        f"Completed bead **{bead_id}** ({title}).\n\n"
+        f"Commit: `{commit_sha}`. All checks pass."
+    )
+    send_args = {
+        "project_key": project_key,
+        "sender_name": agent,
+        "to": recipients,
+        "thread_id": bead_id,
+        "subject": f"[{bead_id}] Complete: {title}",
+        "body_md": body_md,
+        "ack_required": False,
+        "importance": "normal",
+    }
+    mcp_call(url, token, "send_message", send_args)
+    print(f"br-complete: ✓ sent Complete mail to {recipients}")
+
+    # 5. CLOSE BEAD.
+    try:
+        subprocess.run(
+            ["br", "close", bead_id, "--reason", "Completed"],
+            check=True,
+        )
+    except subprocess.CalledProcessError as e:
+        die(f"br close failed: {e}")
+    print(f"br-complete: ✓ br close {bead_id}")
+
+    # 6. SYNC AND COMMIT BEADS.
+    repo_root = project_key
+    try:
+        subprocess.run(
+            [os.path.join(repo_root, "bin", "br-sync")],
+            check=True,
+        )
+    except (subprocess.CalledProcessError, FileNotFoundError) as e:
+        die(f"bin/br-sync failed: {e}")
+
+    # If .beads/ has any changes, commit and push them.
+    diff = subprocess.run(
+        ["git", "status", "--porcelain", ".beads/"],
+        capture_output=True, text=True, check=False,
+    )
+    if (diff.stdout or "").strip():
+        try:
+            subprocess.run(["git", "add", ".beads/"], check=True)
+            subprocess.run(
+                ["git", "commit", "-m", f"beads: close {bead_id}"],
+                check=True,
+            )
+            subprocess.run(["git", "pull", "--rebase"], check=True)
+            subprocess.run(["git", "push"], check=True)
+            print(f"br-complete: ✓ pushed beads sync commit")
+        except subprocess.CalledProcessError as e:
+            die(
+                f"git push of beads sync failed: {e}. "
+                "Resolve manually; reservations have NOT been released, so re-running "
+                "this script after fixing will pick up where we left off."
+            )
+    else:
+        print("br-complete: (no .beads/ changes to commit)")
+
+    # 7. RELEASE FILE RESERVATIONS (last step — only after everything else lands).
+    try:
+        mcp_call(url, token, "release_file_reservations", {
+            "project_key": project_key,
+            "agent_name": agent,
+        })
+        print(f"br-complete: ✓ released file reservations for {agent}")
+    except SystemExit:
+        warn(
+            "release_file_reservations failed; you can release manually via the "
+            "agent-mail tools or wait for the TTL to expire."
+        )
+
+    print(f"br-complete: DONE  · {bead_id} · mail sent · br=closed · reservations released")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main() or 0)
