@@ -1,0 +1,9 @@
+{
+  "fmt": {
+    "include": ["supabase/functions", "tests"],
+    "exclude": ["tests/**/*.sql"]
+  },
+  "lint": {
+    "include": ["supabase/functions", "tests"]
+  }
+}
