@@ -6,6 +6,7 @@ import {
   type ConfirmHttpRequest,
   type ConfirmReminderRecord,
   createInMemoryConfirmActionStore,
+  evaluateCancellationBreakerSnapshot,
   handleConfirmRequest,
 } from "../../supabase/functions/confirm/index.ts";
 import {
@@ -201,8 +202,8 @@ Deno.test("E2E-DOUBLEPOST-01 concurrent valid action POSTs record exactly one bu
 
   assertEquals(first.status, 200);
   assertEquals(second.status, 200);
-  assertEquals(fixture.store.reminders[0].actionTaken, "confirmed");
-  assertEquals(fixture.store.reminders[0].response, "confirm");
+  assertEquals(actionTakenAt(fixture, 0), "confirmed");
+  assertEquals(responseAt(fixture, 0), "confirm");
   assertEquals(fixture.writeCalls.length, 1);
 });
 
@@ -219,8 +220,8 @@ Deno.test("E2E-DOUBLEPOST-01 write-back exceptions leave the recorded action for
 
   assertEquals(response.status, 200);
   assertMatch(await response.text(), /Адміністратор перевірить запит/u);
-  assertEquals(fixture.store.reminders[0].actionTaken, "error");
-  assertEquals(fixture.store.reminders[0].crmWritebackOk, false);
+  assertEquals(actionTakenAt(fixture, 0), "error");
+  assertEquals(crmWritebackOkAt(fixture, 0), false);
   assertEquals(fixture.writeCalls.length, 0);
 });
 
@@ -235,23 +236,23 @@ Deno.test("E2E-OPT-OUT-01 footer opt-out requires nonce, appends consent, and do
     `/r/${rawToken}?action=opt_out`,
   );
   assertEquals(getCannotOptOut.status, 200);
-  assertEquals(fixture.store.consentEvents.length, 0);
+  assertEquals(consentEventCount(fixture), 0);
 
   await call(fixture, "POST", `/r/${rawToken}/action`, {
     action: "opt_out",
     nonce: optOutNonce,
   });
 
-  assertEquals(fixture.store.consentEvents.length, 1);
-  assertEquals(fixture.store.reminders[0].smsRemindersEnabled, false);
-  assertEquals(fixture.store.reminders[0].actionLockedAt, undefined);
+  assertEquals(consentEventCount(fixture), 1);
+  assertEquals(smsRemindersEnabledAt(fixture, 0), false);
+  assertEquals(actionLockedAtAt(fixture, 0), undefined);
   assertEquals(fixture.writeCalls.length, 0);
 
   await call(fixture, "POST", `/r/${rawToken}/action`, {
     action: "opt_out",
     nonce: optOutNonce,
   });
-  assertEquals(fixture.store.consentEvents.length, 1);
+  assertEquals(consentEventCount(fixture), 1);
   assertEquals(fixture.writeCalls.length, 0);
 });
 
@@ -265,7 +266,7 @@ Deno.test("E2E-NOJS-01 server-rendered forms complete Confirm, Cancel interstiti
     action: "confirm",
     nonce: nonceForAction(confirmHtml, "confirm"),
   });
-  assertEquals(confirm.store.reminders[0].actionTaken, "confirmed");
+  assertEquals(actionTakenAt(confirm, 0), "confirmed");
 
   const cancel = await confirmFixture({ reminder: { id: 2 } });
   const interstitial = await responseText(
@@ -278,7 +279,7 @@ Deno.test("E2E-NOJS-01 server-rendered forms complete Confirm, Cancel interstiti
     action: "cancel",
     nonce: nonceForAction(interstitial, "cancel"),
   });
-  assertEquals(cancel.store.reminders[0].actionTaken, "cancelled");
+  assertEquals(actionTakenAt(cancel, 0), "cancelled");
 
   const stale = await confirmFixture({
     reminder: { targetAt: "2026-06-30T08:59:00.000Z" },
@@ -292,10 +293,10 @@ Deno.test("E2E-NOJS-01 server-rendered forms complete Confirm, Cancel interstiti
     action: "opt_out",
     nonce: nonceForAction(optOutHtml, "opt_out"),
   });
-  assertEquals(optOut.store.consentEvents.length, 1);
+  assertEquals(consentEventCount(optOut), 1);
 });
 
-Deno.test("FR-L1-WEB-03 valid cancel velocity opens the breaker and halts CRM writes", async () => {
+Deno.test("E2E-BREAKER-01 four valid cancels in ten minutes hard-open the breaker and halt CRM writes", async () => {
   const reminders: ConfirmReminderRecord[] = [];
   for (const id of [1, 2, 3, 4]) {
     reminders.push(await reminder({ id }));
@@ -306,7 +307,7 @@ Deno.test("FR-L1-WEB-03 valid cancel velocity opens the breaker and halts CRM wr
     sentBaselineByTargetDate: { [targetDate]: 10 },
   });
 
-  for (const record of fixture.store.reminders) {
+  for (const record of remindersFor(fixture)) {
     const nonce = await nonceForRecord(record, "cancel");
     await call(fixture, "POST", `/r/${rawToken}/action`, {
       action: "cancel",
@@ -315,11 +316,187 @@ Deno.test("FR-L1-WEB-03 valid cancel velocity opens the breaker and halts CRM wr
   }
 
   assertEquals(
-    fixture.store.cancellationCircuits.get(targetDate)?.status,
+    circuitFor(fixture, targetDate)?.status,
     "open",
   );
-  assertEquals(fixture.store.reminders[3].actionTaken, "pending_staff_review");
+  assertEquals(
+    circuitFor(fixture, targetDate)?.openedReason,
+    "cancel_velocity",
+  );
+  assertEquals(actionTakenAt(fixture, 3), "pending_staff_review");
   assertEquals(fixture.writeCalls.length, 3);
+});
+
+Deno.test("E2E-BREAKER-01 six valid cancels across thirty minutes hard-open the breaker", async () => {
+  const reminders: ConfirmReminderRecord[] = [];
+  for (const id of [1, 2, 3, 4, 5, 6]) {
+    reminders.push(await reminder({ id }));
+  }
+  const fixture = await confirmFixture({
+    reminders,
+    sentBaselineByTargetDate: { [targetDate]: 20 },
+  });
+  const startMs = Date.parse(nowIso);
+
+  const records = remindersFor(fixture);
+  for (let index = 0; index < records.length; index += 1) {
+    const record = records[index];
+    fixture.now = new Date(startMs + index * 5 * 60 * 1000);
+    await call(fixture, "POST", `/r/${rawToken}/action`, {
+      action: "cancel",
+      nonce: await nonceForRecord(
+        record,
+        "cancel",
+        new Date(fixture.now.getTime() + 10 * 60 * 1000).toISOString(),
+      ),
+    });
+  }
+
+  const snapshot = evaluateCancellationBreakerSnapshot({
+    reminders: remindersFor(fixture),
+    targetDate,
+    sentBaselineByTargetDate: { [targetDate]: 20 },
+    now: fixture.now,
+  });
+  assertEquals(snapshot.tenMinuteCancels, 3);
+  assertEquals(snapshot.thirtyMinuteCancels, 6);
+  assertEquals(snapshot.hardOpen, true);
+  assertEquals(actionTakenAt(fixture, 5), "pending_staff_review");
+  assertEquals(fixture.writeCalls.length, 5);
+});
+
+Deno.test("E2E-BREAKER-02 slow valid cancel drip ambers while CRM writes continue", async () => {
+  const reminders: ConfirmReminderRecord[] = [];
+  for (const id of [1, 2, 3, 4, 5, 6, 7, 8]) {
+    reminders.push(await reminder({ id }));
+  }
+  const sentBaselineByTargetDate = { [targetDate]: 20 };
+  const fixture = await confirmFixture({ reminders, sentBaselineByTargetDate });
+  const startMs = Date.parse(nowIso);
+
+  const records = remindersFor(fixture);
+  for (let index = 0; index < records.length; index += 1) {
+    const record = records[index];
+    fixture.now = new Date(startMs + index * 50 * 60 * 1000);
+    await call(fixture, "POST", `/r/${rawToken}/action`, {
+      action: "cancel",
+      nonce: await nonceForRecord(
+        record,
+        "cancel",
+        new Date(fixture.now.getTime() + 10 * 60 * 1000).toISOString(),
+      ),
+    });
+  }
+
+  const snapshot = evaluateCancellationBreakerSnapshot({
+    reminders: remindersFor(fixture),
+    targetDate,
+    sentBaselineByTargetDate,
+    now: fixture.now,
+  });
+  assertEquals(snapshot.validCancelCount, 8);
+  assertEquals(snapshot.amberThreshold, 8);
+  assertEquals(snapshot.amberWarning, true);
+  assertEquals(snapshot.hardDailyCeiling, 12);
+  assertEquals(snapshot.hardOpen, false);
+  assertEquals(circuitFor(fixture, targetDate), undefined);
+  assertEquals(actionTakenAt(fixture, 7), "cancelled");
+  assertEquals(fixture.writeCalls.length, 8);
+});
+
+Deno.test("E2E-BREAKER-03 safe reads, prepare, expired tokens, and unsubscribe do not count toward breaker", async () => {
+  const fixture = await confirmFixture({
+    reminders: [await reminder({ id: 1 }), await reminder({ id: 2 })],
+    sentBaselineByTargetDate: { [targetDate]: 10 },
+  });
+  await call(fixture, "GET", `/r/${rawToken}?action=cancel`);
+  await call(fixture, "HEAD", `/r/${rawToken}`);
+  await call(fixture, "POST", `/r/${rawToken}/prepare`, {
+    action: "cancel",
+  });
+  const optOutNonce = await nonceFromGet(fixture, "opt_out");
+  await call(fixture, "POST", `/r/${rawToken}/action`, {
+    action: "opt_out",
+    nonce: optOutNonce,
+  });
+
+  const expired = await confirmFixture({
+    reminder: {
+      id: 3,
+      tokenExpiresAt: new Date(Date.parse(nowIso) - 60_000).toISOString(),
+    },
+    sentBaselineByTargetDate: { [targetDate]: 10 },
+  });
+  await call(expired, "POST", `/r/${rawToken}/action`, {
+    action: "cancel",
+    nonce: await nonceForRecord(reminderAt(expired, 0), "cancel"),
+  });
+
+  assertEquals(fixture.writeCalls.length, 0);
+  assertEquals(expired.writeCalls.length, 0);
+  assertEquals(circuitCount(fixture), 0);
+  assertEquals(circuitCount(expired), 0);
+  assertEquals(
+    evaluateCancellationBreakerSnapshot({
+      reminders: remindersFor(fixture),
+      targetDate,
+      sentBaselineByTargetDate: { [targetDate]: 10 },
+      now: fixture.now,
+    }).validCancelCount,
+    0,
+  );
+
+  await call(fixture, "POST", `/r/${rawToken}/action`, {
+    action: "cancel",
+    nonce: await nonceForRecord(reminderAt(fixture, 1), "cancel"),
+  });
+  assertEquals(circuitFor(fixture, targetDate), undefined);
+  assertEquals(actionTakenAt(fixture, 1), "cancelled");
+  assertEquals(fixture.writeCalls.length, 1);
+});
+
+Deno.test("IT-FAILURE-ACTION-01 valid action on send_unknown promotes delivery before write-back", async () => {
+  const fixtureRef: { current?: ConfirmFixture } = {};
+  const observedStatuses: string[] = [];
+  const writeBack: GuardedCrmWriteBack = {
+    write(request) {
+      const activeFixture = fixtureRef.current;
+      if (!activeFixture) {
+        throw new Error("confirm fixture not initialized");
+      }
+      observedStatuses.push(statusAt(activeFixture, 0));
+      activeFixture.writeCalls.push(request);
+      return Promise.resolve({
+        status: "written",
+        action: request.action,
+        cliniccardsVisitId: request.cliniccardsVisitId,
+        crmTargetStatus: crmTargetStatusByAction[request.action],
+        crmWritebackOk: true,
+        dryRun: false,
+        staffAttention: false,
+        attempts: 1,
+      });
+    },
+    redrivePending() {
+      return Promise.resolve([]);
+    },
+  };
+  const fixture = await confirmFixture({
+    reminder: { status: "send_unknown" },
+    writeBack,
+  });
+  fixtureRef.current = fixture;
+
+  await call(fixture, "POST", `/r/${rawToken}/action`, {
+    action: "confirm",
+    nonce: await nonceFromGet(fixture, "confirm"),
+  });
+
+  assertEquals(observedStatuses, ["delivered"]);
+  assertEquals(statusAt(fixture, 0), "delivered");
+  assertEquals(actionTakenAt(fixture, 0), "confirmed");
+  assertEquals(crmWritebackOkAt(fixture, 0), true);
+  assertEquals(fixture.writeCalls.length, 1);
 });
 
 interface ConfirmFixture {
@@ -371,7 +548,7 @@ async function call(
     request(method, path, body, headers),
     {
       config: fixture.config,
-      store: fixture.store,
+      store: confirmStore(fixture),
       writeBack: fixture.writeBack,
       now: () => fixture.now,
       rng: createSeededByteStreamRng(byteRange(0, 64)),
@@ -435,13 +612,14 @@ function nonceForAction(
 async function nonceForRecord(
   record: ConfirmReminderRecord,
   action: "cancel",
+  expiresAt = "2026-06-30T09:10:00.000Z",
 ): Promise<string> {
   return await signActionNonce({
     nonce: `fixture-nonce-${record.id}`,
     action,
     messageId: String(record.id),
     renderFingerprint: fingerprint(record),
-    expiresAt: "2026-06-30T09:10:00.000Z",
+    expiresAt,
   }, config.tokenPepper ?? "");
 }
 
@@ -478,11 +656,94 @@ function fingerprint(record: ConfirmReminderRecord): string {
   ].join("|");
 }
 
+function confirmStore(fixture: ConfirmFixture): ConfirmFixture["store"] {
+  return fixture.store;
+}
+
+function remindersFor(
+  fixture: ConfirmFixture,
+): readonly ConfirmReminderRecord[] {
+  const store = confirmStore(fixture);
+  return store.reminders;
+}
+
+function reminderAt(
+  fixture: ConfirmFixture,
+  index: number,
+): ConfirmReminderRecord {
+  const records = remindersFor(fixture);
+  const record = records[index];
+  if (!record) {
+    throw new RangeError(`No reminder fixture at index ${index}`);
+  }
+  return record;
+}
+
+function consentEventCount(fixture: ConfirmFixture): number {
+  const store = confirmStore(fixture);
+  const events = store.consentEvents;
+  return events.length;
+}
+
+function circuitFor(fixture: ConfirmFixture, date: string) {
+  const store = confirmStore(fixture);
+  const circuits = store.cancellationCircuits;
+  return circuits.get(date);
+}
+
+function circuitCount(fixture: ConfirmFixture): number {
+  const store = confirmStore(fixture);
+  const circuits = store.cancellationCircuits;
+  return circuits.size;
+}
+
+function statusAt(
+  fixture: ConfirmFixture,
+  index: number,
+): ConfirmReminderRecord["status"] {
+  return reminderAt(fixture, index).status;
+}
+
+function actionTakenAt(
+  fixture: ConfirmFixture,
+  index: number,
+): ConfirmReminderRecord["actionTaken"] {
+  return reminderAt(fixture, index).actionTaken;
+}
+
+function responseAt(
+  fixture: ConfirmFixture,
+  index: number,
+): ConfirmReminderRecord["response"] {
+  return reminderAt(fixture, index).response;
+}
+
+function smsRemindersEnabledAt(
+  fixture: ConfirmFixture,
+  index: number,
+): ConfirmReminderRecord["smsRemindersEnabled"] {
+  return reminderAt(fixture, index).smsRemindersEnabled;
+}
+
+function actionLockedAtAt(
+  fixture: ConfirmFixture,
+  index: number,
+): ConfirmReminderRecord["actionLockedAt"] {
+  return reminderAt(fixture, index).actionLockedAt;
+}
+
+function crmWritebackOkAt(
+  fixture: ConfirmFixture,
+  index: number,
+): ConfirmReminderRecord["crmWritebackOk"] {
+  return reminderAt(fixture, index).crmWritebackOk;
+}
+
 function assertNoBusinessWrites(fixture: ConfirmFixture): void {
   assertEquals(fixture.writeCalls.length, 0);
-  assertEquals(fixture.store.reminders[0]?.actionLockedAt, undefined);
-  assertEquals(fixture.store.consentEvents.length, 0);
-  assertEquals(fixture.store.cancellationCircuits.size, 0);
+  assertEquals(actionLockedAtAt(fixture, 0), undefined);
+  assertEquals(consentEventCount(fixture), 0);
+  assertEquals(circuitCount(fixture), 0);
 }
 
 function fakeWriteBack(writeCalls: unknown[]): GuardedCrmWriteBack {

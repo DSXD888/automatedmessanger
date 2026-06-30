@@ -645,6 +645,153 @@ Deno.test("IT-HEARTBEAT-01 failed success ping alerts without mutating reconcili
   ]);
 });
 
+Deno.test("IT-FAILURE-CRM-01 CRM fetch and pre-send failures fail the run and ping fail heartbeat", async () => {
+  const initialHeartbeat = captureHeartbeat();
+  const initialSender = captureSender();
+  const initialStore = createInMemoryReminderRunStore();
+  const failingInitialClient: ClinicCardsClient = {
+    getVisitsForDate() {
+      return Promise.reject(new Error("ClinicCards 500"));
+    },
+    getPatientsByIds() {
+      return Promise.reject(new Error("unexpected patient fetch"));
+    },
+    getVisitById() {
+      return Promise.reject(new Error("unexpected visit fetch"));
+    },
+    putVisitStatus() {
+      return Promise.reject(new Error("unexpected CRM write"));
+    },
+  };
+
+  const initial = await runReminders({
+    config,
+    clock: fixedClock(),
+    clinicCardsClient: failingInitialClient,
+    sender: initialSender.sender,
+    store: initialStore,
+    writeBack: noopWriteBack,
+    heartbeatClient: initialHeartbeat.client,
+    trigger: "cron",
+  });
+
+  assertEquals(initial.status, "failed");
+  assertEquals(initialSender.requests.length, 0);
+  assertEquals(initialHeartbeat.kinds(), ["start", "fail"]);
+  assertEquals(initial.heartbeat?.operationalAlerts, ["run_failed:Error"]);
+  assertEquals(initialStore.days.get(targetDate)?.status, "failed");
+
+  const partialHeartbeat = captureHeartbeat();
+  const partialSender = captureSender();
+  const partialStore = createInMemoryReminderRunStore();
+  const crm = mutableClinicCardsClient([
+    visit("visit-sent-before-429"),
+    visit("visit-crm-429"),
+  ]);
+  const preSendFailingClient: ClinicCardsClient = {
+    ...crm.client,
+    getVisitById(visitId, purpose = "writeback_pre") {
+      if (Object.is(visitId, "visit-crm-429")) {
+        return Promise.reject(new Error("ClinicCards 429"));
+      }
+      return crm.client.getVisitById(visitId, purpose);
+    },
+  };
+
+  const partial = await runReminders({
+    config,
+    clock: fixedClock(),
+    clinicCardsClient: preSendFailingClient,
+    sender: partialSender.sender,
+    store: partialStore,
+    writeBack: noopWriteBack,
+    heartbeatClient: partialHeartbeat.client,
+    rng: createSeededByteStreamRng(byteRange(0, 64)),
+    sendClaimTokenFactory: () => syntheticFenceValue("crm-429"),
+    trigger: "cron",
+  });
+
+  assertEquals(partial.status, "failed");
+  assertEquals(partial.sentCount, 1);
+  assertEquals(partialSender.requests.length, 1);
+  assertEquals(partialHeartbeat.kinds(), ["start", "fail"]);
+  assertEquals(
+    partialHeartbeat.payloads.find((payload) => payload.kind === "success"),
+    undefined,
+  );
+  assertEquals(partialStore.days.get(targetDate)?.status, "failed");
+  assertEquals(
+    partialStore.messages.map((message) => message.status),
+    ["sent", "pending"],
+  );
+});
+
+Deno.test("IT-FAILURE-SMS-01 provider failure, timeout, and balance states reconcile red with no success heartbeat", async () => {
+  const heartbeat = captureHeartbeat();
+  const requests: SendMessageRequest[] = [];
+  const outcomes: SendMessageResult[] = [
+    {
+      status: "send_unknown",
+      errorCode: "provider_http_ambiguous",
+      errorMessage: "timeout",
+    },
+    {
+      status: "failed",
+      errorCode: "insufficient_balance",
+      errorMessage: "balance exhausted",
+    },
+    {
+      status: "failed",
+      errorCode: "provider_rejected",
+      errorMessage: "provider rejected recipient",
+    },
+  ];
+  const sender: MessageSender = {
+    send(request) {
+      requests.push(request);
+      const outcome = outcomes.shift();
+      if (!outcome) {
+        return Promise.reject(new Error("unexpected blind retry"));
+      }
+      return Promise.resolve(outcome);
+    },
+  };
+
+  const result = await runReminders({
+    config,
+    clock: fixedClock(),
+    clinicCardsClient: mutableClinicCardsClient([
+      visit("visit-timeout"),
+      visit("visit-balance"),
+      visit("visit-provider-failure"),
+    ]).client,
+    sender,
+    store: createInMemoryReminderRunStore(),
+    writeBack: noopWriteBack,
+    heartbeatClient: heartbeat.client,
+    rng: createSeededByteStreamRng(byteRange(0, 96)),
+    sendClaimTokenFactory: () => syntheticFenceValue("sms-failure"),
+    trigger: "cron",
+  });
+
+  assertEquals(result.status, "failed");
+  assertEquals(result.reconciliation?.health, "red");
+  assertEquals(result.reconciliation?.sendUnknownTotal, 1);
+  assertEquals(result.reconciliation?.failedTotal, 2);
+  assertEquals(result.messages.map((message) => message.status), [
+    "send_unknown",
+    "failed",
+    "failed",
+  ]);
+  assertEquals(result.messages.map((message) => message.sendAttemptCount), [
+    1,
+    1,
+    1,
+  ]);
+  assertEquals(requests.length, 3);
+  assertEquals(heartbeat.kinds(), ["start", "fail"]);
+});
+
 Deno.test("FR-L2-RUN-07 healthz is liveness only and distinct from run proof", async () => {
   const response = await handleRunRemindersRequest(
     new Request("http://localhost/functions/v1/run-reminders/healthz", {

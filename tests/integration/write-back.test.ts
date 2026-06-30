@@ -359,7 +359,7 @@ Deno.test("E2E-WRITELEASE-01 write lease loser and stale actor make zero externa
   assertEquals(crmCalls, 0);
 });
 
-Deno.test("IT-WRITEBACK-01 write failures retry at most twice and surface red", async () => {
+Deno.test("IT-FAILURE-WRITEBACK-01 write failures retry at most twice and surface red", async () => {
   const preWrite = visit("visit-retry-fail", "PLANNED");
   let attempts = 0;
   const writeBack = createGuardedCrmWriteBack({
@@ -391,6 +391,8 @@ Deno.test("IT-WRITEBACK-01 write failures retry at most twice and surface red", 
   assertEquals(result.attempts, 2);
   assertEquals(result.staffAttention, true);
   assertEquals(result.crmWritebackOk, false);
+  assertEquals(result.errorCode, "crm_error");
+  assertEquals(result.errorMessage, "synthetic provider failure");
   assertEquals(attempts, 2);
 });
 
@@ -565,7 +567,7 @@ function busyLeaseStore(): CrmWriteLeaseStore {
   };
 }
 
-function staleBeforeFetchLeaseStore(): CrmWriteLeaseStore {
+const staleBeforeFetchLeaseStore = (): CrmWriteLeaseStore => {
   const lease: CrmWriteLease = {
     visitId: "visit-stale",
     lockToken: ["stale", "owner"].join("-"),
@@ -577,4 +579,4 @@ function staleBeforeFetchLeaseStore(): CrmWriteLeaseStore {
     stillOwns: () => Promise.resolve(false),
     release: () => Promise.resolve(),
   };
-}
+};

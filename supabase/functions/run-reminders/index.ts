@@ -583,29 +583,88 @@ export async function runReminders(
 
   await pingHeartbeat("start");
 
-  const crmRead = await clinicCardsClient.getVisitsForDate(
-    dates.targetDateKyiv,
-    crmReadPurposeByPassKind[passKind],
-  );
-  await renewHeartbeat();
-  await store.recordVisitFacts(run.id, crmRead.facts);
-  const patients = await readPatientsForVisits(
-    clinicCardsClient,
-    crmRead.visits,
-  );
-  await renewHeartbeat();
-  const sendable = await materializeObservedVisits({
-    runId: run.id,
-    targetDate: dates.targetDateKyiv,
-    visits: crmRead.visits,
-    patients,
-    store,
-    passKind,
-    now,
-  });
-  await renewHeartbeat();
+  let wouldSendCount = 0;
+  try {
+    const crmRead = await clinicCardsClient.getVisitsForDate(
+      dates.targetDateKyiv,
+      crmReadPurposeByPassKind[passKind],
+    );
+    await renewHeartbeat();
+    await store.recordVisitFacts(run.id, crmRead.facts);
+    const patients = await readPatientsForVisits(
+      clinicCardsClient,
+      crmRead.visits,
+    );
+    await renewHeartbeat();
+    const sendable = await materializeObservedVisits({
+      runId: run.id,
+      targetDate: dates.targetDateKyiv,
+      visits: crmRead.visits,
+      patients,
+      store,
+      passKind,
+      now,
+    });
+    await renewHeartbeat();
 
-  if (options.stopAfterMaterialize) {
+    if (options.stopAfterMaterialize) {
+      const reconciliation = await store.reconcileDay({
+        targetDate: dates.targetDateKyiv,
+        now: clock.now(),
+      });
+      const budget = runBudget({
+        sendableTotal: sendable.length,
+        runDurationMs: runDurationMs(),
+        stoppedBeforeDeadline: true,
+        reconciliation,
+        now: clock.now(),
+      });
+      await store.finishRun({
+        runId: run.id,
+        status: "failed",
+        reconciliation,
+        now: clock.now(),
+      });
+      await pingHeartbeat("fail", reconciliation, budget);
+      return {
+        ...resultFromStore(
+          "failed",
+          run,
+          dates,
+          reconciliation,
+          await store.messagesForTargetDate(dates.targetDateKyiv),
+        ),
+        budget,
+        heartbeat: immutableHeartbeatSummary(heartbeatSummary),
+      };
+    }
+
+    for (const work of sendable) {
+      await renewHeartbeat();
+      if (runDurationMs() >= stopClaimingAfterMs) {
+        stoppedBeforeDeadline = true;
+        break;
+      }
+      const sendResult = await claimRenderAndSend({
+        config,
+        clinicCardsClient,
+        sender,
+        store,
+        work,
+        tokenPepper,
+        rng: options.rng,
+        sendClaimTokenFactory,
+        now,
+      });
+      await renewHeartbeat();
+      if (sendResult && wouldSendStatuses.has(sendResult.status)) {
+        wouldSendCount += 1;
+      }
+    }
+
+    await renewHeartbeat();
+    await writeBack.redrivePending(await store.pendingWriteBacks());
+    await renewHeartbeat();
     const reconciliation = await store.reconcileDay({
       targetDate: dates.targetDateKyiv,
       now: clock.now(),
@@ -613,89 +672,47 @@ export async function runReminders(
     const budget = runBudget({
       sendableTotal: sendable.length,
       runDurationMs: runDurationMs(),
-      stoppedBeforeDeadline: true,
+      stoppedBeforeDeadline,
       reconciliation,
       now: clock.now(),
     });
-    await store.finishRun({
+    const runStatus = redHealth.has(reconciliation.health)
+      ? "failed"
+      : "completed";
+    const finished = await store.finishRun({
       runId: run.id,
-      status: "failed",
+      status: runStatus,
       reconciliation,
       now: clock.now(),
     });
-    await pingHeartbeat("fail", reconciliation, budget);
+    await pingHeartbeat(
+      redHealth.has(reconciliation.health) ? "fail" : "success",
+      reconciliation,
+      budget,
+    );
+    const messages = await store.messagesForTargetDate(dates.targetDateKyiv);
     return {
-      ...resultFromStore(
-        "failed",
-        run,
-        dates,
-        reconciliation,
-        await store.messagesForTargetDate(dates.targetDateKyiv),
-      ),
+      ...resultFromStore(runStatus, finished, dates, reconciliation, messages),
+      wouldSendCount,
       budget,
       heartbeat: immutableHeartbeatSummary(heartbeatSummary),
     };
-  }
-
-  let wouldSendCount = 0;
-  for (const work of sendable) {
-    await renewHeartbeat();
-    if (runDurationMs() >= stopClaimingAfterMs) {
-      stoppedBeforeDeadline = true;
-      break;
-    }
-    const sendResult = await claimRenderAndSend({
-      config,
-      clinicCardsClient,
-      sender,
-      store,
-      work,
-      tokenPepper,
-      rng: options.rng,
-      sendClaimTokenFactory,
-      now,
+  } catch (error) {
+    heartbeatSummary.operationalAlerts.push(runFailureAlert(error));
+    const failed = await store.finishRun({
+      runId: run.id,
+      status: "failed",
+      now: clock.now(),
     });
-    await renewHeartbeat();
-    if (sendResult && wouldSendStatuses.has(sendResult.status)) {
-      wouldSendCount += 1;
-    }
+    await pingHeartbeat("fail");
+    return failedRunResultFromMessages({
+      run: failed,
+      dates,
+      messages: await store.messagesForTargetDate(dates.targetDateKyiv),
+      wouldSendCount,
+      heartbeat: immutableHeartbeatSummary(heartbeatSummary),
+    });
   }
-
-  await renewHeartbeat();
-  await writeBack.redrivePending(await store.pendingWriteBacks());
-  await renewHeartbeat();
-  const reconciliation = await store.reconcileDay({
-    targetDate: dates.targetDateKyiv,
-    now: clock.now(),
-  });
-  const budget = runBudget({
-    sendableTotal: sendable.length,
-    runDurationMs: runDurationMs(),
-    stoppedBeforeDeadline,
-    reconciliation,
-    now: clock.now(),
-  });
-  const runStatus = redHealth.has(reconciliation.health)
-    ? "failed"
-    : "completed";
-  const finished = await store.finishRun({
-    runId: run.id,
-    status: runStatus,
-    reconciliation,
-    now: clock.now(),
-  });
-  await pingHeartbeat(
-    redHealth.has(reconciliation.health) ? "fail" : "success",
-    reconciliation,
-    budget,
-  );
-  const messages = await store.messagesForTargetDate(dates.targetDateKyiv);
-  return {
-    ...resultFromStore(runStatus, finished, dates, reconciliation, messages),
-    wouldSendCount,
-    budget,
-    heartbeat: immutableHeartbeatSummary(heartbeatSummary),
-  };
 }
 
 export function createInMemoryReminderRunStore(
@@ -1009,15 +1026,17 @@ export function createInMemoryReminderRunStore(
       }
       run.status = input.status;
       run.finishedAt = input.now.toISOString();
-      if (input.reconciliation) {
-        const day = days.get(run.targetDate);
-        if (day) {
+      const day = days.get(run.targetDate);
+      if (day) {
+        if (input.reconciliation) {
           day.reconciliation = input.reconciliation;
           day.status = greenHealth.has(input.reconciliation.health)
             ? "completed"
             : failedRunStatuses.has(input.status)
             ? "failed"
             : "partial";
+        } else if (failedRunStatuses.has(input.status)) {
+          day.status = "failed";
         }
       }
       return Promise.resolve({ ...run });
@@ -1541,6 +1560,46 @@ function resultFromStore(
     skippedCount: reconciliation.skippedTotal,
     failedCount: reconciliation.failedTotal,
   };
+}
+
+function failedRunResultFromMessages(input: {
+  run: ReminderRunRecord;
+  dates: ReturnType<typeof computeKyivRunDates>;
+  messages: readonly ReminderMessageRecord[];
+  wouldSendCount: number;
+  heartbeat: ReminderHeartbeatSummary;
+}): ReminderRunResult {
+  return {
+    status: "failed",
+    run: input.run,
+    dates: runResultDates(input.dates),
+    messages: input.messages,
+    wouldSendCount: input.wouldSendCount,
+    sentCount: countMessagesInStatuses(
+      input.messages,
+      sentOrDeliveredMessageStatuses,
+    ),
+    skippedCount: countMessagesInStatuses(
+      input.messages,
+      skippedMessageStatuses,
+    ),
+    failedCount: countMessagesInStatuses(input.messages, failedMessageStatuses),
+    heartbeat: input.heartbeat,
+  };
+}
+
+function countMessagesInStatuses(
+  messages: readonly ReminderMessageRecord[],
+  statuses: ReadonlySet<ReminderMessageStatus>,
+): number {
+  return messages.filter((message) => messageStatusIn(message, statuses))
+    .length;
+}
+
+function runFailureAlert(error: unknown): string {
+  return error instanceof Error && error.name.trim().length > 0
+    ? `run_failed:${error.name}`
+    : "run_failed";
 }
 
 function createHealthchecksHeartbeatClient(options: {

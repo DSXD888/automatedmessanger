@@ -100,6 +100,19 @@ export interface CancellationCircuitRecord {
   openedReason?: string;
 }
 
+export interface CancellationBreakerSnapshot {
+  targetDate: string;
+  validCancelCount: number;
+  tenMinuteCancels: number;
+  thirtyMinuteCancels: number;
+  sentTotal: number;
+  amberThreshold: number;
+  hardDailyCeiling: number;
+  amberWarning: boolean;
+  hardOpen: boolean;
+  hardOpenReason?: "cancel_velocity" | "cancel_daily_ceiling";
+}
+
 export interface ConfirmLookupResult {
   ok: boolean;
   neutralReason?: string;
@@ -239,6 +252,8 @@ const openCircuitStatuses = new Set<CancellationCircuitRecord["status"]>([
 const sameSiteFetchValues = new Set(["same-origin", "same-site", "none"]);
 const breakerTenMinuteThreshold = 4;
 const breakerThirtyMinuteThreshold = 6;
+const breakerDailyAmberRatio = 0.4;
+const breakerDailyHardRatio = 0.6;
 
 export function renderConfirmPageChrome(model: ConfirmPageViewModel): string {
   const page = confirmPageModel(model);
@@ -937,6 +952,9 @@ export function createInMemoryConfirmActionStore(seed: {
       reminder.response = input.action;
       reminder.respondedAt = input.now.toISOString();
       reminder.actionLockedAt = input.now.toISOString();
+      if (Object.is(reminder.status, "send_unknown")) {
+        reminder.status = "delivered";
+      }
       if (cancelActions.has(input.action)) {
         const breakerOpen = shouldHaltCancelWrites({
           reminders,
@@ -1166,6 +1184,61 @@ function staticRenderFingerprint(reminder: ConfirmReminderRecord): string {
   ].join("|");
 }
 
+export function evaluateCancellationBreakerSnapshot(input: {
+  reminders: readonly ConfirmReminderRecord[];
+  targetDate: string;
+  sentBaselineByTargetDate?: Readonly<Record<string, number>>;
+  now: Date;
+}): CancellationBreakerSnapshot {
+  const cancelEvents = input.reminders.filter((candidate) =>
+    Object.is(candidate.targetDate, input.targetDate) &&
+    !Object.is(candidate.response, undefined) &&
+    cancelActions.has(candidate.response as ConfirmAppointmentAction) &&
+    candidate.actionLockedAt
+  );
+  const nowMs = input.now.getTime();
+  const tenMinuteCancels =
+    cancelEvents.filter((candidate) =>
+      nowMs - Date.parse(candidate.actionLockedAt ?? "") <= 10 * 60 * 1000
+    ).length;
+  const thirtyMinuteCancels =
+    cancelEvents.filter((candidate) =>
+      nowMs - Date.parse(candidate.actionLockedAt ?? "") <= 30 * 60 * 1000
+    ).length;
+  const sentTotal = input.sentBaselineByTargetDate?.[input.targetDate] ??
+    input.reminders.filter((candidate) =>
+      Object.is(candidate.targetDate, input.targetDate) &&
+      actionableReminderStatuses.has(candidate.status)
+    ).length;
+  const amberThreshold = Math.max(
+    1,
+    Math.ceil(sentTotal * breakerDailyAmberRatio),
+  );
+  const hardDailyCeiling = Math.max(
+    8,
+    Math.ceil(sentTotal * breakerDailyHardRatio),
+  );
+  const velocityHardOpen = tenMinuteCancels >= breakerTenMinuteThreshold ||
+    thirtyMinuteCancels >= breakerThirtyMinuteThreshold;
+  const dailyHardOpen = cancelEvents.length > hardDailyCeiling;
+  return {
+    targetDate: input.targetDate,
+    validCancelCount: cancelEvents.length,
+    tenMinuteCancels,
+    thirtyMinuteCancels,
+    sentTotal,
+    amberThreshold,
+    hardDailyCeiling,
+    amberWarning: cancelEvents.length >= amberThreshold,
+    hardOpen: velocityHardOpen || dailyHardOpen,
+    hardOpenReason: velocityHardOpen
+      ? "cancel_velocity"
+      : dailyHardOpen
+      ? "cancel_daily_ceiling"
+      : undefined,
+  };
+}
+
 function shouldHaltCancelWrites(input: {
   reminders: readonly ConfirmReminderRecord[];
   reminder: ConfirmReminderRecord;
@@ -1183,41 +1256,23 @@ function shouldHaltCancelWrites(input: {
     return true;
   }
 
-  const cancelEvents = input.reminders.filter((candidate) =>
-    Object.is(candidate.targetDate, input.reminder.targetDate) &&
-    !Object.is(candidate.response, undefined) &&
-    cancelActions.has(candidate.response as ConfirmAppointmentAction) &&
-    candidate.actionLockedAt
-  );
-  const nowMs = input.now.getTime();
-  const tenMinuteCancels =
-    cancelEvents.filter((candidate) =>
-      nowMs - Date.parse(candidate.actionLockedAt ?? "") <= 10 * 60 * 1000
-    ).length;
-  const thirtyMinuteCancels =
-    cancelEvents.filter((candidate) =>
-      nowMs - Date.parse(candidate.actionLockedAt ?? "") <= 30 * 60 * 1000
-    ).length;
-  const sentTotal = input.sentBaselineByTargetDate[input.reminder.targetDate] ??
-    input.reminders.filter((candidate) =>
-      Object.is(candidate.targetDate, input.reminder.targetDate) &&
-      actionableReminderStatuses.has(candidate.status)
-    ).length;
-  const hardDailyCeiling = Math.max(8, Math.ceil(sentTotal * 0.6));
-  const hardOpen = tenMinuteCancels >= breakerTenMinuteThreshold ||
-    thirtyMinuteCancels >= breakerThirtyMinuteThreshold ||
-    cancelEvents.length > hardDailyCeiling;
+  const snapshot = evaluateCancellationBreakerSnapshot({
+    reminders: input.reminders,
+    targetDate: input.reminder.targetDate,
+    sentBaselineByTargetDate: input.sentBaselineByTargetDate,
+    now: input.now,
+  });
 
-  if (hardOpen) {
+  if (snapshot.hardOpen) {
     input.cancellationCircuits.set(input.reminder.targetDate, {
       targetDate: input.reminder.targetDate,
       status: "open",
       openedAt: input.now.toISOString(),
-      openedReason: "cancel_velocity",
+      openedReason: snapshot.hardOpenReason,
     });
   }
 
-  return hardOpen;
+  return snapshot.hardOpen;
 }
 
 function tokenFromPath(pathname: string): string | null {
@@ -1452,26 +1507,26 @@ function alreadyRecordedResponse(reminder: ConfirmReminderRecord): Response {
   );
 }
 
-function formatDateLabel(instant: string): string {
+const formatDateLabel = (instant: string): string => {
   return new Intl.DateTimeFormat("uk-UA", {
     timeZone: "Europe/Kyiv",
     day: "numeric",
     month: "long",
   }).format(new Date(instant));
-}
+};
 
-function formatTimeLabel(instant: string): string {
+const formatTimeLabel = (instant: string): string => {
   return new Intl.DateTimeFormat("uk-UA", {
     timeZone: "Europe/Kyiv",
     hour: "2-digit",
     minute: "2-digit",
     hourCycle: "h23",
   }).format(new Date(instant));
-}
+};
 
-function formatPhoneLabel(phone: string): string {
+const formatPhoneLabel = (phone: string): string => {
   return phone.replace(/^(\+\d{3})(\d{2})(\d{3})(\d{4})$/u, "$1 $2 $3 $4");
-}
+};
 
 function nextId(rows: readonly { id: number }[]): number {
   return rows.reduce((max, row) => Math.max(max, row.id), 0) + 1;
