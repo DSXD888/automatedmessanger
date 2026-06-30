@@ -848,9 +848,10 @@ Deno.test("IT-FAILURE-SMS-01 provider failure, timeout, and balance states recon
 
 Deno.test("FR-L2-RUN-07 healthz is liveness only and distinct from run proof", async () => {
   const response = await handleRunRemindersRequest(
-    new Request("http://localhost/functions/v1/run-reminders/healthz", {
+    {
       method: "GET",
-    }),
+      url: "http://localhost/functions/v1/run-reminders/healthz",
+    } as Request,
   );
   assertEquals(response.status, 200);
   assertEquals(await response.json(), {
