@@ -44,11 +44,22 @@ export interface LastRunRecap {
   successHeartbeatSent: boolean;
 }
 
-export const modeBanner = {
-  mode: "SHADOW",
-  sendMode: "off",
-  crmWriteMode: "off",
-} as const;
+type DashboardMode = "SHADOW" | "SEED" | "CANARY" | "LIVE";
+type SendMode = "off" | "seed" | "canary" | "full";
+type CrmWriteMode = "off" | "allowlist" | "full";
+
+export interface ModeBannerData {
+  mode: DashboardMode;
+  sendMode: SendMode;
+  crmWriteMode: CrmWriteMode;
+  live: boolean;
+  text: string;
+}
+
+export const modeBanner = computeModeBanner({
+  sendMode: process.env.SEND_MODE,
+  crmWriteMode: process.env.CRM_WRITE_MODE,
+});
 
 export const lastRunRecap: LastRunRecap = {
   targetDateLabel: "19 червня 2026",
@@ -127,6 +138,51 @@ export const valueMetrics = computeValueMetrics({
     },
   ],
 });
+
+export function computeModeBanner(input: {
+  sendMode?: string;
+  crmWriteMode?: string;
+}): ModeBannerData {
+  const sendMode = parseSendMode(input.sendMode);
+  const crmWriteMode = parseCrmWriteMode(input.crmWriteMode);
+  const mode = dashboardModeFromModes(sendMode, crmWriteMode);
+
+  return Object.freeze({
+    mode,
+    sendMode,
+    crmWriteMode,
+    live: mode === "LIVE",
+    text: mode === "LIVE"
+      ? "Реальні SMS та CRM-записи увімкнені"
+      : "Нефінальний режим: перевірте дозволені номери/візити",
+  });
+}
+
+function parseSendMode(value: string | undefined): SendMode {
+  return value === "seed" || value === "canary" || value === "full"
+    ? value
+    : "off";
+}
+
+function parseCrmWriteMode(value: string | undefined): CrmWriteMode {
+  return value === "allowlist" || value === "full" ? value : "off";
+}
+
+function dashboardModeFromModes(
+  sendMode: SendMode,
+  crmWriteMode: CrmWriteMode,
+): DashboardMode {
+  if (sendMode === "full" && crmWriteMode === "full") {
+    return "LIVE";
+  }
+  if (sendMode === "seed" && crmWriteMode === "off") {
+    return "SEED";
+  }
+  if (sendMode === "canary" && crmWriteMode === "allowlist") {
+    return "CANARY";
+  }
+  return "SHADOW";
+}
 
 export const boardRows: readonly BoardRow[] = [
   {

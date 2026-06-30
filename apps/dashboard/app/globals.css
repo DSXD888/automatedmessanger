@@ -169,6 +169,7 @@ select:focus-visible {
 
 .modeBanner {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
@@ -182,9 +183,25 @@ select:focus-visible {
   font-weight: 700;
 }
 
+.modeBanner.guarded {
+  border-color: #dfc680;
+  background: var(--amber-bg);
+  color: var(--amber);
+}
+
+.modeBanner.live {
+  border-color: #9fc79f;
+  background: #eef8ee;
+  color: #25612f;
+}
+
 .modeBanner span {
   color: #614000;
   font-weight: 600;
+}
+
+.modeBanner.live span {
+  color: #25612f;
 }
 
 .pageHeader {

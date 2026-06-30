@@ -1,17 +1,19 @@
 import definerSql from "./definer.sql" with { type: "text" };
 import concurrencySql from "./concurrency.sql" with { type: "text" };
 import grantsSql from "./grants.sql" with { type: "text" };
+import goLiveSql from "./go_live.sql" with { type: "text" };
 import maintenanceSql from "./maintenance.sql" with { type: "text" };
 import rlsSql from "./rls.sql" with { type: "text" };
 import schemaSql from "./schema.sql" with { type: "text" };
 
 const pgTapScripts = [
   { name: "schema", sql: schemaSql, plan: "50" },
-  { name: "grants", sql: grantsSql, plan: "39" },
+  { name: "grants", sql: grantsSql, plan: "43" },
   { name: "rls", sql: rlsSql, plan: "8" },
-  { name: "definer", sql: definerSql, plan: "12" },
+  { name: "definer", sql: definerSql, plan: "14" },
   { name: "concurrency", sql: concurrencySql, plan: "20" },
   { name: "maintenance", sql: maintenanceSql, plan: "31" },
+  { name: "go_live", sql: goLiveSql, plan: "9" },
 ];
 
 Deno.test("pgTAP SQL is wired for the expected contracts", () => {

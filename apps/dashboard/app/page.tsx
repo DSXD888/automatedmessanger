@@ -406,12 +406,16 @@ function Topbar() {
 
 function ModeBanner() {
   return (
-    <section className="modeBanner" data-testid="mode-banner">
+    <section
+      className={`modeBanner ${modeBanner.live ? "live" : "guarded"}`}
+      data-testid="mode-banner"
+    >
       <strong>{modeBanner.mode}</strong>
       <span>
         SEND_MODE={modeBanner.sendMode}{" "}
         · CRM_WRITE_MODE={modeBanner.crmWriteMode}
       </span>
+      <span>{modeBanner.text}</span>
     </section>
   );
 }

@@ -186,6 +186,19 @@ export type Database = {
           target_at: string;
         }[];
       };
+      record_go_live_mode_flip: {
+        Args: {
+          p_actor: string;
+          p_context?: Json;
+          p_new_crm_write_mode: string;
+          p_new_send_mode: string;
+          p_prior_crm_write_mode: string;
+          p_prior_send_mode: string;
+          p_target_date?: string;
+          p_typed_confirmation?: string;
+        };
+        Returns: Json;
+      };
       record_reminder_action: {
         Args: { p_action: string; p_nonce: string; p_raw_token: string };
         Returns: {
@@ -924,6 +937,22 @@ export type Database = {
       };
       purge_privacy: { Args: never; Returns: Json };
       reap_stale_sends: { Args: { p_target_date?: string }; Returns: number };
+      record_guard_liveness: {
+        Args: {
+          p_actor?: string;
+          p_context?: Json;
+          p_crm_write_allowlist_count: number;
+          p_dashboard_mode: string;
+          p_effective_crm_write_mode: string;
+          p_effective_send_mode: string;
+          p_send_allowlist_count: number;
+        };
+        Returns: {
+          alert: boolean;
+          audit_id: number;
+          status: string;
+        }[];
+      };
     };
     Enums: {
       [_ in never]: never;

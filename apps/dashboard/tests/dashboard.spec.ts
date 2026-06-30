@@ -14,6 +14,15 @@ test("E2E-DASHBOARD-01 board, mode banner, recap, and secret exclusion", async (
   await page.goto("/");
 
   await expect(page.getByTestId("mode-banner")).toContainText("SHADOW");
+  await expect(page.getByTestId("mode-banner")).toContainText(
+    "SEND_MODE=off",
+  );
+  await expect(page.getByTestId("mode-banner")).toContainText(
+    "CRM_WRITE_MODE=off",
+  );
+  await expect(page.getByTestId("mode-banner")).toContainText(
+    "Нефінальний режим",
+  );
   await expect(page.getByTestId("last-run-recap")).toContainText(
     "Heartbeat success: sent",
   );

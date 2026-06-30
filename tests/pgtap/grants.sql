@@ -42,7 +42,7 @@ exception when insufficient_privilege then
 end;
 $$;
 
-select plan(39);
+select plan(43);
 
 select ok(exists (select 1 from pg_roles where rolname = 'dentino_confirm_api'), 'dentino_confirm_api role exists');
 select ok(exists (select 1 from pg_roles where rolname = 'dentino_confirm_definer'), 'dentino_confirm_definer role exists');
@@ -109,8 +109,8 @@ select is(
     join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'api'
   ),
-  9,
-  'api exposes exactly the four L1 core functions plus L3 dashboard functions'
+  10,
+  'api exposes exactly the four L1 core functions plus L3/L4 dashboard functions'
 );
 
 select ok(has_function_privilege('dentino_confirm_api', 'api.lookup_reminder_by_token(text)'::regprocedure, 'execute'), 'confirm role executes lookup RPC');
@@ -211,7 +211,9 @@ select ok(has_function_privilege('authenticated', 'api.dashboard_board_rows()'::
 select ok(has_function_privilege('authenticated', 'api.update_message_template(bigint,text,text)'::regprocedure, 'execute'), 'authenticated executes template admin RPC');
 select ok(has_function_privilege('authenticated', 'api.resolve_held_cancels(date,bigint[],text,text,jsonb)'::regprocedure, 'execute'), 'authenticated executes held-cancel admin RPC');
 select ok(has_function_privilege('authenticated', 'api.reenable_sms_reminders(bigint,text,text)'::regprocedure, 'execute'), 'authenticated executes SMS re-enable RPC');
+select ok(has_function_privilege('authenticated', 'api.record_go_live_mode_flip(text,text,text,text,text,date,text,jsonb)'::regprocedure, 'execute'), 'authenticated executes go-live mode-flip audit RPC');
 select ok(not has_function_privilege('anon', 'api.update_message_template(bigint,text,text)'::regprocedure, 'execute'), 'anon cannot execute template admin RPC');
+select ok(not has_function_privilege('anon', 'api.record_go_live_mode_flip(text,text,text,text,text,date,text,jsonb)'::regprocedure, 'execute'), 'anon cannot execute go-live mode-flip audit RPC');
 select ok(not has_table_privilege('anon', 'api.v_board', 'select'), 'anon cannot select dashboard board view');
 
 select ok(pg_temp.role_cannot_read(
@@ -233,6 +235,8 @@ select ok(has_table_privilege('dentino_run_api', 'app.reminder_messages', 'inser
 select ok(has_table_privilege('dentino_run_api', 'app.message_templates', 'select'), 'run role can read templates');
 select ok(has_function_privilege('dentino_maintenance_runner', 'maintenance.reap_stale_sends(date)'::regprocedure, 'execute'), 'maintenance runner executes reaper');
 select ok(has_function_privilege('dentino_maintenance_runner', 'maintenance.purge_privacy()'::regprocedure, 'execute'), 'maintenance runner executes purge');
+select ok(has_function_privilege('dentino_maintenance_runner', 'maintenance.record_guard_liveness(text,text,integer,integer,text,text,jsonb)'::regprocedure, 'execute'), 'maintenance runner executes guard-liveness RPC');
+select ok(not has_function_privilege('authenticated', 'maintenance.record_guard_liveness(text,text,integer,integer,text,text,jsonb)'::regprocedure, 'execute'), 'authenticated cannot execute guard-liveness RPC');
 
 select * from finish();
 
