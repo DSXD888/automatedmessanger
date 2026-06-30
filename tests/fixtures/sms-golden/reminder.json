@@ -1,0 +1,23 @@
+{
+  "default": {
+    "name": "Олено",
+    "appointmentAt": "2026-06-18T11:30:00.000Z",
+    "confirmUrl": "https://r.dentino.com.ua/r/AAECAwQFBgcICQoLDA0ODw",
+    "clinicPhone": "+380679876111",
+    "body": "Олено, ваш візит: завтра 18.06 о 14:30.\nПідтвердити/змінити: https://r.dentino.com.ua/r/AAECAwQFBgcICQoLDA0ODw. Тел: +380679876111",
+    "ucs2Length": 130,
+    "segments": 2
+  },
+  "nameOverflow": {
+    "name": "Надзвичайно довге ім'я пацієнта для перевірки переповнення бюджету повідомлення",
+    "appointmentAt": "2026-06-18T11:30:00.000Z",
+    "confirmUrl": "https://r.dentino.com.ua/r/AAECAwQFBgcICQoLDA0ODw",
+    "clinicPhone": "+380679876111",
+    "body": "Ваш візит: завтра 18.06 о 14:30.\nПідтвердити/змінити: https://r.dentino.com.ua/r/AAECAwQFBgcICQoLDA0ODw. Тел: +380679876111",
+    "ucs2Length": 123,
+    "segments": 2
+  },
+  "placeholderFailure": {
+    "body": "{{name}}, ваш візит: завтра {{date}} о {{time}}. {{unknown_placeholder}}"
+  }
+}
