@@ -1,18 +1,34 @@
+import definerSql from "./definer.sql" with { type: "text" };
+import grantsSql from "./grants.sql" with { type: "text" };
+import rlsSql from "./rls.sql" with { type: "text" };
 import schemaSql from "./schema.sql" with { type: "text" };
 
-Deno.test("pgTAP schema SQL is wired for the expected contract", () => {
-  if (!schemaSql.includes("select plan(50);")) {
-    throw new Error("pgTAP schema test must keep its plan count explicit");
-  }
-  if (!schemaSql.includes("select * from finish();")) {
-    throw new Error("pgTAP schema test must call finish()");
-  }
-  if (!schemaSql.includes("rollback;")) {
-    throw new Error("pgTAP schema test must roll back local test data");
+const pgTapScripts = [
+  { name: "schema", sql: schemaSql, plan: "50" },
+  { name: "grants", sql: grantsSql, plan: "24" },
+  { name: "rls", sql: rlsSql, plan: "8" },
+  { name: "definer", sql: definerSql, plan: "11" },
+];
+
+Deno.test("pgTAP SQL is wired for the expected contracts", () => {
+  for (const script of pgTapScripts) {
+    if (!script.sql.includes(`select plan(${script.plan});`)) {
+      throw new Error(
+        `${script.name} pgTAP test must keep its plan count explicit`,
+      );
+    }
+    if (!script.sql.includes("select * from finish();")) {
+      throw new Error(`${script.name} pgTAP test must call finish()`);
+    }
+    if (!script.sql.includes("rollback;")) {
+      throw new Error(
+        `${script.name} pgTAP test must roll back local test data`,
+      );
+    }
   }
 });
 
-Deno.test("pgTAP schema contract", async () => {
+Deno.test("pgTAP data-layer contracts", async (testContext) => {
   const runPermission = await Deno.permissions.query({
     name: "run",
     command: "docker",
@@ -25,6 +41,14 @@ Deno.test("pgTAP schema contract", async () => {
     return;
   }
 
+  for (const script of pgTapScripts) {
+    await testContext.step(script.name, async () => {
+      await runPgTapScript(script.sql, script.plan);
+    });
+  }
+});
+
+async function runPgTapScript(sql: string, plan: string) {
   const process = new Deno.Command("docker", {
     args: [
       "exec",
@@ -44,7 +68,7 @@ Deno.test("pgTAP schema contract", async () => {
   }).spawn();
 
   const writer = process.stdin.getWriter();
-  await writer.write(new TextEncoder().encode(schemaSql));
+  await writer.write(new TextEncoder().encode(sql));
   await writer.close();
 
   const output = await process.output();
@@ -55,10 +79,10 @@ Deno.test("pgTAP schema contract", async () => {
   if (output.code !== 0) {
     throw new Error(`pgTAP exited with ${output.code}\n${combined}`);
   }
-  if (!stdout.includes("1..50")) {
+  if (!stdout.includes(`1..${plan}`)) {
     throw new Error(`pgTAP plan was not emitted\n${combined}`);
   }
   if (combined.includes("not ok") || combined.includes("failed")) {
     throw new Error(`pgTAP reported a failure\n${combined}`);
   }
-});
+}

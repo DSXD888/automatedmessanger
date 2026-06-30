@@ -7,6 +7,72 @@ export type Json =
   | Json[];
 
 export type Database = {
+  api: {
+    Tables: {
+      [_ in never]: never;
+    };
+    Views: {
+      [_ in never]: never;
+    };
+    Functions: {
+      finish_reminder_action: {
+        Args: {
+          p_error?: string;
+          p_message_id: number;
+          p_meta?: Json;
+          p_ok: boolean;
+        };
+        Returns: {
+          neutral_reason: string;
+          ok: boolean;
+        }[];
+      };
+      lookup_reminder_by_token: {
+        Args: { p_raw_token: string };
+        Returns: {
+          already_responded: boolean;
+          clinic_phone: string;
+          display_snapshot: string;
+          neutral_reason: string;
+          ok: boolean;
+          response: string;
+          target_at: string;
+        }[];
+      };
+      prepare_reminder_action: {
+        Args: { p_action: string; p_raw_token: string };
+        Returns: {
+          action_nonce: string;
+          clinic_phone: string;
+          display_snapshot: string;
+          neutral_reason: string;
+          nonce_expires_at: string;
+          ok: boolean;
+          target_at: string;
+        }[];
+      };
+      record_reminder_action: {
+        Args: { p_action: string; p_nonce: string; p_raw_token: string };
+        Returns: {
+          action_taken: string;
+          cliniccards_visit_id: string;
+          crm_target_status: string;
+          display_snapshot: string;
+          lock_token: string;
+          message_id: number;
+          neutral_reason: string;
+          ok: boolean;
+          target_at: string;
+        }[];
+      };
+    };
+    Enums: {
+      [_ in never]: never;
+    };
+    CompositeTypes: {
+      [_ in never]: never;
+    };
+  };
   app: {
     Tables: {
       audit_log: {
@@ -691,6 +757,23 @@ export type Database = {
       [_ in never]: never;
     };
   };
+  private: {
+    Tables: {
+      [_ in never]: never;
+    };
+    Views: {
+      [_ in never]: never;
+    };
+    Functions: {
+      token_digest: { Args: { p_raw_token: string }; Returns: string };
+    };
+    Enums: {
+      [_ in never]: never;
+    };
+    CompositeTypes: {
+      [_ in never]: never;
+    };
+  };
 };
 
 type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">;
@@ -828,10 +911,16 @@ export type CompositeTypes<
   : never;
 
 export const Constants = {
+  api: {
+    Enums: {},
+  },
   app: {
     Enums: {},
   },
   maintenance: {
+    Enums: {},
+  },
+  private: {
     Enums: {},
   },
 } as const;
