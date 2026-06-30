@@ -1,0 +1,149 @@
+{
+  "metadata": {
+    "recorded_at": "2026-06-30T00:00:00.000Z",
+    "source": "synthetic-cliniccards-patients-normal",
+    "sanitized": true,
+    "endpoint": "cliniccards-patients"
+  },
+  "interactions": [
+    {
+      "id": "cliniccards-patients-normal",
+      "request": {
+        "method": "GET",
+        "url": "http://cassette.invalid/patients?ids=patient-100,patient-101"
+      },
+      "response": {
+        "status": 200,
+        "bodyJson": {
+          "success": true,
+          "data": {
+            "patients": [
+              {
+                "id": "patient-100",
+                "first_name": "Synthetic",
+                "last_name": "One",
+                "phone": "+380 00 000 00 00",
+                "email": "synthetic.one@example.invalid",
+                "sms_reminders_enabled": true
+              },
+              {
+                "id": "patient-101",
+                "first_name": "Synthetic",
+                "last_name": "Two",
+                "phones": [],
+                "sms_reminders_enabled": false
+              }
+            ]
+          },
+          "meta": {
+            "total": 2
+          }
+        }
+      }
+    },
+    {
+      "id": "cliniccards-patients-missing",
+      "request": {
+        "method": "GET",
+        "url": "http://cassette.invalid/patients?ids=patient-100,patient-missing"
+      },
+      "response": {
+        "status": 200,
+        "bodyJson": {
+          "success": true,
+          "data": {
+            "patients": [
+              {
+                "id": "patient-100",
+                "first_name": "Synthetic",
+                "last_name": "One"
+              }
+            ]
+          },
+          "meta": {
+            "total": 1
+          }
+        }
+      }
+    },
+    {
+      "id": "cliniccards-patients-merged",
+      "request": {
+        "method": "GET",
+        "url": "http://cassette.invalid/patients?ids=patient-merged"
+      },
+      "response": {
+        "status": 200,
+        "bodyJson": {
+          "success": true,
+          "data": {
+            "patients": [
+              {
+                "id": "patient-merged",
+                "status": "MERGED",
+                "merged_into": "patient-survivor"
+              }
+            ]
+          },
+          "meta": {
+            "total": 1
+          }
+        }
+      }
+    },
+    {
+      "id": "cliniccards-patients-duplicate",
+      "request": {
+        "method": "GET",
+        "url": "http://cassette.invalid/patients?ids=patient-duplicate"
+      },
+      "response": {
+        "status": 200,
+        "bodyJson": {
+          "success": true,
+          "data": {
+            "patients": [
+              {
+                "id": "patient-duplicate",
+                "first_name": "Synthetic"
+              },
+              {
+                "id": "patient-duplicate",
+                "first_name": "Synthetic Duplicate"
+              }
+            ]
+          },
+          "meta": {
+            "total": 2
+          }
+        }
+      }
+    },
+    {
+      "id": "cliniccards-patients-invalid-phone",
+      "request": {
+        "method": "GET",
+        "url": "http://cassette.invalid/patients?ids=patient-invalid-phone"
+      },
+      "response": {
+        "status": 200,
+        "bodyJson": {
+          "success": true,
+          "data": {
+            "patients": [
+              {
+                "id": "patient-invalid-phone",
+                "first_name": "Synthetic",
+                "phone": "380000000000",
+                "sms_reminders_enabled": true
+              }
+            ]
+          },
+          "meta": {
+            "total": 1
+          }
+        }
+      }
+    }
+  ]
+}

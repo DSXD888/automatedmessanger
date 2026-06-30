@@ -1,0 +1,168 @@
+{
+  "metadata": {
+    "recorded_at": "2026-06-30T00:00:00.000Z",
+    "source": "synthetic-cliniccards-visits-edge-cases",
+    "sanitized": true,
+    "endpoint": "cliniccards-visits"
+  },
+  "interactions": [
+    {
+      "id": "cliniccards-visits-empty",
+      "request": {
+        "method": "GET",
+        "url": "http://cassette.invalid/visits?from=2026-07-02&to=2026-07-02"
+      },
+      "response": {
+        "status": 200,
+        "bodyJson": {
+          "success": true,
+          "data": {
+            "visits": []
+          },
+          "meta": {
+            "total": 0
+          }
+        }
+      }
+    },
+    {
+      "id": "cliniccards-visits-truncated",
+      "request": {
+        "method": "GET",
+        "url": "http://cassette.invalid/visits?from=2026-07-03&to=2026-07-03"
+      },
+      "response": {
+        "status": 200,
+        "bodyJson": {
+          "success": true,
+          "data": {
+            "visits": [
+              {
+                "id": "visit-truncated",
+                "patient_id": "patient-truncated",
+                "status": "PLANNED",
+                "start_at": "2026-07-03T10:00:00+03:00"
+              }
+            ]
+          },
+          "meta": {
+            "total": 2,
+            "truncated": true
+          }
+        }
+      }
+    },
+    {
+      "id": "cliniccards-visits-malformed",
+      "request": {
+        "method": "GET",
+        "url": "http://cassette.invalid/visits?from=2026-07-04&to=2026-07-04"
+      },
+      "response": {
+        "status": 200,
+        "bodyJson": {
+          "success": true,
+          "data": {
+            "visits": [
+              {
+                "id": "visit-malformed",
+                "patient_id": "patient-malformed",
+                "status": "PLANNED"
+              }
+            ]
+          },
+          "meta": {
+            "total": 1
+          }
+        }
+      }
+    },
+    {
+      "id": "cliniccards-visits-moved",
+      "request": {
+        "method": "GET",
+        "url": "http://cassette.invalid/visits?from=2026-07-05&to=2026-07-05"
+      },
+      "response": {
+        "status": 200,
+        "bodyJson": {
+          "success": true,
+          "data": {
+            "visits": [
+              {
+                "id": "visit-moved",
+                "patient_id": "patient-moved",
+                "status": "MOVED",
+                "start_at": "2026-07-06T08:30:00+03:00",
+                "end_at": "2026-07-06T09:00:00+03:00"
+              }
+            ]
+          },
+          "meta": {
+            "total": 1
+          }
+        }
+      }
+    },
+    {
+      "id": "cliniccards-visits-terminal",
+      "request": {
+        "method": "GET",
+        "url": "http://cassette.invalid/visits?from=2026-07-06&to=2026-07-06"
+      },
+      "response": {
+        "status": 200,
+        "bodyJson": {
+          "success": true,
+          "data": {
+            "visits": [
+              {
+                "id": "visit-cancelled",
+                "patient_id": "patient-cancelled",
+                "status": "CANCELLED",
+                "start_at": "2026-07-06T10:00:00+03:00"
+              },
+              {
+                "id": "visit-visited",
+                "patient_id": "patient-visited",
+                "status": "VISITED",
+                "start_at": "2026-07-06T12:00:00+03:00"
+              }
+            ]
+          },
+          "meta": {
+            "total": 2
+          }
+        }
+      }
+    },
+    {
+      "id": "cliniccards-visits-429",
+      "request": {
+        "method": "GET",
+        "url": "http://cassette.invalid/visits?from=2026-07-07&to=2026-07-07"
+      },
+      "response": {
+        "status": 429,
+        "bodyJson": {
+          "success": false,
+          "error": "rate_limited"
+        }
+      }
+    },
+    {
+      "id": "cliniccards-visits-500",
+      "request": {
+        "method": "GET",
+        "url": "http://cassette.invalid/visits?from=2026-07-08&to=2026-07-08"
+      },
+      "response": {
+        "status": 500,
+        "bodyJson": {
+          "success": false,
+          "error": "server_error"
+        }
+      }
+    }
+  ]
+}

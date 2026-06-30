@@ -1,0 +1,52 @@
+{
+  "metadata": {
+    "recorded_at": "2026-06-30T00:00:00.000Z",
+    "source": "synthetic-cliniccards-visits-normal",
+    "sanitized": true,
+    "endpoint": "cliniccards-visits"
+  },
+  "interactions": [
+    {
+      "id": "cliniccards-visits-normal",
+      "request": {
+        "method": "GET",
+        "url": "http://cassette.invalid/visits?from=2026-07-01&to=2026-07-01"
+      },
+      "response": {
+        "status": 200,
+        "bodyJson": {
+          "success": true,
+          "data": {
+            "visits": [
+              {
+                "id": "visit-100",
+                "patient_id": "patient-100",
+                "status": "PLANNED",
+                "start_at": "2026-07-01T09:00:00+03:00",
+                "end_at": "2026-07-01T09:30:00+03:00",
+                "doctor": {
+                  "name": "Synthetic Doctor"
+                },
+                "cabinet": {
+                  "name": "Room 1"
+                }
+              },
+              {
+                "id": "visit-101",
+                "patient_id": "patient-101",
+                "status": "NOT_CONFIRMED",
+                "start_at": "2026-07-01T11:15:00+03:00",
+                "end_at": "2026-07-01T11:45:00+03:00",
+                "doctor_name": "Synthetic Doctor",
+                "cabinet_name": "Room 2"
+              }
+            ]
+          },
+          "meta": {
+            "total": 2
+          }
+        }
+      }
+    }
+  ]
+}

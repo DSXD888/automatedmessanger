@@ -1,0 +1,119 @@
+{
+  "metadata": {
+    "recorded_at": "2026-06-30T00:00:00.000Z",
+    "source": "synthetic-cliniccards-patients-chunk-split",
+    "sanitized": true,
+    "endpoint": "cliniccards-patients"
+  },
+  "interactions": [
+    {
+      "id": "cliniccards-patients-three-too-long",
+      "request": {
+        "method": "GET",
+        "url": "http://cassette.invalid/patients?ids=patient-200,patient-201,patient-202"
+      },
+      "response": {
+        "status": 414,
+        "bodyJson": {
+          "success": false,
+          "error": "uri_too_long"
+        }
+      }
+    },
+    {
+      "id": "cliniccards-patients-two-bad-request",
+      "request": {
+        "method": "GET",
+        "url": "http://cassette.invalid/patients?ids=patient-200,patient-201"
+      },
+      "response": {
+        "status": 400,
+        "bodyJson": {
+          "success": false,
+          "error": "too_many_ids"
+        }
+      }
+    },
+    {
+      "id": "cliniccards-patients-200",
+      "request": {
+        "method": "GET",
+        "url": "http://cassette.invalid/patients?ids=patient-200"
+      },
+      "response": {
+        "status": 200,
+        "bodyJson": {
+          "success": true,
+          "patients": [
+            {
+              "id": "patient-200",
+              "first_name": "Synthetic"
+            }
+          ],
+          "total": 1
+        }
+      }
+    },
+    {
+      "id": "cliniccards-patients-201",
+      "request": {
+        "method": "GET",
+        "url": "http://cassette.invalid/patients?ids=patient-201"
+      },
+      "response": {
+        "status": 200,
+        "bodyJson": {
+          "success": true,
+          "patients": [
+            {
+              "id": "patient-201",
+              "first_name": "Synthetic"
+            }
+          ],
+          "total": 1
+        }
+      }
+    },
+    {
+      "id": "cliniccards-patients-202",
+      "request": {
+        "method": "GET",
+        "url": "http://cassette.invalid/patients?ids=patient-202"
+      },
+      "response": {
+        "status": 200,
+        "bodyJson": {
+          "success": true,
+          "patients": [
+            {
+              "id": "patient-202",
+              "first_name": "Synthetic"
+            }
+          ],
+          "total": 1
+        }
+      }
+    },
+    {
+      "id": "cliniccards-patients-partial",
+      "request": {
+        "method": "GET",
+        "url": "http://cassette.invalid/patients?ids=patient-partial-a,patient-partial-b"
+      },
+      "response": {
+        "status": 200,
+        "bodyJson": {
+          "success": true,
+          "patients": [
+            {
+              "id": "patient-partial-a",
+              "first_name": "Synthetic"
+            }
+          ],
+          "total": 2,
+          "has_more": true
+        }
+      }
+    }
+  ]
+}
