@@ -1,6 +1,11 @@
 export type MessageChannel = "sms";
 
-export type SendStatus = "accepted" | "failed" | "refused";
+export type SendStatus =
+  | "accepted"
+  | "failed"
+  | "send_unknown"
+  | "would_send"
+  | "blocked_by_allowlist";
 
 export interface SendMessageRequest {
   channel: MessageChannel;
@@ -14,6 +19,8 @@ export interface SendMessageRequest {
 export interface SendMessageResult {
   status: SendStatus;
   providerMessageId?: string;
+  provider?: string;
+  dryRun?: boolean;
   errorCode?: string;
   errorMessage?: string;
   segments?: number;

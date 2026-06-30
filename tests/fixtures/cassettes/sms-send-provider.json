@@ -1,0 +1,158 @@
+{
+  "metadata": {
+    "recorded_at": "2026-06-30T00:00:00.000Z",
+    "source": "synthetic-sms-provider-fixture",
+    "sanitized": true,
+    "endpoint": "POST /message/send.json"
+  },
+  "interactions": [
+    {
+      "id": "turbosms-accepted",
+      "request": {
+        "method": "POST",
+        "scheme": "http",
+        "host": "cassette.invalid",
+        "path": "/message/send.json",
+        "bodyJson": {
+          "client_reference": "message-accepted",
+          "recipients": ["[redacted-phone:0000]"],
+          "sms": {
+            "sender": "Dentino",
+            "text": "[redacted-sms-body]"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "bodyJson": {
+          "response_code": 0,
+          "response_status": "OK",
+          "sms_id": "provider-message-accepted"
+        }
+      }
+    },
+    {
+      "id": "turbosms-rejected",
+      "request": {
+        "method": "POST",
+        "scheme": "http",
+        "host": "cassette.invalid",
+        "path": "/message/send.json",
+        "bodyJson": {
+          "client_reference": "message-rejected",
+          "recipients": ["[redacted-phone:0000]"],
+          "sms": {
+            "sender": "Dentino",
+            "text": "[redacted-sms-body]"
+          }
+        }
+      },
+      "response": {
+        "status": 422,
+        "bodyJson": {
+          "response_status": "ERROR",
+          "error_code": "INVALID_RECIPIENT",
+          "error_message": "synthetic rejection"
+        }
+      }
+    },
+    {
+      "id": "turbosms-timeout",
+      "request": {
+        "method": "POST",
+        "scheme": "http",
+        "host": "cassette.invalid",
+        "path": "/message/send.json",
+        "bodyJson": {
+          "client_reference": "message-timeout",
+          "recipients": ["[redacted-phone:0000]"],
+          "sms": {
+            "sender": "Dentino",
+            "text": "[redacted-sms-body]"
+          }
+        }
+      },
+      "response": {
+        "status": 504,
+        "bodyJson": {
+          "response_status": "TIMEOUT",
+          "message": "synthetic timeout after submit boundary"
+        }
+      }
+    },
+    {
+      "id": "turbosms-ambiguous",
+      "request": {
+        "method": "POST",
+        "scheme": "http",
+        "host": "cassette.invalid",
+        "path": "/message/send.json",
+        "bodyJson": {
+          "client_reference": "message-ambiguous",
+          "recipients": ["[redacted-phone:0000]"],
+          "sms": {
+            "sender": "Dentino",
+            "text": "[redacted-sms-body]"
+          }
+        }
+      },
+      "response": {
+        "status": 202,
+        "bodyJson": {
+          "response_status": "PENDING_REVIEW",
+          "message": "synthetic non-final provider state"
+        }
+      }
+    },
+    {
+      "id": "turbosms-balance-exhausted",
+      "request": {
+        "method": "POST",
+        "scheme": "http",
+        "host": "cassette.invalid",
+        "path": "/message/send.json",
+        "bodyJson": {
+          "client_reference": "message-balance",
+          "recipients": ["[redacted-phone:0000]"],
+          "sms": {
+            "sender": "Dentino",
+            "text": "[redacted-sms-body]"
+          }
+        }
+      },
+      "response": {
+        "status": 402,
+        "bodyJson": {
+          "response_status": "ERROR",
+          "error_code": "INSUFFICIENT_BALANCE",
+          "error_message": "synthetic exhausted balance"
+        }
+      }
+    },
+    {
+      "id": "turbosms-envelope-drift",
+      "request": {
+        "method": "POST",
+        "scheme": "http",
+        "host": "cassette.invalid",
+        "path": "/message/send.json",
+        "bodyJson": {
+          "client_reference": "message-drift",
+          "recipients": ["[redacted-phone:0000]"],
+          "sms": {
+            "sender": "Dentino",
+            "text": "[redacted-sms-body]"
+          }
+        }
+      },
+      "response": {
+        "status": 200,
+        "bodyJson": {
+          "provider_changed_shape": {
+            "outcome": "not-classified"
+          }
+        }
+      }
+    }
+  ]
+}
