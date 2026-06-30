@@ -69,7 +69,7 @@ export interface ClinicCardsPatient {
 
 export interface CrmFetchLogRecord {
   purpose: CrmFetchPurpose;
-  method: "GET";
+  method: "GET" | "PUT";
   path: string;
   request_params: Record<string, JsonValue>;
   response_status: number;
@@ -105,6 +105,18 @@ export interface ClinicCardsPatientReadResult {
   fetchLogs: readonly CrmFetchLogRecord[];
 }
 
+export interface ClinicCardsVisitByIdResult {
+  visit: ClinicCardsVisit;
+  fetchLog: CrmFetchLogRecord;
+}
+
+export type ClinicCardsVisitWriteStatus = "CONFIRMED" | "CANCELLED";
+
+export interface ClinicCardsVisitWriteResult {
+  visit: ClinicCardsVisit | null;
+  fetchLog: CrmFetchLogRecord;
+}
+
 export interface ClinicCardsClientOptions {
   config?: RuntimeConfig;
   httpClient?: HttpClient;
@@ -138,6 +150,14 @@ export interface ClinicCardsClient {
   getPatientsByIds(
     patientIds: readonly string[],
   ): Promise<ClinicCardsPatientReadResult>;
+  getVisitById(
+    visitId: string,
+    purpose?: Extract<CrmFetchPurpose, "writeback_pre" | "writeback_post">,
+  ): Promise<ClinicCardsVisitByIdResult>;
+  putVisitStatus(
+    visitId: string,
+    status: ClinicCardsVisitWriteStatus,
+  ): Promise<ClinicCardsVisitWriteResult>;
 }
 
 export class ClinicCardsContractError extends Error {
@@ -383,6 +403,58 @@ class ClinicCardsRestClient implements ClinicCardsClient {
     });
   }
 
+  async getVisitById(
+    visitId: string,
+    purpose: Extract<
+      CrmFetchPurpose,
+      "writeback_pre" | "writeback_post"
+    > = "writeback_pre",
+  ): Promise<ClinicCardsVisitByIdResult> {
+    const normalizedVisitId = normalizeVisitId(visitId);
+    const { body, log } = await this.#requestJson(
+      "GET",
+      `/visits/${encodeURIComponent(normalizedVisitId)}`,
+      {},
+      purpose,
+    );
+
+    return Object.freeze({
+      visit: parseVisitByIdResponse(
+        body,
+        normalizedVisitId,
+        this.#statusPolicy,
+      ),
+      fetchLog: log,
+    });
+  }
+
+  async putVisitStatus(
+    visitId: string,
+    status: ClinicCardsVisitWriteStatus,
+  ): Promise<ClinicCardsVisitWriteResult> {
+    const normalizedVisitId = normalizeVisitId(visitId);
+    const payload = Object.freeze({
+      visit_id: normalizedVisitId,
+      status,
+    });
+    const { body, log } = await this.#requestJson(
+      "PUT",
+      "/visits",
+      {},
+      "writeback_post",
+      payload,
+    );
+
+    return Object.freeze({
+      visit: parseOptionalVisitByIdResponse(
+        body,
+        normalizedVisitId,
+        this.#statusPolicy,
+      ),
+      fetchLog: log,
+    });
+  }
+
   async #readPatientChunk(
     patientIds: readonly string[],
     collected: Map<string, ClinicCardsPatient>,
@@ -475,16 +547,20 @@ class ClinicCardsRestClient implements ClinicCardsClient {
   }
 
   async #requestJson(
-    method: "GET",
+    method: "GET" | "PUT",
     path: string,
     query: Record<string, string>,
     purpose: CrmFetchPurpose,
+    requestBody?: JsonValue,
   ): Promise<{ body: JsonValue; log: CrmFetchLogRecord }> {
     const url = this.#url(path, query);
     const response = await this.#httpClient({
       url,
       method,
       headers: this.#headers(),
+      ...(requestBody === undefined
+        ? {}
+        : { body: JSON.stringify(requestBody) }),
     });
     const rawBody = await response.text();
     const body = parseJsonBody(rawBody, path);
@@ -515,6 +591,7 @@ class ClinicCardsRestClient implements ClinicCardsClient {
 
   #headers(): Headers {
     const headers = new Headers({ accept: "application/json" });
+    headers.set("content-type", "application/json");
     if (this.#token) {
       headers.set(clinicCardsBuildConfirmations.tokenHeader.value, this.#token);
     }
@@ -528,7 +605,7 @@ class ClinicCardsRestClient implements ClinicCardsClient {
 
 async function createFetchLogRecord(input: {
   purpose: CrmFetchPurpose;
-  method: "GET";
+  method: "GET" | "PUT";
   path: string;
   query: Record<string, string>;
   responseStatus: number;
@@ -546,6 +623,12 @@ async function createFetchLogRecord(input: {
     raw_sha256_hex: await sha256Hex(input.rawBody),
     fetched_at: input.fetchedAt,
   });
+}
+
+export async function clinicCardsAppointmentFingerprint(
+  visit: ClinicCardsVisit,
+): Promise<string> {
+  return await appointmentFingerprint(visit);
 }
 
 async function visitFactFromVisit(
@@ -641,6 +724,95 @@ function parseClinicCardsVisit(
     raw: row,
     status: classifyClinicCardsStatus(sourceStatus, policy),
   });
+}
+
+function parseVisitByIdResponse(
+  body: JsonValue,
+  visitId: string,
+  policy: ReadonlyMap<string, ClinicCardsStatusPolicyEntry>,
+): ClinicCardsVisit {
+  const visit = parseOptionalVisitByIdResponse(body, visitId, policy);
+  if (!visit) {
+    throw new ClinicCardsContractError(
+      "ClinicCards visit-by-id response omitted the requested visit",
+      { visitId },
+    );
+  }
+  return visit;
+}
+
+function parseOptionalVisitByIdResponse(
+  body: JsonValue,
+  visitId: string,
+  policy: ReadonlyMap<string, ClinicCardsStatusPolicyEntry>,
+): ClinicCardsVisit | null {
+  const candidate = findVisitByIdCandidate(body, visitId);
+  if (!candidate) {
+    return null;
+  }
+
+  const visit = parseClinicCardsVisit(candidate, policy);
+  if (visit.id !== visitId) {
+    throw new ClinicCardsContractError(
+      "ClinicCards visit-by-id response included a different visit",
+      { expected: visitId, actual: visit.id },
+    );
+  }
+  return visit;
+}
+
+function findVisitByIdCandidate(
+  value: JsonValue,
+  visitId: string,
+  depth = 0,
+): JsonValue | null {
+  if (depth > 3 || value === null) {
+    return null;
+  }
+  if (Array.isArray(value)) {
+    const matches = value.filter((item) =>
+      item !== null && !Array.isArray(item) && typeof item === "object" &&
+      firstString(item as Record<string, JsonValue>, [
+          "id",
+          "visit_id",
+          "visitId",
+        ]) === visitId
+    );
+    if (matches.length > 1) {
+      throw new ClinicCardsContractError(
+        "ClinicCards visit-by-id response was ambiguous",
+        { visitId },
+      );
+    }
+    return matches[0] ?? null;
+  }
+  if (typeof value !== "object") {
+    return null;
+  }
+
+  const object = value as Record<string, JsonValue>;
+  const directId = firstString(object, ["id", "visit_id", "visitId"]);
+  if (directId === visitId) {
+    return value;
+  }
+
+  for (
+    const key of [
+      "visit",
+      "data",
+      "item",
+      "result",
+      "visits",
+      "items",
+      "results",
+    ]
+  ) {
+    const nested = findVisitByIdCandidate(object[key], visitId, depth + 1);
+    if (nested) {
+      return nested;
+    }
+  }
+  return null;
 }
 
 function parseClinicCardsPatient(row: JsonValue): ClinicCardsPatient {
@@ -966,6 +1138,14 @@ function dedupePatientIds(patientIds: readonly string[]): string[] {
     deduped.push(id);
   }
   return deduped;
+}
+
+function normalizeVisitId(visitId: string): string {
+  const normalized = visitId.trim();
+  if (normalized.length === 0) {
+    throw new RangeError("visitId must not be empty");
+  }
+  return normalized;
 }
 
 function parseIsoInstant(value: string, label: string, id: string): number {

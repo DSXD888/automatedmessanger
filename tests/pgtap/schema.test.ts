@@ -1,4 +1,5 @@
 import definerSql from "./definer.sql" with { type: "text" };
+import concurrencySql from "./concurrency.sql" with { type: "text" };
 import grantsSql from "./grants.sql" with { type: "text" };
 import rlsSql from "./rls.sql" with { type: "text" };
 import schemaSql from "./schema.sql" with { type: "text" };
@@ -8,6 +9,7 @@ const pgTapScripts = [
   { name: "grants", sql: grantsSql, plan: "24" },
   { name: "rls", sql: rlsSql, plan: "8" },
   { name: "definer", sql: definerSql, plan: "11" },
+  { name: "concurrency", sql: concurrencySql, plan: "5" },
 ];
 
 Deno.test("pgTAP SQL is wired for the expected contracts", () => {

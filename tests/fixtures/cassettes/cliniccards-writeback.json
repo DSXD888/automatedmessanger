@@ -1,0 +1,162 @@
+{
+  "metadata": {
+    "recorded_at": "2026-06-30T00:00:00.000Z",
+    "source": "synthetic-cliniccards-writeback",
+    "sanitized": true,
+    "endpoint": "cliniccards-writeback"
+  },
+  "interactions": [
+    {
+      "id": "cliniccards-writeback-confirm-pre",
+      "request": {
+        "method": "GET",
+        "url": "http://cassette.invalid/visits/visit-confirm-ok"
+      },
+      "response": {
+        "status": 200,
+        "bodyJson": {
+          "success": true,
+          "data": {
+            "visit": {
+              "id": "visit-confirm-ok",
+              "patient_id": "patient-confirm-ok",
+              "status": "PLANNED",
+              "start_at": "2026-07-01T09:00:00+03:00",
+              "end_at": "2026-07-01T09:30:00+03:00",
+              "doctor_name": "Synthetic Doctor",
+              "cabinet_name": "Room 1"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "cliniccards-writeback-confirm-put",
+      "request": {
+        "method": "PUT",
+        "url": "http://cassette.invalid/visits",
+        "bodyJson": {
+          "status": "CONFIRMED",
+          "visit_id": "visit-confirm-ok"
+        }
+      },
+      "response": {
+        "status": 200,
+        "bodyJson": {
+          "success": true,
+          "data": {
+            "visit": {
+              "id": "visit-confirm-ok",
+              "patient_id": "patient-confirm-ok",
+              "status": "CONFIRMED",
+              "start_at": "2026-07-01T09:00:00+03:00",
+              "end_at": "2026-07-01T09:30:00+03:00",
+              "doctor_name": "Synthetic Doctor",
+              "cabinet_name": "Room 1"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "cliniccards-writeback-confirm-post",
+      "request": {
+        "method": "GET",
+        "url": "http://cassette.invalid/visits/visit-confirm-ok"
+      },
+      "response": {
+        "status": 200,
+        "bodyJson": {
+          "success": true,
+          "data": {
+            "visit": {
+              "id": "visit-confirm-ok",
+              "patient_id": "patient-confirm-ok",
+              "status": "CONFIRMED",
+              "start_at": "2026-07-01T09:00:00+03:00",
+              "end_at": "2026-07-01T09:30:00+03:00",
+              "doctor_name": "Synthetic Doctor",
+              "cabinet_name": "Room 1"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "cliniccards-writeback-cancel-pre",
+      "request": {
+        "method": "GET",
+        "url": "http://cassette.invalid/visits/visit-cancel-ok"
+      },
+      "response": {
+        "status": 200,
+        "bodyJson": {
+          "success": true,
+          "data": {
+            "visit": {
+              "id": "visit-cancel-ok",
+              "patient_id": "patient-cancel-ok",
+              "status": "NOT_CONFIRMED",
+              "start_at": "2026-07-01T11:00:00+03:00",
+              "end_at": "2026-07-01T11:30:00+03:00",
+              "doctor_name": "Synthetic Doctor",
+              "cabinet_name": "Room 2"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "cliniccards-writeback-cancel-put",
+      "request": {
+        "method": "PUT",
+        "url": "http://cassette.invalid/visits",
+        "bodyJson": {
+          "status": "CANCELLED",
+          "visit_id": "visit-cancel-ok"
+        }
+      },
+      "response": {
+        "status": 200,
+        "bodyJson": {
+          "success": true,
+          "data": {
+            "visit": {
+              "id": "visit-cancel-ok",
+              "patient_id": "patient-cancel-ok",
+              "status": "CANCELLED",
+              "start_at": "2026-07-01T11:00:00+03:00",
+              "end_at": "2026-07-01T11:30:00+03:00",
+              "doctor_name": "Synthetic Doctor",
+              "cabinet_name": "Room 2"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "cliniccards-writeback-cancel-post",
+      "request": {
+        "method": "GET",
+        "url": "http://cassette.invalid/visits/visit-cancel-ok"
+      },
+      "response": {
+        "status": 200,
+        "bodyJson": {
+          "success": true,
+          "data": {
+            "visit": {
+              "id": "visit-cancel-ok",
+              "patient_id": "patient-cancel-ok",
+              "status": "CANCELLED",
+              "start_at": "2026-07-01T11:00:00+03:00",
+              "end_at": "2026-07-01T11:30:00+03:00",
+              "doctor_name": "Synthetic Doctor",
+              "cabinet_name": "Room 2"
+            }
+          }
+        }
+      }
+    }
+  ]
+}
