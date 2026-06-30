@@ -1,7 +1,12 @@
 import {
   defaultDashboardTemplate,
-  validateDashboardTemplateBody
+  validateDashboardTemplateBody,
 } from "./template-validation";
+import {
+  computeTrustPanel,
+  computeValueMetrics,
+  type ReminderDayRollup,
+} from "./rollups";
 
 export type BoardState =
   | "confirmed"
@@ -42,7 +47,7 @@ export interface LastRunRecap {
 export const modeBanner = {
   mode: "SHADOW",
   sendMode: "off",
-  crmWriteMode: "off"
+  crmWriteMode: "off",
 } as const;
 
 export const lastRunRecap: LastRunRecap = {
@@ -54,8 +59,74 @@ export const lastRunRecap: LastRunRecap = {
   handled: 17,
   problems: 3,
   responses: 12,
-  successHeartbeatSent: true
+  successHeartbeatSent: true,
 };
+
+const currentTargetDateIso = "2026-06-19";
+const afterNoonGraceMinute = (12 * 60) + 35;
+
+export const currentReminderDayRollup: ReminderDayRollup = {
+  targetDateIso: currentTargetDateIso,
+  health: "amber",
+  cliniccardsTotal: 18,
+  remindableTotal: 17,
+  sendableTotal: 16,
+  sentTotal: 16,
+  skippedTotal: 1,
+  failedTotal: 0,
+  sendUnknownTotal: 0,
+  pendingTotal: 0,
+  unaccountedTotal: 0,
+  responseTotal: 12,
+  successHeartbeatSent: true,
+};
+
+export const staleReminderDayRollup: ReminderDayRollup = {
+  ...currentReminderDayRollup,
+  targetDateIso: "2026-06-18",
+  health: "green",
+  skippedTotal: 0,
+};
+
+export const trustPanel = computeTrustPanel({
+  day: currentReminderDayRollup,
+  currentTargetDateIso,
+  kyivMinuteOfDay: afterNoonGraceMinute,
+});
+
+export const staleTrustPanel = computeTrustPanel({
+  day: staleReminderDayRollup,
+  currentTargetDateIso,
+  kyivMinuteOfDay: afterNoonGraceMinute,
+});
+
+export const valueMetrics = computeValueMetrics({
+  deliveredOrResolvedByAction: 20,
+  recordedActions: 12,
+  fixedDailyOpsMinutes: 10,
+  noReplyCallMinutes: 2.25,
+  recentClinicDayActionRates: [0.59, 0.61, 0.57, 0.62, 0.6],
+  baselines: {
+    noShowRate: null,
+    emptySlotRate: null,
+    manualCallMinutes: null,
+    slotContributionUah: null,
+  },
+  segments: [
+    {
+      templateKey: "default-reminder",
+      sendHour: 12,
+      deliveredOrResolvedByAction: 10,
+      recordedActions: 6,
+    },
+    {
+      templateKey: "default-reminder",
+      sendHour: 15,
+      deliveredOrResolvedByAction: 10,
+      recordedActions: 6,
+    },
+  ],
+});
 
 export const boardRows: readonly BoardRow[] = [
   {
@@ -69,7 +140,7 @@ export const boardRows: readonly BoardRow[] = [
     responseState: "confirmed",
     staffState: "normal",
     actionLabel: "Відкрити в CRM",
-    needsAttention: false
+    needsAttention: false,
   },
   {
     id: 702,
@@ -82,7 +153,7 @@ export const boardRows: readonly BoardRow[] = [
     responseState: "confirmed",
     staffState: "normal",
     actionLabel: "Відкрити в CRM",
-    needsAttention: false
+    needsAttention: false,
   },
   {
     id: 703,
@@ -95,7 +166,7 @@ export const boardRows: readonly BoardRow[] = [
     responseState: "cancelled",
     staffState: "cancelled_ok",
     actionLabel: "Передзвонити",
-    needsAttention: false
+    needsAttention: false,
   },
   {
     id: 704,
@@ -108,7 +179,7 @@ export const boardRows: readonly BoardRow[] = [
     responseState: "no_reply",
     staffState: "call_after_catchup",
     actionLabel: "У чергу дзвінків",
-    needsAttention: false
+    needsAttention: false,
   },
   {
     id: 705,
@@ -121,7 +192,7 @@ export const boardRows: readonly BoardRow[] = [
     responseState: "failed",
     staffState: "writeback_attention",
     actionLabel: "Записати вручну",
-    needsAttention: true
+    needsAttention: true,
   },
   {
     id: 706,
@@ -134,7 +205,7 @@ export const boardRows: readonly BoardRow[] = [
     responseState: "skipped",
     staffState: "no_phone",
     actionLabel: "Відкрити в CRM",
-    needsAttention: true
+    needsAttention: true,
   },
   {
     id: 707,
@@ -147,7 +218,7 @@ export const boardRows: readonly BoardRow[] = [
     responseState: "superseded",
     staffState: "stale_or_moved",
     actionLabel: "Переглянути",
-    needsAttention: true
+    needsAttention: true,
   },
   {
     id: 708,
@@ -160,7 +231,7 @@ export const boardRows: readonly BoardRow[] = [
     responseState: "send_unknown",
     staffState: "send_unknown",
     actionLabel: "Перевірити",
-    needsAttention: true
+    needsAttention: true,
   },
   {
     id: 709,
@@ -173,20 +244,18 @@ export const boardRows: readonly BoardRow[] = [
     responseState: "held_cancel",
     staffState: "held_cancel",
     actionLabel: "Розглянути",
-    needsAttention: true
-  }
+    needsAttention: true,
+  },
 ];
 
 export const callListRows = boardRows.filter((row) =>
   row.responseState === "no_reply"
 );
 
-export const needsAttentionRows = boardRows.filter((row) =>
-  row.needsAttention
-);
+export const needsAttentionRows = boardRows.filter((row) => row.needsAttention);
 
 export const templateEditorState = validateDashboardTemplateBody(
-  defaultDashboardTemplate
+  defaultDashboardTemplate,
 );
 
 export function countRows(state: BoardState): number {

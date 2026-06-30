@@ -17,8 +17,16 @@
   --amber-bg: #fbf1dd;
   --focus: #0a3576;
   --radius: 8px;
-  --stack: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial,
-    "Noto Sans", "Liberation Sans", sans-serif;
+  --stack:
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    Roboto,
+    "Helvetica Neue",
+    Arial,
+    "Noto Sans",
+    "Liberation Sans",
+    sans-serif;
 }
 
 * {
@@ -274,6 +282,100 @@ h3 {
   color: var(--amber);
 }
 
+.panelBand {
+  margin-top: 24px;
+}
+
+.panelHeader {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 10px;
+}
+
+.panelHeader h2 {
+  margin: 0;
+}
+
+.panelLead {
+  margin: 0 0 12px;
+  color: var(--muted);
+}
+
+.statusBadge {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: var(--radius);
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.statusBadge.green,
+.statusBadge.healthy {
+  background: var(--success-bg);
+  color: var(--success);
+}
+
+.statusBadge.amber,
+.statusBadge.watch {
+  background: var(--amber-bg);
+  color: var(--amber);
+}
+
+.statusBadge.red {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+.metricGrid,
+.valueGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.valueGrid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.metricTile {
+  min-width: 0;
+  min-height: 108px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
+}
+
+.metricTile.wide {
+  grid-column: span 1;
+}
+
+.metricTile span,
+.metricTile small {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.metricTile strong {
+  display: block;
+  margin-top: 8px;
+  color: var(--ink);
+  font-size: 24px;
+  line-height: 1.1;
+}
+
+.metricTile small {
+  margin-top: 8px;
+  font-weight: 600;
+}
+
 .chips {
   display: flex;
   flex-wrap: wrap;
@@ -498,8 +600,14 @@ textarea {
 @media (max-width: 900px) {
   .topbar,
   .pageHeader,
-  .workGrid {
+  .workGrid,
+  .panelHeader {
     grid-template-columns: 1fr;
+  }
+
+  .panelHeader {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .topbar {
@@ -511,6 +619,11 @@ textarea {
   }
 
   .recap {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .metricGrid,
+  .valueGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -541,6 +654,11 @@ textarea {
   }
 
   .recap {
+    grid-template-columns: 1fr;
+  }
+
+  .metricGrid,
+  .valueGrid {
     grid-template-columns: 1fr;
   }
 

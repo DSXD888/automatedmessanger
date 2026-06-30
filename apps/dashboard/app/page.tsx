@@ -5,6 +5,8 @@ import {
   ExternalLink,
   FileDown,
   Send,
+  ShieldCheck,
+  TrendingUp,
 } from "lucide-react";
 import Link from "next/link";
 import {
@@ -12,7 +14,11 @@ import {
   countRows,
   lastRunRecap,
   modeBanner,
+  staleTrustPanel,
+  trustPanel,
+  valueMetrics,
 } from "../lib/dashboard-data";
+import { formatPercent } from "../lib/rollups";
 
 const stateLabel = new Map([
   ["confirmed", "Підтверджено"],
@@ -25,7 +31,46 @@ const stateLabel = new Map([
   ["superseded", "Змінено персоналом"],
 ]);
 
-export default function DashboardPage() {
+const trustReasonLabel = new Map([
+  ["all_accounted", "Усі поточні записи закриті без винятків"],
+  [
+    "staff_work_skips",
+    "Є відомі винятки для персоналу, але немає червоних боргів",
+  ],
+  [
+    "red_problem_counts",
+    "Є невирішені помилки, невідомі надсилання або прогалини",
+  ],
+  ["waiting_for_current_day", "Поточний Kyiv target date ще очікує запуск"],
+  ["stale_current_day", "Поточний день відсутній після 12:30 за Києвом"],
+]);
+
+const baselineLabel = new Map([
+  ["noShowRate", "no-show"],
+  ["emptySlotRate", "empty-slot"],
+  ["manualCallMinutes", "manual-call minutes"],
+  ["slotContributionUah", "slot contribution"],
+]);
+
+type DashboardPageProps = {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+};
+
+export default async function DashboardPage(
+  { searchParams }: DashboardPageProps,
+) {
+  const params = await searchParams;
+  const fixture = Array.isArray(params?.fixture)
+    ? params?.fixture[0]
+    : params?.fixture;
+  const activeTrustPanel = fixture === "stale-current"
+    ? staleTrustPanel
+    : trustPanel;
+  const staffMinutesValue =
+    typeof valueMetrics.estimatedStaffMinutes === "number"
+      ? `${valueMetrics.estimatedStaffMinutes} хв`
+      : "missing";
+
   return (
     <main className="shell">
       <Topbar key="topbar" />
@@ -89,6 +134,99 @@ export default function DashboardPage() {
             <small>Потрібна увага</small>
             <strong>
               {boardRows.filter((row) => row.needsAttention).length}
+            </strong>
+          </div>
+        </div>
+      </section>
+
+      <section
+        aria-labelledby="trust-title"
+        className={`panelBand trust-${activeTrustPanel.health}`}
+        data-testid="trust-panel"
+      >
+        <div className="panelHeader">
+          <div>
+            <p className="eyebrow">Операційна довіра</p>
+            <h2 id="trust-title">4-числова перевірка запуску</h2>
+          </div>
+          <span className={`statusBadge ${activeTrustPanel.health}`}>
+            <ShieldCheck key="trust-state" size={18} aria-hidden="true" />
+            {activeTrustPanel.health.toUpperCase()}
+          </span>
+        </div>
+        <p className="panelLead">
+          {trustReasonLabel.get(activeTrustPanel.reason)}
+        </p>
+        <div className="metricGrid">
+          <MetricTile
+            key="crm-remindable"
+            label="CRM remindable"
+            value={activeTrustPanel.numbers.clinicRemindable}
+          />
+          <MetricTile
+            key="sms-handled"
+            label="SMS handled"
+            value={activeTrustPanel.numbers.smsHandled}
+          />
+          <MetricTile
+            key="problems"
+            label="Problems"
+            value={activeTrustPanel.numbers.problems}
+          />
+          <MetricTile
+            key="responses"
+            label="Responses"
+            value={activeTrustPanel.numbers.responses}
+          />
+        </div>
+      </section>
+
+      <section
+        aria-labelledby="value-title"
+        className="panelBand valuePanel"
+        data-testid="value-panel"
+      >
+        <div className="panelHeader">
+          <div>
+            <p className="eyebrow">Метрики власника</p>
+            <h2 id="value-title">Економія часу без змішування з trust</h2>
+          </div>
+          <span className={`statusBadge ${valueMetrics.valueSignal}`}>
+            <TrendingUp key="value-state" size={18} aria-hidden="true" />
+            {valueMetrics.valueSignal}
+          </span>
+        </div>
+        <div className="valueGrid">
+          <MetricTile
+            key="action-rate"
+            label="Action rate"
+            value={formatPercent(valueMetrics.actionRate)}
+            note="nonce-backed actions ÷ delivered/resolved"
+          />
+          <MetricTile
+            key="staff-minutes"
+            label="Staff minutes"
+            value={staffMinutesValue}
+            note={valueMetrics.staffMinutesTargetMet
+              ? "≤30 хв target met"
+              : "watch daily load"}
+          />
+          <div className="metricTile wide">
+            <span>Template / send-hour segments</span>
+            <strong>
+              {valueMetrics.segments.map((segment) =>
+                `${segment.templateKey} ${segment.sendHour}:00 ${
+                  formatPercent(segment.actionRate)
+                }`
+              ).join(" · ")}
+            </strong>
+          </div>
+          <div className="metricTile wide">
+            <span>Missing owner baselines</span>
+            <strong>
+              {valueMetrics.missingBaselines.map((key) =>
+                baselineLabel.get(key) ?? key
+              ).join(" · ")}
             </strong>
           </div>
         </div>
@@ -223,6 +361,24 @@ export default function DashboardPage() {
         </div>
       </section>
     </main>
+  );
+}
+
+function MetricTile({
+  label,
+  value,
+  note,
+}: {
+  label: string;
+  value: number | string;
+  note?: string;
+}) {
+  return (
+    <div className="metricTile">
+      <span>{label}</span>
+      <strong>{value}</strong>
+      {note ? <small>{note}</small> : null}
+    </div>
   );
 }
 

@@ -10,20 +10,30 @@ const secretPatterns = [
   /\+380\d{9}/u,
 ];
 
-test("E2E-DASHBOARD-01 board, mode banner, recap, and secret exclusion", async ({
-  page,
-}) => {
+test("E2E-DASHBOARD-01 board, mode banner, recap, and secret exclusion", async ({ page }) => {
   await page.goto("/");
 
   await expect(page.getByTestId("mode-banner")).toContainText("SHADOW");
   await expect(page.getByTestId("last-run-recap")).toContainText(
     "Heartbeat success: sent",
   );
+  await expect(page.getByTestId("trust-panel")).toContainText("AMBER");
+  await expect(page.getByTestId("trust-panel")).toContainText("CRM remindable");
+  await expect(page.getByTestId("trust-panel")).toContainText("Responses");
+  await expect(page.getByTestId("value-panel")).toContainText("Action rate");
+  await expect(page.getByTestId("value-panel")).toContainText("60%");
+  await expect(page.getByTestId("value-panel")).toContainText(
+    "manual-call minutes",
+  );
   await expect(page.getByTestId("board-table")).toContainText("Підтверджено");
   await expect(page.getByTestId("board-table")).toContainText("Скасовано");
-  await expect(page.getByTestId("board-table")).toContainText("Немає відповіді");
+  await expect(page.getByTestId("board-table")).toContainText(
+    "Немає відповіді",
+  );
   await expect(page.getByTestId("board-table")).toContainText("Пропущено");
-  await expect(page.getByTestId("board-table")).toContainText("Проблема запису");
+  await expect(page.getByTestId("board-table")).toContainText(
+    "Проблема запису",
+  );
 
   const bodyText = await page.locator("body").innerText();
   for (const pattern of secretPatterns) {
@@ -31,9 +41,17 @@ test("E2E-DASHBOARD-01 board, mode banner, recap, and secret exclusion", async (
   }
 });
 
-test("E2E-DASHBOARD-02 needs-attention and call-list workflow", async ({
-  page,
-}) => {
+test("E2E-DASHBOARD-STALE-01 trust panel never shows stale green", async ({ page }) => {
+  await page.goto("/?fixture=stale-current");
+
+  await expect(page.getByTestId("trust-panel")).toContainText("RED");
+  await expect(page.getByTestId("trust-panel")).toContainText(
+    "Поточний день відсутній після 12:30",
+  );
+  await expect(page.getByTestId("trust-panel")).not.toContainText("GREEN");
+});
+
+test("E2E-DASHBOARD-02 needs-attention and call-list workflow", async ({ page }) => {
   await page.goto("/patients?needs_attention=1");
 
   await expect(page.getByTestId("needs-attention-list")).toContainText(
@@ -56,9 +74,7 @@ test("E2E-DASHBOARD-02 needs-attention and call-list workflow", async ({
   await expect(page.getByTestId("call-list")).not.toContainText("Олена К.");
 });
 
-test("E2E-DASHBOARD-03 manual button and template editor use existing paths", async ({
-  page,
-}) => {
+test("E2E-DASHBOARD-03 manual button and template editor use existing paths", async ({ page }) => {
   await page.route("**/run-reminders", async (route) => {
     expect(route.request().method()).toBe("POST");
     await route.fulfill({
@@ -77,16 +93,17 @@ test("E2E-DASHBOARD-03 manual button and template editor use existing paths", as
 
   await page.goto("/templates");
   const templateForm = page.getByTestId("template-form");
-  await expect(templateForm).toHaveAttribute("data-rpc", "update_message_template");
+  await expect(templateForm).toHaveAttribute(
+    "data-rpc",
+    "update_message_template",
+  );
   await expect(templateForm).toHaveAttribute("data-method", "put");
   await expect(page.getByTestId("template-validation")).toContainText(
     "Шаблон проходить перевірку",
   );
 });
 
-test("E2E-HELD-CANCEL-01 held-cancel form targets the admin RPC path", async ({
-  page,
-}) => {
+test("E2E-HELD-CANCEL-01 held-cancel form targets the admin RPC path", async ({ page }) => {
   await page.goto("/patients?needs_attention=1");
 
   const heldForm = page.getByTestId("held-cancel-form");
