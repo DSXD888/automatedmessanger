@@ -1,0 +1,27 @@
+{
+  "metadata": {
+    "recorded_at": "2026-06-30T00:00:00.000Z",
+    "source": "synthetic-no-egress-fixture",
+    "sanitized": true,
+    "endpoint": "no-egress-demo"
+  },
+  "interactions": [
+    {
+      "id": "no-egress-demo-get",
+      "request": {
+        "method": "GET",
+        "url": "http://cassette.invalid/no-egress?case=normal"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "x-cassette": "synthetic"
+        },
+        "bodyJson": {
+          "ok": true,
+          "source": "synthetic"
+        }
+      }
+    }
+  ]
+}
