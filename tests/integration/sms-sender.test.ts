@@ -6,8 +6,10 @@ import type {
   OutboundRequest,
 } from "../../supabase/functions/_shared/http.ts";
 import {
+  checkSmsProviderBalance,
   createInMemorySmsSendRecorder,
   createSmsSender,
+  evaluateSmsBalanceReadiness,
   evaluateSmsSendPermission,
   smsProviderBuildConfirmations,
 } from "../../supabase/functions/_shared/smsSender.ts";
@@ -173,6 +175,40 @@ Deno.test("CONTRACT-SMS-02 tracks provider confirmations without depending on DL
     smsProviderBuildConfirmations.linkBearingSms.note,
     /medical-content sign-off/u,
   );
+});
+
+Deno.test("REL-OPS-READINESS-01 reads provider balance through the HTTP chokepoint and projects low-balance alerts", async () => {
+  const { client, metrics } = createCassetteHttpClient([providerCassette]);
+
+  const readiness = await checkSmsProviderBalance({
+    config: providerConfig,
+    httpClient: client,
+    sendableTotal: 50,
+  });
+
+  assertEquals(metrics.calls, 1);
+  assertEquals(metrics.matches, 1);
+  assertEquals(readiness.status, "low");
+  assertEquals(readiness.alertCode, "sms_balance_low");
+  assertEquals(readiness.balanceUah, 500);
+  assertEquals(readiness.projectedDailySpendUah, 130);
+  assertEquals(readiness.lowBalanceThresholdUah, 910);
+
+  const serialized = JSON.stringify(readiness);
+  assertFalse(serialized.includes(syntheticRecipient));
+  assertFalse(serialized.includes("/r/"));
+});
+
+Deno.test("REL-OPS-READINESS-01 balance readiness unavailable state alerts with counts-only evidence", () => {
+  const readiness = evaluateSmsBalanceReadiness({
+    balanceUah: undefined,
+    sendableTotal: 20,
+  });
+
+  assertEquals(readiness.status, "unavailable");
+  assertEquals(readiness.alertCode, "sms_balance_unavailable");
+  assertEquals(readiness.projectedDailySpendUah, 52);
+  assertEquals(readiness.lowBalanceThresholdUah, 364);
 });
 
 Deno.test("IT-MODES-01 only full mode lifts the send allowlist gate", () => {

@@ -38,6 +38,8 @@ import type {
 import {
   createInMemorySmsSendRecorder,
   createSmsSender,
+  evaluateSmsBalanceReadiness,
+  type SmsBalanceChecker,
 } from "../../supabase/functions/_shared/smsSender.ts";
 import type { GuardedCrmWriteBack } from "../../supabase/functions/_shared/writeBack.ts";
 import type { PendingCrmWriteBack } from "../../supabase/functions/_shared/writeBack.ts";
@@ -643,6 +645,58 @@ Deno.test("IT-HEARTBEAT-01 failed success ping alerts without mutating reconcili
   assertEquals(result.heartbeat?.operationalAlerts, [
     "success_heartbeat_failed",
   ]);
+});
+
+Deno.test("REL-OPS-READINESS-01 low-balance pre-send check surfaces counts-only alert without real side effects", async () => {
+  const heartbeat = captureHeartbeat();
+  const sender = captureSender();
+  const balanceSendableTotals: number[] = [];
+  const seedConfig = Object.freeze({
+    ...config,
+    appEnv: "prod" as const,
+    sendMode: "seed" as const,
+    sendAllowlist: Object.freeze([syntheticPhone]),
+  });
+  const smsBalanceChecker: SmsBalanceChecker = {
+    check(input) {
+      balanceSendableTotals.push(input.sendableTotal);
+      return Promise.resolve(evaluateSmsBalanceReadiness({
+        ...input,
+        balanceUah: 5,
+      }));
+    },
+  };
+
+  const result = await runReminders({
+    config: seedConfig,
+    clock: fixedClock(),
+    clinicCardsClient: mutableClinicCardsClient([visit("visit-low-balance")])
+      .client,
+    sender: sender.sender,
+    store: createInMemoryReminderRunStore(),
+    writeBack: noopWriteBack,
+    heartbeatClient: heartbeat.client,
+    smsBalanceChecker,
+    rng: createSeededByteStreamRng(byteRange(0, 32)),
+    sendClaimTokenFactory: () => syntheticFenceValue("low-balance"),
+    trigger: "cron",
+  });
+
+  assertEquals(result.status, "completed");
+  assertEquals(balanceSendableTotals, [1]);
+  assertEquals(sender.requests.length, 1);
+  assertEquals(result.heartbeat?.operationalAlerts, ["sms_balance_low"]);
+  assertEquals(heartbeat.payloads.at(-1)?.operationalAlerts, [
+    "sms_balance_low",
+  ]);
+
+  const serialized = JSON.stringify({
+    heartbeat: result.heartbeat,
+    payloads: heartbeat.payloads,
+  });
+  assertFalse(serialized.includes(syntheticPhone));
+  assertFalse(serialized.includes("Олена"));
+  assertFalse(serialized.includes("/r/"));
 });
 
 Deno.test("IT-FAILURE-CRM-01 CRM fetch and pre-send failures fail the run and ping fail heartbeat", async () => {

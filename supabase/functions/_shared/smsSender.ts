@@ -11,6 +11,10 @@ import { smsUcs2Segments } from "./templates.ts";
 export type SmsProvider = "turbosms" | "alphasms";
 
 export type SmsBlockedReason = "send_mode_off" | "blocked_by_allowlist";
+export type SmsBalanceStatus = "ok" | "low" | "unavailable";
+export type SmsBalanceAlertCode =
+  | "sms_balance_low"
+  | "sms_balance_unavailable";
 
 export interface SmsSendPermission {
   allowedProviderCall: boolean;
@@ -41,6 +45,33 @@ export interface SmsSenderOptions {
   httpClient?: HttpClient;
   recorder?: SmsSendRecorder;
   now?: () => Date;
+}
+
+export interface SmsBalanceCheckInput {
+  sendableTotal: number;
+  maxSegmentsPerReminder?: number;
+  segmentCostUah?: number;
+  reserveDays?: number;
+}
+
+export interface SmsBalanceReadiness {
+  provider: SmsProvider;
+  status: SmsBalanceStatus;
+  sendableTotal: number;
+  projectedDailySpendUah: number;
+  lowBalanceThresholdUah: number;
+  reserveDays: number;
+  balanceUah?: number;
+  alertCode?: SmsBalanceAlertCode;
+}
+
+export interface SmsBalanceChecker {
+  check(input: SmsBalanceCheckInput): Promise<SmsBalanceReadiness>;
+}
+
+export interface SmsBalanceCheckerOptions {
+  config?: RuntimeConfig;
+  httpClient?: HttpClient;
 }
 
 export class SmsProviderContractError extends Error {
@@ -82,6 +113,10 @@ export const smsProviderBuildConfirmations = Object.freeze({
   },
 });
 
+const defaultMaxSegmentsPerReminder = 2;
+const defaultSegmentCostUah = 1.3;
+const defaultBalanceReserveDays = 7;
+
 export function createInMemorySmsSendRecorder(): InMemorySmsSendRecorder {
   const intents: WouldSendIntent[] = [];
   return Object.freeze({
@@ -91,6 +126,88 @@ export function createInMemorySmsSendRecorder(): InMemorySmsSendRecorder {
     recordWouldSend(intent: WouldSendIntent): void {
       intents.push(Object.freeze({ ...intent }));
     },
+  });
+}
+
+export function createSmsBalanceChecker(
+  options: SmsBalanceCheckerOptions = {},
+): SmsBalanceChecker {
+  const config = options.config ?? loadRuntimeConfig();
+  const httpClient = options.httpClient ?? createHttpClient({ config });
+
+  return Object.freeze({
+    async check(input: SmsBalanceCheckInput): Promise<SmsBalanceReadiness> {
+      return await checkSmsProviderBalance({
+        ...input,
+        config,
+        httpClient,
+      });
+    },
+  });
+}
+
+export async function checkSmsProviderBalance(
+  input: SmsBalanceCheckInput & {
+    config: RuntimeConfig;
+    httpClient: HttpClient;
+  },
+): Promise<SmsBalanceReadiness> {
+  try {
+    const response = await input.httpClient({
+      url: balanceUrl(input.config),
+      method: "POST",
+      headers: providerHeaders(input.config),
+    });
+    const parsed = await parseProviderResponse(response);
+    const balanceUah = providerBalanceUah(parsed);
+    if (balanceUah === undefined) {
+      throw new SmsProviderContractError(
+        "SMS provider balance response did not include a numeric balance",
+      );
+    }
+    return evaluateSmsBalanceReadiness({ ...input, balanceUah });
+  } catch {
+    return evaluateSmsBalanceReadiness({ ...input, balanceUah: undefined });
+  }
+}
+
+export function evaluateSmsBalanceReadiness(
+  input: SmsBalanceCheckInput & { balanceUah?: number },
+): SmsBalanceReadiness {
+  const sendableTotal = Math.max(0, Math.trunc(input.sendableTotal));
+  const reserveDays = input.reserveDays ?? defaultBalanceReserveDays;
+  const projectedDailySpendUah = roundMoney(
+    sendableTotal *
+      (input.maxSegmentsPerReminder ?? defaultMaxSegmentsPerReminder) *
+      (input.segmentCostUah ?? defaultSegmentCostUah),
+  );
+  const lowBalanceThresholdUah = roundMoney(
+    projectedDailySpendUah * reserveDays,
+  );
+
+  if (input.balanceUah === undefined) {
+    return Object.freeze({
+      provider: smsProviderBuildConfirmations.primaryProvider.provider,
+      status: "unavailable",
+      sendableTotal,
+      projectedDailySpendUah,
+      lowBalanceThresholdUah,
+      reserveDays,
+      alertCode: "sms_balance_unavailable",
+    });
+  }
+
+  const balanceUah = roundMoney(input.balanceUah);
+  const low = balanceUah < lowBalanceThresholdUah;
+  return Object.freeze({
+    provider: smsProviderBuildConfirmations.primaryProvider.provider,
+    status: low ? "low" : "ok",
+    sendableTotal,
+    projectedDailySpendUah,
+    lowBalanceThresholdUah,
+    reserveDays,
+    balanceUah,
+    alertCode: low ? "sms_balance_low" : undefined,
   });
 }
 
@@ -248,6 +365,10 @@ function providerPayload(
 
 function providerUrl(config: RuntimeConfig): URL {
   return new URL("/message/send.json", config.smsProviderBaseUrl);
+}
+
+function balanceUrl(config: RuntimeConfig): URL {
+  return new URL("/user/balance.json", config.smsProviderBaseUrl);
 }
 
 function providerHeaders(config: RuntimeConfig): Headers {
@@ -463,6 +584,22 @@ function firstProviderString(
   return undefined;
 }
 
+function providerBalanceUah(body: Record<string, unknown>): number | undefined {
+  const result = body.response_result;
+  if (!isRecord(result)) {
+    return undefined;
+  }
+  const balance = result.balance;
+  if (typeof balance === "number" && Number.isFinite(balance)) {
+    return balance;
+  }
+  if (typeof balance === "string") {
+    const parsed = Number(balance.trim());
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+  return undefined;
+}
+
 function normalizeProviderField(value: unknown): string {
   if (typeof value === "string") {
     return value.trim().toLowerCase();
@@ -475,4 +612,8 @@ function normalizeProviderField(value: unknown): string {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function roundMoney(value: number): number {
+  return Math.round(value * 100) / 100;
 }

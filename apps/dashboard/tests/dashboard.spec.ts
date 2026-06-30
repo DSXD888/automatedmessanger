@@ -34,6 +34,18 @@ test("E2E-DASHBOARD-01 board, mode banner, recap, and secret exclusion", async (
   await expect(page.getByTestId("value-panel")).toContainText(
     "manual-call minutes",
   );
+  await expect(page.getByTestId("ops-readiness")).toContainText(
+    "SMS balance / quota",
+  );
+  await expect(page.getByTestId("ops-readiness")).toContainText(
+    "Complaint micro-runbook",
+  );
+  await expect(page.getByTestId("ops-readiness")).toContainText(
+    "Manual fallback",
+  );
+  await expect(page.getByTestId("ops-readiness")).toContainText(
+    "5/10/20 clinic days",
+  );
   await expect(page.getByTestId("board-table")).toContainText("Підтверджено");
   await expect(page.getByTestId("board-table")).toContainText("Скасовано");
   await expect(page.getByTestId("board-table")).toContainText(

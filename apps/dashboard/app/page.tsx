@@ -14,6 +14,7 @@ import {
   countRows,
   lastRunRecap,
   modeBanner,
+  operationalReadiness,
   staleTrustPanel,
   trustPanel,
   valueMetrics,
@@ -229,6 +230,38 @@ export default async function DashboardPage(
               ).join(" · ")}
             </strong>
           </div>
+        </div>
+      </section>
+
+      <section
+        aria-labelledby="ops-title"
+        className="panelBand opsPanel"
+        data-testid="ops-readiness"
+      >
+        <div className="panelHeader">
+          <div>
+            <p className="eyebrow">Готовність до go-live</p>
+            <h2 id="ops-title">Runbooks та баланс</h2>
+          </div>
+          <span className={`statusBadge ${operationalReadiness.balanceStatus}`}>
+            <AlertTriangle key="ops-state" size={18} aria-hidden="true" />
+            {operationalReadiness.balanceStatus}
+          </span>
+        </div>
+        <p className="panelLead">{operationalReadiness.balanceEvidence}</p>
+        <div className="opsGrid">
+          {operationalReadiness.items.map((item) => (
+            <article className="opsItem" key={item.key}>
+              <h3>
+                {item.status === "ready"
+                  ? <CheckCircle2 key="ready" size={18} aria-hidden="true" />
+                  : <AlertTriangle key="watch" size={18} aria-hidden="true" />}
+                {item.title}
+              </h3>
+              <p>{item.evidence}</p>
+              <small>{item.staffAction}</small>
+            </article>
+          ))}
         </div>
       </section>
 

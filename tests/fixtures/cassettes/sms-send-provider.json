@@ -3,9 +3,28 @@
     "recorded_at": "2026-06-30T00:00:00.000Z",
     "source": "synthetic-sms-provider-fixture",
     "sanitized": true,
-    "endpoint": "POST /message/send.json"
+    "endpoint": "POST /message/send.json + POST /user/balance.json"
   },
   "interactions": [
+    {
+      "id": "turbosms-balance-low",
+      "request": {
+        "method": "POST",
+        "scheme": "http",
+        "host": "cassette.invalid",
+        "path": "/user/balance.json"
+      },
+      "response": {
+        "status": 200,
+        "bodyJson": {
+          "response_code": 0,
+          "response_status": "OK",
+          "response_result": {
+            "balance": 500
+          }
+        }
+      }
+    },
     {
       "id": "turbosms-accepted",
       "request": {

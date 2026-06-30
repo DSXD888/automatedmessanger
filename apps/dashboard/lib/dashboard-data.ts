@@ -56,6 +56,26 @@ export interface ModeBannerData {
   text: string;
 }
 
+export interface OperationalReadinessItem {
+  key:
+    | "sms_balance"
+    | "complaint"
+    | "continuity"
+    | "manual_fallback"
+    | "stop_loss"
+    | "first_month_review";
+  title: string;
+  status: "ready" | "watch";
+  evidence: string;
+  staffAction: string;
+}
+
+export interface OperationalReadinessData {
+  balanceStatus: "ok" | "low" | "unavailable";
+  balanceEvidence: string;
+  items: readonly OperationalReadinessItem[];
+}
+
 export const modeBanner = computeModeBanner({
   sendMode: process.env.SEND_MODE,
   crmWriteMode: process.env.CRM_WRITE_MODE,
@@ -137,6 +157,64 @@ export const valueMetrics = computeValueMetrics({
       recordedActions: 6,
     },
   ],
+});
+
+const operationalReadinessItems: readonly OperationalReadinessItem[] =
+  Object.freeze([
+    {
+      key: "sms_balance",
+      title: "SMS balance / quota",
+      status: "watch",
+      evidence: "Low-balance alert before seed/canary/full; no send path involved.",
+      staffAction: "Top up TurboSMS before continuing the go-live ladder.",
+    },
+    {
+      key: "complaint",
+      title: "Complaint micro-runbook",
+      status: "ready",
+      evidence: "Use reminder_message_id plus audit evidence; no full phone stored.",
+      staffAction:
+        "Pause automation, reverse the appointment manually in ClinicCards, escalate the id.",
+    },
+    {
+      key: "continuity",
+      title: "Continuity drill",
+      status: "ready",
+      evidence: "Monthly 5-minute fallback drill is owner-facing operational work.",
+      staffAction:
+        "Practice dashboard-down flow: open tomorrow in ClinicCards and call patients.",
+    },
+    {
+      key: "manual_fallback",
+      title: "Manual fallback",
+      status: "ready",
+      evidence: "ClinicCards tomorrow list remains the service backstop.",
+      staffAction:
+        "If run is missed or provider is down, use the list and phone patients.",
+    },
+    {
+      key: "stop_loss",
+      title: "Stop-loss",
+      status: "ready",
+      evidence: "Value-red if action rate <35% or staff-time saving <10 min/day.",
+      staffAction:
+        "Tune priming, copy, send time, call-list workflow, then selective calling.",
+    },
+    {
+      key: "first_month_review",
+      title: "First-month review",
+      status: "ready",
+      evidence: "Review at 5/10/20 clinic days against measured baselines.",
+      staffAction:
+        "Owner compares action rate, staff minutes, and slot recovery before full rollout.",
+    },
+  ]);
+
+export const operationalReadiness: OperationalReadinessData = Object.freeze({
+  balanceStatus: "low",
+  balanceEvidence:
+    "SMS balance read checked against 7-day projected usage; alert evidence is counts-only.",
+  items: operationalReadinessItems,
 });
 
 export function computeModeBanner(input: {

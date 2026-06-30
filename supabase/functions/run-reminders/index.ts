@@ -23,7 +23,12 @@ import type {
   SendMessageResult,
   SendStatus,
 } from "../_shared/sender.ts";
-import { createSmsSender } from "../_shared/smsSender.ts";
+import {
+  createSmsBalanceChecker,
+  createSmsSender,
+  type SmsBalanceChecker,
+  type SmsBalanceReadiness,
+} from "../_shared/smsSender.ts";
 import {
   type RenderedSmsReminder,
   renderSmsReminder,
@@ -71,6 +76,19 @@ export type ReminderSkipReason =
   | "reopened_same_id"
   | "send_ambiguous"
   | "provider_pre_submit_failure";
+
+const sendModesWithProviderBalanceChecks: readonly RuntimeConfig["sendMode"][] =
+  [
+    "seed",
+    "canary",
+    "full",
+  ];
+
+function shouldCheckSmsProviderBalance(
+  sendMode: RuntimeConfig["sendMode"],
+): boolean {
+  return sendModesWithProviderBalanceChecks.includes(sendMode);
+}
 
 export interface ReminderRunRecord {
   id: number;
@@ -156,6 +174,7 @@ export interface ReminderHeartbeatPayload {
     unaccountedTotal: number;
   };
   budget?: ReminderRunBudget;
+  operationalAlerts?: readonly string[];
   modes: {
     sendMode: string;
     crmWriteMode: string;
@@ -293,6 +312,7 @@ export interface RunRemindersOptions {
   clock?: Clock;
   clinicCardsClient?: ClinicCardsClient;
   sender?: MessageSender;
+  smsBalanceChecker?: SmsBalanceChecker;
   store?: ReminderRunStore;
   writeBack?: GuardedCrmWriteBack;
   heartbeatClient?: ReminderHeartbeatClient;
@@ -485,6 +505,10 @@ export async function runReminders(
   const clinicCardsClient = options.clinicCardsClient ??
     createClinicCardsClient({ config });
   const sender = options.sender ?? createSmsSender({ config });
+  const smsBalanceChecker = options.smsBalanceChecker ??
+    (shouldCheckSmsProviderBalance(config.sendMode)
+      ? createSmsBalanceChecker({ config })
+      : undefined);
   const writeBack = options.writeBack ?? createGuardedCrmWriteBack({ config });
   const heartbeatClient = options.heartbeatClient ??
     createHealthchecksHeartbeatClient({
@@ -572,6 +596,7 @@ export async function runReminders(
         passKind,
         reconciliation,
         budget,
+        operationalAlerts: heartbeatSummary.operationalAlerts,
       }),
     );
     recordHeartbeatResult(heartbeatSummary, kind, result);
@@ -606,6 +631,13 @@ export async function runReminders(
       now,
     });
     await renewHeartbeat();
+    if (smsBalanceChecker) {
+      recordSmsBalanceReadinessAlert(
+        heartbeatSummary,
+        await smsBalanceChecker.check({ sendableTotal: sendable.length }),
+      );
+      await renewHeartbeat();
+    }
 
     if (options.stopAfterMaterialize) {
       const reconciliation = await store.reconcileDay({
@@ -1663,6 +1695,7 @@ function heartbeatPayload(input: {
   passKind: ReminderRunPassKind;
   reconciliation?: ReminderDayReconciliation;
   budget?: ReminderRunBudget;
+  operationalAlerts?: readonly string[];
 }): ReminderHeartbeatPayload {
   return {
     kind: input.kind,
@@ -1676,6 +1709,10 @@ function heartbeatPayload(input: {
       ? reconciliationCounts(input.reconciliation)
       : undefined,
     budget: input.budget,
+    operationalAlerts: input.operationalAlerts &&
+        input.operationalAlerts.length > 0
+      ? [...input.operationalAlerts]
+      : undefined,
     modes: {
       sendMode: input.config.sendMode,
       crmWriteMode: input.config.crmWriteMode,
@@ -1728,6 +1765,18 @@ function recordHeartbeatResult(
 
   if (!result.ok && !result.skipped) {
     summary.operationalAlerts.push(`${kind}_heartbeat_failed`);
+  }
+}
+
+function recordSmsBalanceReadinessAlert(
+  summary: MutableHeartbeatSummary,
+  readiness: SmsBalanceReadiness,
+): void {
+  if (
+    readiness.alertCode &&
+    !summary.operationalAlerts.includes(readiness.alertCode)
+  ) {
+    summary.operationalAlerts.push(readiness.alertCode);
   }
 }
 
