@@ -11,7 +11,7 @@ const pgTapScripts = [
   { name: "rls", sql: rlsSql, plan: "8" },
   { name: "definer", sql: definerSql, plan: "12" },
   { name: "concurrency", sql: concurrencySql, plan: "20" },
-  { name: "maintenance", sql: maintenanceSql, plan: "9" },
+  { name: "maintenance", sql: maintenanceSql, plan: "31" },
 ];
 
 Deno.test("pgTAP SQL is wired for the expected contracts", () => {
