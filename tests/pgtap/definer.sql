@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set search_path = extensions, public;
 
-select plan(11);
+select plan(12);
 
 select is(
   (
@@ -17,6 +17,11 @@ select is(
         'prepare_reminder_action',
         'record_reminder_action',
         'finish_reminder_action',
+        'dashboard_board_rows',
+        'dashboard_needs_attention_rows',
+        'update_message_template',
+        'resolve_held_cancels',
+        'reenable_sms_reminders',
         'reap_stale_sends',
         'purge_privacy'
       )
@@ -38,6 +43,11 @@ select is(
         'prepare_reminder_action',
         'record_reminder_action',
         'finish_reminder_action',
+        'dashboard_board_rows',
+        'dashboard_needs_attention_rows',
+        'update_message_template',
+        'resolve_held_cancels',
+        'reenable_sms_reminders',
         'reap_stale_sends',
         'purge_privacy'
       )
@@ -60,6 +70,11 @@ select is(
         'prepare_reminder_action',
         'record_reminder_action',
         'finish_reminder_action',
+        'dashboard_board_rows',
+        'dashboard_needs_attention_rows',
+        'update_message_template',
+        'resolve_held_cancels',
+        'reenable_sms_reminders',
         'reap_stale_sends',
         'purge_privacy'
       )
@@ -81,6 +96,11 @@ select is(
         'prepare_reminder_action',
         'record_reminder_action',
         'finish_reminder_action',
+        'dashboard_board_rows',
+        'dashboard_needs_attention_rows',
+        'update_message_template',
+        'resolve_held_cancels',
+        'reenable_sms_reminders',
         'reap_stale_sends',
         'purge_privacy'
       )
@@ -102,6 +122,11 @@ select is(
         'prepare_reminder_action',
         'record_reminder_action',
         'finish_reminder_action',
+        'dashboard_board_rows',
+        'dashboard_needs_attention_rows',
+        'update_message_template',
+        'resolve_held_cancels',
+        'reenable_sms_reminders',
         'reap_stale_sends',
         'purge_privacy'
       )
@@ -143,6 +168,12 @@ select is(
   (select r.rolname from pg_proc p join pg_roles r on r.oid = p.proowner where p.oid = 'maintenance.purge_privacy()'::regprocedure),
   'dentino_maintenance_definer',
   'purge_privacy is owned by maintenance definer'
+);
+
+select is(
+  (select r.rolname from pg_proc p join pg_roles r on r.oid = p.proowner where p.oid = 'api.update_message_template(bigint,text,text)'::regprocedure),
+  'dentino_dashboard_definer',
+  'update_message_template is owned by dashboard definer'
 );
 
 select ok(not exists (

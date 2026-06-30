@@ -7,9 +7,9 @@ import schemaSql from "./schema.sql" with { type: "text" };
 
 const pgTapScripts = [
   { name: "schema", sql: schemaSql, plan: "50" },
-  { name: "grants", sql: grantsSql, plan: "24" },
+  { name: "grants", sql: grantsSql, plan: "39" },
   { name: "rls", sql: rlsSql, plan: "8" },
-  { name: "definer", sql: definerSql, plan: "11" },
+  { name: "definer", sql: definerSql, plan: "12" },
   { name: "concurrency", sql: concurrencySql, plan: "20" },
   { name: "maintenance", sql: maintenanceSql, plan: "9" },
 ];

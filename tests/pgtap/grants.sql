@@ -42,13 +42,14 @@ exception when insufficient_privilege then
 end;
 $$;
 
-select plan(24);
+select plan(39);
 
 select ok(exists (select 1 from pg_roles where rolname = 'dentino_confirm_api'), 'dentino_confirm_api role exists');
 select ok(exists (select 1 from pg_roles where rolname = 'dentino_confirm_definer'), 'dentino_confirm_definer role exists');
 select ok(exists (select 1 from pg_roles where rolname = 'dentino_run_api'), 'dentino_run_api role exists');
 select ok(exists (select 1 from pg_roles where rolname = 'dentino_maintenance_runner'), 'dentino_maintenance_runner role exists');
 select ok(exists (select 1 from pg_roles where rolname = 'dentino_maintenance_definer'), 'dentino_maintenance_definer role exists');
+select ok(exists (select 1 from pg_roles where rolname = 'dentino_dashboard_definer'), 'dentino_dashboard_definer role exists');
 
 select ok(exists (select 1 from information_schema.schemata where schema_name = 'api'), 'api schema exists');
 select ok(exists (select 1 from information_schema.schemata where schema_name = 'private'), 'private schema exists');
@@ -108,8 +109,8 @@ select is(
     join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'api'
   ),
-  4,
-  'api exposes exactly four L1 core functions'
+  9,
+  'api exposes exactly the four L1 core functions plus L3 dashboard functions'
 );
 
 select ok(has_function_privilege('dentino_confirm_api', 'api.lookup_reminder_by_token(text)'::regprocedure, 'execute'), 'confirm role executes lookup RPC');
@@ -132,6 +133,86 @@ select is(
 select ok(not has_function_privilege('dentino_confirm_api', 'private.token_digest(text)'::regprocedure, 'execute'), 'dentino_confirm_api cannot execute private token digest');
 select ok(not has_function_privilege('anon', 'api.lookup_reminder_by_token(text)'::regprocedure, 'execute'), 'anon cannot execute lookup RPC');
 select ok(not has_function_privilege('authenticated', 'api.lookup_reminder_by_token(text)'::regprocedure, 'execute'), 'authenticated cannot execute lookup RPC');
+
+select ok(to_regclass('api.v_board') is not null, 'dashboard board view exists');
+select ok(to_regclass('api.v_needs_attention') is not null, 'dashboard needs-attention view exists');
+
+select ok(
+  (
+    select 'security_invoker=true' = any(coalesce(c.reloptions, array[]::text[]))
+    from pg_class c
+    join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'api' and c.relname = 'v_board'
+  ),
+  'dashboard board view is security_invoker'
+);
+
+select ok(
+  (
+    select 'security_invoker=true' = any(coalesce(c.reloptions, array[]::text[]))
+    from pg_class c
+    join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = 'api' and c.relname = 'v_needs_attention'
+  ),
+  'dashboard needs-attention view is security_invoker'
+);
+
+select is(
+  (
+    select count(*)::int
+    from information_schema.columns
+    where table_schema = 'api'
+      and table_name = 'v_board'
+      and column_name in (
+        'tracking_token_digest',
+        'action_nonce_digest',
+        'action_nonce_expires_at',
+        'send_claim_token',
+        'send_claim_expires_at',
+        'phone_hmac',
+        'phone'
+      )
+  ),
+  0,
+  'dashboard board view exposes no token, nonce, claim, or full-phone columns'
+);
+
+select is(
+  (
+    select count(*)::int
+    from information_schema.columns
+    where table_schema = 'api'
+      and table_name = 'v_needs_attention'
+      and column_name in (
+        'tracking_token_digest',
+        'action_nonce_digest',
+        'action_nonce_expires_at',
+        'send_claim_token',
+        'send_claim_expires_at',
+        'phone_hmac',
+        'phone'
+      )
+  ),
+  0,
+  'dashboard needs-attention view exposes no token, nonce, claim, or full-phone columns'
+);
+
+select ok(not pg_temp.role_denies_with_insufficient_privilege(
+  'authenticated',
+  'select count(*) from api.v_board'
+), 'authenticated can select dashboard board view');
+
+select ok(not pg_temp.role_denies_with_insufficient_privilege(
+  'authenticated',
+  'select count(*) from api.v_needs_attention'
+), 'authenticated can select dashboard needs-attention view');
+
+select ok(has_function_privilege('authenticated', 'api.dashboard_board_rows()'::regprocedure, 'execute'), 'authenticated executes dashboard board projection');
+select ok(has_function_privilege('authenticated', 'api.update_message_template(bigint,text,text)'::regprocedure, 'execute'), 'authenticated executes template admin RPC');
+select ok(has_function_privilege('authenticated', 'api.resolve_held_cancels(date,bigint[],text,text,jsonb)'::regprocedure, 'execute'), 'authenticated executes held-cancel admin RPC');
+select ok(has_function_privilege('authenticated', 'api.reenable_sms_reminders(bigint,text,text)'::regprocedure, 'execute'), 'authenticated executes SMS re-enable RPC');
+select ok(not has_function_privilege('anon', 'api.update_message_template(bigint,text,text)'::regprocedure, 'execute'), 'anon cannot execute template admin RPC');
+select ok(not has_table_privilege('anon', 'api.v_board', 'select'), 'anon cannot select dashboard board view');
 
 select ok(pg_temp.role_cannot_read(
   'dentino_confirm_api',

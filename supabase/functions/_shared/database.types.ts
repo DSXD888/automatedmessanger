@@ -12,9 +12,144 @@ export type Database = {
       [_ in never]: never;
     };
     Views: {
-      [_ in never]: never;
+      v_board: {
+        Row: {
+          action_taken: string | null;
+          cliniccards_total: number | null;
+          cliniccards_visit_id: string | null;
+          crm_writeback_ok: boolean | null;
+          day_health: string | null;
+          failed_total: number | null;
+          latest_pass_kind: string | null;
+          latest_run_finished_at: string | null;
+          latest_run_id: number | null;
+          message_id: number | null;
+          needs_attention: boolean | null;
+          patient_display: string | null;
+          patient_phone_last4: string | null;
+          pending_total: number | null;
+          remindable_total: number | null;
+          response_state: string | null;
+          send_state: string | null;
+          send_unknown_total: number | null;
+          sendable_total: number | null;
+          sent_total: number | null;
+          skip_reason: string | null;
+          skipped_total: number | null;
+          source_status: string | null;
+          staff_state: string | null;
+          success_heartbeat_sent: boolean | null;
+          target_at: string | null;
+          target_date: string | null;
+          target_time_kyiv: string | null;
+          unaccounted_total: number | null;
+        };
+        Relationships: [];
+      };
+      v_needs_attention: {
+        Row: {
+          action_taken: string | null;
+          cliniccards_total: number | null;
+          cliniccards_visit_id: string | null;
+          crm_writeback_ok: boolean | null;
+          day_health: string | null;
+          failed_total: number | null;
+          latest_pass_kind: string | null;
+          latest_run_finished_at: string | null;
+          latest_run_id: number | null;
+          message_id: number | null;
+          needs_attention: boolean | null;
+          patient_display: string | null;
+          patient_phone_last4: string | null;
+          pending_total: number | null;
+          remindable_total: number | null;
+          response_state: string | null;
+          send_state: string | null;
+          send_unknown_total: number | null;
+          sendable_total: number | null;
+          sent_total: number | null;
+          skip_reason: string | null;
+          skipped_total: number | null;
+          source_status: string | null;
+          staff_state: string | null;
+          success_heartbeat_sent: boolean | null;
+          target_at: string | null;
+          target_date: string | null;
+          target_time_kyiv: string | null;
+          unaccounted_total: number | null;
+        };
+        Relationships: [];
+      };
     };
     Functions: {
+      dashboard_board_rows: {
+        Args: never;
+        Returns: {
+          action_taken: string;
+          cliniccards_total: number;
+          cliniccards_visit_id: string;
+          crm_writeback_ok: boolean;
+          day_health: string;
+          failed_total: number;
+          latest_pass_kind: string;
+          latest_run_finished_at: string;
+          latest_run_id: number;
+          message_id: number;
+          needs_attention: boolean;
+          patient_display: string;
+          patient_phone_last4: string;
+          pending_total: number;
+          remindable_total: number;
+          response_state: string;
+          send_state: string;
+          send_unknown_total: number;
+          sendable_total: number;
+          sent_total: number;
+          skip_reason: string;
+          skipped_total: number;
+          source_status: string;
+          staff_state: string;
+          success_heartbeat_sent: boolean;
+          target_at: string;
+          target_date: string;
+          target_time_kyiv: string;
+          unaccounted_total: number;
+        }[];
+      };
+      dashboard_needs_attention_rows: {
+        Args: never;
+        Returns: {
+          action_taken: string;
+          cliniccards_total: number;
+          cliniccards_visit_id: string;
+          crm_writeback_ok: boolean;
+          day_health: string;
+          failed_total: number;
+          latest_pass_kind: string;
+          latest_run_finished_at: string;
+          latest_run_id: number;
+          message_id: number;
+          needs_attention: boolean;
+          patient_display: string;
+          patient_phone_last4: string;
+          pending_total: number;
+          remindable_total: number;
+          response_state: string;
+          send_state: string;
+          send_unknown_total: number;
+          sendable_total: number;
+          sent_total: number;
+          skip_reason: string;
+          skipped_total: number;
+          source_status: string;
+          staff_state: string;
+          success_heartbeat_sent: boolean;
+          target_at: string;
+          target_date: string;
+          target_time_kyiv: string;
+          unaccounted_total: number;
+        }[];
+      };
       finish_reminder_action: {
         Args: {
           p_error?: string;
@@ -63,6 +198,42 @@ export type Database = {
           neutral_reason: string;
           ok: boolean;
           target_at: string;
+        }[];
+      };
+      reenable_sms_reminders: {
+        Args: { p_actor?: string; p_patient_id: number; p_proof_ref?: string };
+        Returns: {
+          consent_event_id: number;
+          patient_id: number;
+          sms_reminders_enabled: boolean;
+          sms_reminders_status: string;
+        }[];
+      };
+      resolve_held_cancels: {
+        Args: {
+          p_actor?: string;
+          p_message_ids?: number[];
+          p_resolution?: string;
+          p_revalidation?: Json;
+          p_target_date: string;
+        };
+        Returns: {
+          action_taken: string;
+          crm_writeback_ok: boolean;
+          message_id: number;
+        }[];
+      };
+      update_message_template: {
+        Args: { p_actor?: string; p_body: string; p_template_id: number };
+        Returns: {
+          active: boolean;
+          body: string;
+          channel: string;
+          id: number;
+          key: string;
+          language: string;
+          updated_at: string;
+          version: number;
         }[];
       };
     };
@@ -769,6 +940,10 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      assert_sms_template_body: {
+        Args: { p_body: string };
+        Returns: undefined;
+      };
       token_digest: { Args: { p_raw_token: string }; Returns: string };
     };
     Enums: {

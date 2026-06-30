@@ -17,7 +17,11 @@ secrets/
 node_modules/
 dist/
 build/
+.next/
+test-results/
+playwright-report/
 .turbo/
+*.tsbuildinfo
 *.log
 
 # Supabase local stack / generated
