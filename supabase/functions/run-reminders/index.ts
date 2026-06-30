@@ -1190,3 +1190,7 @@ function constantTimeEqual(left: string | undefined, right: string): boolean {
 
   return diff === 0;
 }
+
+if (import.meta.main) {
+  Deno.serve((request) => handleRunRemindersRequest(request));
+}

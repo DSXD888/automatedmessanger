@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  engine-l1-gate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      APP_ENV: test
+      SEND_MODE: off
+      CRM_WRITE_MODE: off
+      SEND_ALLOWLIST: ""
+      CRM_WRITE_ALLOWLIST: ""
+      CLINICCARDS_BASE_URL: http://cassette.invalid
+      SMS_PROVIDER_BASE_URL: http://cassette.invalid
+      CLINICCARDS_TOKEN: test-cliniccards-token
+      SMS_PROVIDER_API_KEY: test-sms-key
+      TOKEN_PEPPER: test-token-pepper-32-bytes-min
+      PHONE_PEPPER: test-phone-pepper-32-bytes-min
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - uses: supabase/setup-cli@v2
+        with:
+          version: 2.105.0
+          github-token: ${{ github.token }}
+      - run: deno fmt --check
+      - run: deno lint
+      - run: deno check supabase/functions/**/*.ts
+      - run: ubs --ci --fail-on-warning deno.json supabase/functions tests
+      - run: deno task check:no-egress-static
+      - run: deno test tests/unit
+      - run: supabase start
+      - run: deno test --allow-run=docker tests/pgtap
+      - run: deno test tests/integration
+      - run: deno test tests/integration/no-egress.test.ts
+      - run: supabase db lint --local
+      - run: supabase gen types --db-url 'postgresql://postgres:postgres@127.0.0.1:54322/postgres' --lang typescript --schema api,app,maintenance,private > supabase/functions/_shared/database.types.ts
+      - run: deno fmt supabase/functions/_shared/database.types.ts
+      - run: git diff --exit-code supabase/functions/_shared/database.types.ts
