@@ -5,7 +5,122 @@ set search_path = extensions, public;
 select set_config('app.env', 'test', false);
 select set_config('app.test_now', '2026-06-30 09:00:00+00', false);
 
-select plan(5);
+select plan(15);
+
+create or replace function pg_temp.claim_day(
+  p_target_date date,
+  p_run_id bigint,
+  p_lock_token uuid,
+  p_now timestamptz,
+  p_pass_kind text
+)
+returns boolean
+language plpgsql
+as $$
+declare
+  claimed boolean;
+begin
+  insert into app.reminder_days(
+    target_date,
+    status,
+    locked_by_run_id,
+    lock_token,
+    lock_started_at,
+    lock_heartbeat_at,
+    lock_expires_at
+  )
+  values (
+    p_target_date,
+    'running',
+    p_run_id,
+    p_lock_token,
+    p_now,
+    p_now,
+    p_now + interval '15 minutes'
+  )
+  on conflict (target_date) do update
+  set status = 'running',
+      locked_by_run_id = excluded.locked_by_run_id,
+      lock_token = excluded.lock_token,
+      lock_started_at = excluded.lock_started_at,
+      lock_heartbeat_at = excluded.lock_heartbeat_at,
+      lock_expires_at = excluded.lock_expires_at,
+      updated_at = p_now
+  where (
+      app.reminder_days.status <> 'running'
+      or app.reminder_days.lock_expires_at <= p_now
+    )
+    and (
+      app.reminder_days.status <> 'completed'
+      or p_pass_kind <> 'initial'
+    )
+  returning true into claimed;
+
+  return coalesce(claimed, false);
+end;
+$$;
+
+create or replace function pg_temp.claim_message_for_send(
+  p_message_id bigint,
+  p_claim_token uuid,
+  p_now timestamptz
+)
+returns bigint
+language plpgsql
+as $$
+declare
+  claimed_id bigint;
+begin
+  with candidate as (
+    select id
+      from app.reminder_messages
+     where id = p_message_id
+       and tracking_token_digest is null
+       and (
+         status = 'pending'
+         or (status = 'failed' and skip_reason = 'provider_pre_submit_failure')
+       )
+     for update skip locked
+  )
+  update app.reminder_messages message
+     set status = 'sending',
+         send_claim_token = p_claim_token,
+         send_claim_expires_at = p_now + interval '5 minutes',
+         send_attempt_count = send_attempt_count + 1,
+         last_attempt_at = p_now,
+         tracking_token_digest = extensions.gen_random_bytes(32),
+         token_expires_at = p_now + interval '1 day'
+    from candidate
+   where message.id = candidate.id
+   returning message.id into claimed_id;
+
+  return claimed_id;
+end;
+$$;
+
+create or replace function pg_temp.commit_message_send(
+  p_message_id bigint,
+  p_claim_token uuid
+)
+returns int
+language plpgsql
+as $$
+declare
+  updated_count int;
+begin
+  update app.reminder_messages
+     set status = 'sent',
+         provider_message_id = 'provider-' || p_message_id::text,
+         send_claim_token = null,
+         send_claim_expires_at = null
+   where id = p_message_id
+     and status = 'sending'
+     and send_claim_token = p_claim_token;
+
+  get diagnostics updated_count = row_count;
+  return updated_count;
+end;
+$$;
 
 create or replace function pg_temp.claim_write_lock(
   p_visit_id text,
@@ -124,6 +239,247 @@ $$;
 
 create temp table write_lock_case as
 select * from pg_temp.write_lock_fixture();
+
+create temp table day_claim_case(
+  target_date date not null,
+  first_run_id bigint not null,
+  second_run_id bigint not null,
+  catchup_run_id bigint not null,
+  first_token uuid not null,
+  second_token uuid not null,
+  catchup_token uuid not null
+);
+
+with inserted as (
+  insert into app.reminder_runs(run_date, target_date, trigger, pass_kind)
+  values
+    ('2026-06-30', '2026-07-02', 'cron', 'initial'),
+    ('2026-06-30', '2026-07-02', 'cron', 'initial'),
+    ('2026-06-30', '2026-07-02', 'manual', 'catchup')
+  returning id
+),
+numbered as (
+  select id, row_number() over (order by id) as ordinal
+    from inserted
+)
+insert into day_claim_case(
+  target_date,
+  first_run_id,
+  second_run_id,
+  catchup_run_id,
+  first_token,
+  second_token,
+  catchup_token
+)
+select
+  '2026-07-02',
+  max(id) filter (where ordinal = 1),
+  max(id) filter (where ordinal = 2),
+  max(id) filter (where ordinal = 3),
+  extensions.gen_random_uuid(),
+  extensions.gen_random_uuid(),
+  extensions.gen_random_uuid()
+from numbered;
+
+create temp table message_claim_case(
+  pending_message_id bigint not null,
+  retry_message_id bigint not null,
+  terminal_message_id bigint not null,
+  first_token uuid not null,
+  second_token uuid not null,
+  retry_token uuid not null
+);
+
+with run as (
+  insert into app.reminder_runs(run_date, target_date, trigger, pass_kind)
+  values ('2026-06-30', '2026-07-03', 'manual', 'initial')
+  returning id
+),
+pending_message as (
+  insert into app.reminder_messages(
+    run_id,
+    cliniccards_visit_id,
+    target_date,
+    target_at,
+    message_kind,
+    appointment_fingerprint
+  )
+  select
+    id,
+    'visit-send-claim-pending',
+    '2026-07-03',
+    '2026-07-03 09:00+00',
+    'initial_reminder',
+    'pending-fingerprint'
+  from run
+  returning id
+),
+retry_message as (
+  insert into app.reminder_messages(
+    run_id,
+    cliniccards_visit_id,
+    target_date,
+    target_at,
+    message_kind,
+    appointment_fingerprint,
+    status,
+    skip_reason
+  )
+  select
+    id,
+    'visit-send-claim-retry',
+    '2026-07-03',
+    '2026-07-03 10:00+00',
+    'initial_reminder',
+    'retry-fingerprint',
+    'failed',
+    'provider_pre_submit_failure'
+  from run
+  returning id
+),
+terminal_message as (
+  insert into app.reminder_messages(
+    run_id,
+    cliniccards_visit_id,
+    target_date,
+    target_at,
+    message_kind,
+    appointment_fingerprint,
+    status,
+    skip_reason
+  )
+  select
+    id,
+    'visit-send-claim-terminal',
+    '2026-07-03',
+    '2026-07-03 11:00+00',
+    'initial_reminder',
+    'terminal-fingerprint',
+    'failed',
+    'send_ambiguous'
+  from run
+  returning id
+)
+insert into message_claim_case(
+  pending_message_id,
+  retry_message_id,
+  terminal_message_id,
+  first_token,
+  second_token,
+  retry_token
+)
+select
+  (select id from pending_message),
+  (select id from retry_message),
+  (select id from terminal_message),
+  extensions.gen_random_uuid(),
+  extensions.gen_random_uuid(),
+  extensions.gen_random_uuid();
+
+select ok(
+  pg_temp.claim_day(
+    (select target_date from day_claim_case),
+    (select first_run_id from day_claim_case),
+    (select first_token from day_claim_case),
+    app.now(),
+    'initial'
+  ),
+  'first reminder-day claimant wins the target-date lease'
+);
+
+select ok(
+  not pg_temp.claim_day(
+    (select target_date from day_claim_case),
+    (select second_run_id from day_claim_case),
+    (select second_token from day_claim_case),
+    app.now() + interval '1 second',
+    'initial'
+  ),
+  'second reminder-day claimant cannot steal a live lease'
+);
+
+update app.reminder_days
+   set status = 'completed',
+       lock_expires_at = app.now() - interval '1 second'
+ where target_date = (select target_date from day_claim_case);
+
+select ok(
+  not pg_temp.claim_day(
+    (select target_date from day_claim_case),
+    (select second_run_id from day_claim_case),
+    (select second_token from day_claim_case),
+    app.now() + interval '2 seconds',
+    'initial'
+  ),
+  'completed initial reminder-day is not re-claimed by another initial pass'
+);
+
+select ok(
+  pg_temp.claim_day(
+    (select target_date from day_claim_case),
+    (select catchup_run_id from day_claim_case),
+    (select catchup_token from day_claim_case),
+    app.now() + interval '3 seconds',
+    'catchup'
+  ),
+  'catch-up pass may claim a completed initial reminder-day'
+);
+
+select is(
+  pg_temp.claim_message_for_send(
+    (select pending_message_id from message_claim_case),
+    (select first_token from message_claim_case),
+    app.now()
+  ),
+  (select pending_message_id from message_claim_case),
+  'first send claimant atomically moves a pending message to sending'
+);
+
+select ok(
+  pg_temp.claim_message_for_send(
+    (select pending_message_id from message_claim_case),
+    (select second_token from message_claim_case),
+    app.now()
+  ) is null,
+  'second send claimant cannot claim an already-sending message'
+);
+
+select is(
+  pg_temp.commit_message_send(
+    (select pending_message_id from message_claim_case),
+    (select second_token from message_claim_case)
+  ),
+  0,
+  'stale send claimant cannot commit another claimant outcome'
+);
+
+select is(
+  pg_temp.commit_message_send(
+    (select pending_message_id from message_claim_case),
+    (select first_token from message_claim_case)
+  ),
+  1,
+  'winning send claimant commits exactly one outcome'
+);
+
+select is(
+  pg_temp.claim_message_for_send(
+    (select retry_message_id from message_claim_case),
+    (select retry_token from message_claim_case),
+    app.now()
+  ),
+  (select retry_message_id from message_claim_case),
+  'retryable pre-submit failure may re-enter the send-claim path'
+);
+
+select ok(
+  pg_temp.claim_message_for_send(
+    (select terminal_message_id from message_claim_case),
+    (select second_token from message_claim_case),
+    app.now()
+  ) is null,
+  'non-retry terminal message is fenced from blind resend'
+);
 
 select ok(
   pg_temp.claim_write_lock(
