@@ -1,5 +1,9 @@
 import type { Clock, LocalDate } from "../_shared/clock.ts";
-import { computeKyivRunDates, systemClock } from "../_shared/clock.ts";
+import {
+  computeKyivRunDates,
+  getKyivDateTimeParts,
+  systemClock,
+} from "../_shared/clock.ts";
 import type {
   ClinicCardsClient,
   ClinicCardsPatient,
@@ -13,6 +17,7 @@ import {
 } from "../_shared/clinicCardsClient.ts";
 import type { RuntimeConfig } from "../_shared/config.ts";
 import { ConfigError, loadRuntimeConfig } from "../_shared/config.ts";
+import { createHttpClient, type HttpClient } from "../_shared/http.ts";
 import type {
   MessageSender,
   SendMessageResult,
@@ -34,6 +39,7 @@ import { createGuardedCrmWriteBack } from "../_shared/writeBack.ts";
 export type ReminderRunTrigger = "cron" | "manual";
 export type ReminderRunPassKind = "initial" | "catchup" | "manual";
 export type ReminderRunOutcomeStatus = "completed" | "failed" | "no_op";
+export type ReminderHeartbeatKind = "start" | "success" | "fail";
 export type ReminderDayClaimReason =
   | "before_noon_kyiv"
   | "live_lease"
@@ -116,8 +122,67 @@ export interface ReminderDayReconciliation {
   failedTotal: number;
   sendUnknownTotal: number;
   pendingTotal: number;
+  writebackPendingTotal: number;
   unaccountedTotal: number;
   health: "green" | "amber" | "red";
+}
+
+export interface ReminderRunBudget {
+  sendableTotal: number;
+  runDurationMs: number;
+  stoppedBeforeDeadline: boolean;
+  queueMigrationRecommended: boolean;
+  triggers: readonly string[];
+}
+
+export interface ReminderHeartbeatPayload {
+  kind: ReminderHeartbeatKind;
+  targetDate: LocalDate;
+  runDate: LocalDate;
+  trigger: ReminderRunTrigger;
+  passKind: ReminderRunPassKind;
+  runId?: number;
+  health?: ReminderDayReconciliation["health"];
+  counts?: {
+    cliniccardsTotal: number;
+    remindableTotal: number;
+    sendableTotal: number;
+    sentTotal: number;
+    skippedTotal: number;
+    failedTotal: number;
+    sendUnknownTotal: number;
+    pendingTotal: number;
+    writebackPendingTotal: number;
+    unaccountedTotal: number;
+  };
+  budget?: ReminderRunBudget;
+  modes: {
+    sendMode: string;
+    crmWriteMode: string;
+    sendAllowlistCount: number;
+    crmWriteAllowlistCount: number;
+  };
+}
+
+export interface ReminderHeartbeatPingResult {
+  ok: boolean;
+  skipped?: boolean;
+  status?: number;
+  error?: string;
+}
+
+export interface ReminderHeartbeatClient {
+  ping(
+    kind: ReminderHeartbeatKind,
+    payload: ReminderHeartbeatPayload,
+  ): Promise<ReminderHeartbeatPingResult>;
+}
+
+export interface ReminderHeartbeatSummary {
+  start?: ReminderHeartbeatPingResult;
+  success?: ReminderHeartbeatPingResult;
+  fail?: ReminderHeartbeatPingResult;
+  operationalAlerts: readonly string[];
 }
 
 export interface ReminderRunResult {
@@ -136,6 +201,8 @@ export interface ReminderRunResult {
   sentCount: number;
   skippedCount: number;
   failedCount: number;
+  budget?: ReminderRunBudget;
+  heartbeat?: ReminderHeartbeatSummary;
 }
 
 export interface ReminderRunStore {
@@ -228,6 +295,8 @@ export interface RunRemindersOptions {
   sender?: MessageSender;
   store?: ReminderRunStore;
   writeBack?: GuardedCrmWriteBack;
+  heartbeatClient?: ReminderHeartbeatClient;
+  heartbeatHttpClient?: HttpClient;
   rng?: RandomBytes;
   lockTokenFactory?: () => string;
   sendClaimTokenFactory?: () => string;
@@ -235,6 +304,7 @@ export interface RunRemindersOptions {
   passKind?: ReminderRunPassKind;
   expectedTargetDate?: LocalDate;
   stopAfterMaterialize?: boolean;
+  stopClaimingAfterMs?: number;
 }
 
 export interface InMemoryReminderRunStore extends ReminderRunStore {
@@ -281,6 +351,16 @@ const dayLeaseTtlMs = 15 * 60 * 1000;
 const dayLeaseHeartbeatGraceMs = 120 * 1000;
 const sendClaimTtlMs = 5 * 60 * 1000;
 const maxRunRequestBodyBytes = 4096;
+const defaultStopClaimingAfterMs = 330 * 1000;
+const queueMigrationSendableThreshold = 100;
+const queueMigrationDurationThresholdMs = 180 * 1000;
+const healthcheckUrlsByKind = Object.freeze(
+  {
+    start: "healthchecksStartUrl",
+    success: "healthchecksSuccessUrl",
+    fail: "healthchecksFailUrl",
+  } satisfies Record<ReminderHeartbeatKind, keyof RuntimeConfig>,
+);
 const defaultPassKindByTrigger = Object.freeze(
   {
     cron: "initial",
@@ -406,6 +486,15 @@ export async function runReminders(
     createClinicCardsClient({ config });
   const sender = options.sender ?? createSmsSender({ config });
   const writeBack = options.writeBack ?? createGuardedCrmWriteBack({ config });
+  const heartbeatClient = options.heartbeatClient ??
+    createHealthchecksHeartbeatClient({
+      config,
+      httpClient: options.heartbeatHttpClient,
+    });
+  const heartbeatSummary = mutableHeartbeatSummary();
+  const runStartedAt = now;
+  const stopClaimingAfterMs = options.stopClaimingAfterMs ??
+    defaultStopClaimingAfterMs;
   const lockTokenFactory = options.lockTokenFactory ??
     (() => crypto.randomUUID());
   const sendClaimTokenFactory = options.sendClaimTokenFactory ??
@@ -467,6 +556,33 @@ export async function runReminders(
     });
   }
 
+  const pingHeartbeat = async (
+    kind: ReminderHeartbeatKind,
+    reconciliation?: ReminderDayReconciliation,
+    budget?: ReminderRunBudget,
+  ): Promise<void> => {
+    const result = await heartbeatClient.ping(
+      kind,
+      heartbeatPayload({
+        kind,
+        config,
+        dates,
+        run,
+        trigger,
+        passKind,
+        reconciliation,
+        budget,
+      }),
+    );
+    recordHeartbeatResult(heartbeatSummary, kind, result);
+  };
+
+  const runDurationMs = (): number =>
+    Math.max(0, clock.now().getTime() - runStartedAt.getTime());
+  let stoppedBeforeDeadline = false;
+
+  await pingHeartbeat("start");
+
   const crmRead = await clinicCardsClient.getVisitsForDate(
     dates.targetDateKyiv,
     crmReadPurposeByPassKind[passKind],
@@ -494,24 +610,40 @@ export async function runReminders(
       targetDate: dates.targetDateKyiv,
       now: clock.now(),
     });
+    const budget = runBudget({
+      sendableTotal: sendable.length,
+      runDurationMs: runDurationMs(),
+      stoppedBeforeDeadline: true,
+      reconciliation,
+      now: clock.now(),
+    });
     await store.finishRun({
       runId: run.id,
       status: "failed",
       reconciliation,
       now: clock.now(),
     });
-    return resultFromStore(
-      "failed",
-      run,
-      dates,
-      reconciliation,
-      await store.messagesForTargetDate(dates.targetDateKyiv),
-    );
+    await pingHeartbeat("fail", reconciliation, budget);
+    return {
+      ...resultFromStore(
+        "failed",
+        run,
+        dates,
+        reconciliation,
+        await store.messagesForTargetDate(dates.targetDateKyiv),
+      ),
+      budget,
+      heartbeat: immutableHeartbeatSummary(heartbeatSummary),
+    };
   }
 
   let wouldSendCount = 0;
   for (const work of sendable) {
     await renewHeartbeat();
+    if (runDurationMs() >= stopClaimingAfterMs) {
+      stoppedBeforeDeadline = true;
+      break;
+    }
     const sendResult = await claimRenderAndSend({
       config,
       clinicCardsClient,
@@ -536,6 +668,13 @@ export async function runReminders(
     targetDate: dates.targetDateKyiv,
     now: clock.now(),
   });
+  const budget = runBudget({
+    sendableTotal: sendable.length,
+    runDurationMs: runDurationMs(),
+    stoppedBeforeDeadline,
+    reconciliation,
+    now: clock.now(),
+  });
   const runStatus = redHealth.has(reconciliation.health)
     ? "failed"
     : "completed";
@@ -545,10 +684,17 @@ export async function runReminders(
     reconciliation,
     now: clock.now(),
   });
+  await pingHeartbeat(
+    redHealth.has(reconciliation.health) ? "fail" : "success",
+    reconciliation,
+    budget,
+  );
   const messages = await store.messagesForTargetDate(dates.targetDateKyiv);
   return {
     ...resultFromStore(runStatus, finished, dates, reconciliation, messages),
     wouldSendCount,
+    budget,
+    heartbeat: immutableHeartbeatSummary(heartbeatSummary),
   };
 }
 
@@ -967,6 +1113,12 @@ export function reconcileMessagesAndFacts(input: {
       messageStatusIn(message, sendUnknownMessageStatuses)
     )
       .length;
+  const writebackPendingTotal =
+    activeMessages.filter((message) =>
+      writeBackActionRows.has(message.actionTaken) &&
+      message.crmWritebackOk !== true &&
+      !message.supersededAt
+    ).length;
   const skippedTotal =
     activeMessages.filter((message) =>
       messageStatusIn(message, skippedMessageStatuses)
@@ -976,7 +1128,7 @@ export function reconcileMessagesAndFacts(input: {
       messageStatusIn(message, sentOrDeliveredMessageStatuses)
     ).length;
   const health = unaccountedTotal > 0 || pendingTotal > 0 ||
-      failedTotal > 0 || sendUnknownTotal > 0
+      failedTotal > 0 || sendUnknownTotal > 0 || writebackPendingTotal > 0
     ? "red"
     : skippedTotal > 0
     ? "amber"
@@ -995,6 +1147,7 @@ export function reconcileMessagesAndFacts(input: {
     failedTotal,
     sendUnknownTotal,
     pendingTotal,
+    writebackPendingTotal,
     unaccountedTotal,
     health,
   });
@@ -1004,6 +1157,21 @@ export async function handleRunRemindersRequest(
   request: Request,
   options: RunRemindersOptions = {},
 ): Promise<Response> {
+  const url = new URL(request.url);
+  if (request.method === "GET" && url.pathname.endsWith("/healthz")) {
+    return new Response(
+      JSON.stringify({
+        ok: true,
+        service: "run-reminders",
+        purpose: "liveness_readiness",
+      }),
+      {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      },
+    );
+  }
+
   if (request.method !== "POST") {
     return new Response(JSON.stringify({ error: "method_not_allowed" }), {
       status: 405,
@@ -1373,6 +1541,188 @@ function resultFromStore(
     skippedCount: reconciliation.skippedTotal,
     failedCount: reconciliation.failedTotal,
   };
+}
+
+function createHealthchecksHeartbeatClient(options: {
+  config: RuntimeConfig;
+  httpClient?: HttpClient;
+}): ReminderHeartbeatClient {
+  const urls = heartbeatUrls(options.config);
+  const httpClient = options.httpClient ??
+    createHttpClient({
+      config: options.config,
+      allowedOrigins: [...urls.values()],
+    });
+
+  return Object.freeze({
+    async ping(
+      kind: ReminderHeartbeatKind,
+      payload: ReminderHeartbeatPayload,
+    ): Promise<ReminderHeartbeatPingResult> {
+      const url = urls.get(kind);
+      if (!url) {
+        return { ok: true, skipped: true };
+      }
+
+      try {
+        const response = await httpClient({
+          url,
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        return { ok: response.ok, status: response.status };
+      } catch (error) {
+        return {
+          ok: false,
+          error: error instanceof Error ? error.message : String(error),
+        };
+      }
+    },
+  });
+}
+
+function heartbeatUrls(
+  config: RuntimeConfig,
+): ReadonlyMap<ReminderHeartbeatKind, string> {
+  const entries: [ReminderHeartbeatKind, string][] = [];
+  for (const kind of ["start", "success", "fail"] as const) {
+    const url = config[healthcheckUrlsByKind[kind]];
+    if (typeof url === "string" && url.length > 0) {
+      entries.push([kind, url]);
+    }
+  }
+  return new Map(entries);
+}
+
+function heartbeatPayload(input: {
+  kind: ReminderHeartbeatKind;
+  config: RuntimeConfig;
+  dates: ReturnType<typeof computeKyivRunDates>;
+  run: ReminderRunRecord;
+  trigger: ReminderRunTrigger;
+  passKind: ReminderRunPassKind;
+  reconciliation?: ReminderDayReconciliation;
+  budget?: ReminderRunBudget;
+}): ReminderHeartbeatPayload {
+  return {
+    kind: input.kind,
+    targetDate: input.dates.targetDateKyiv,
+    runDate: input.dates.runDateKyiv,
+    trigger: input.trigger,
+    passKind: input.passKind,
+    runId: input.run.id,
+    health: input.reconciliation?.health,
+    counts: input.reconciliation
+      ? reconciliationCounts(input.reconciliation)
+      : undefined,
+    budget: input.budget,
+    modes: {
+      sendMode: input.config.sendMode,
+      crmWriteMode: input.config.crmWriteMode,
+      sendAllowlistCount: input.config.sendAllowlist.length,
+      crmWriteAllowlistCount: input.config.crmWriteAllowlist.length,
+    },
+  };
+}
+
+function reconciliationCounts(
+  reconciliation: ReminderDayReconciliation,
+): NonNullable<ReminderHeartbeatPayload["counts"]> {
+  return {
+    cliniccardsTotal: reconciliation.cliniccardsTotal,
+    remindableTotal: reconciliation.remindableTotal,
+    sendableTotal: reconciliation.sendableTotal,
+    sentTotal: reconciliation.sentTotal,
+    skippedTotal: reconciliation.skippedTotal,
+    failedTotal: reconciliation.failedTotal,
+    sendUnknownTotal: reconciliation.sendUnknownTotal,
+    pendingTotal: reconciliation.pendingTotal,
+    writebackPendingTotal: reconciliation.writebackPendingTotal,
+    unaccountedTotal: reconciliation.unaccountedTotal,
+  };
+}
+
+type MutableHeartbeatSummary = {
+  start?: ReminderHeartbeatPingResult;
+  success?: ReminderHeartbeatPingResult;
+  fail?: ReminderHeartbeatPingResult;
+  operationalAlerts: string[];
+};
+
+function mutableHeartbeatSummary(): MutableHeartbeatSummary {
+  return { operationalAlerts: [] };
+}
+
+function recordHeartbeatResult(
+  summary: MutableHeartbeatSummary,
+  kind: ReminderHeartbeatKind,
+  result: ReminderHeartbeatPingResult,
+): void {
+  if (kind === "start") {
+    summary.start = result;
+  } else if (kind === "success") {
+    summary.success = result;
+  } else {
+    summary.fail = result;
+  }
+
+  if (!result.ok && !result.skipped) {
+    summary.operationalAlerts.push(`${kind}_heartbeat_failed`);
+  }
+}
+
+function immutableHeartbeatSummary(
+  summary: MutableHeartbeatSummary,
+): ReminderHeartbeatSummary {
+  return Object.freeze({
+    start: summary.start ? Object.freeze({ ...summary.start }) : undefined,
+    success: summary.success
+      ? Object.freeze({ ...summary.success })
+      : undefined,
+    fail: summary.fail ? Object.freeze({ ...summary.fail }) : undefined,
+    operationalAlerts: Object.freeze([...summary.operationalAlerts]),
+  });
+}
+
+function runBudget(input: {
+  sendableTotal: number;
+  runDurationMs: number;
+  stoppedBeforeDeadline: boolean;
+  reconciliation: ReminderDayReconciliation;
+  now: Date;
+}): ReminderRunBudget {
+  const triggers: string[] = [];
+  if (input.sendableTotal > queueMigrationSendableThreshold) {
+    triggers.push("sendable_total_over_100");
+  }
+  if (input.runDurationMs > queueMigrationDurationThresholdMs) {
+    triggers.push("run_duration_over_180s");
+  }
+  if (input.stoppedBeforeDeadline) {
+    triggers.push("deadline_stop_before_edge_cap");
+  }
+  if (
+    input.reconciliation.pendingTotal > 0 &&
+    isAtOrAfterKyivHeartbeatDeadline(input.now)
+  ) {
+    triggers.push("pending_past_1230_kyiv");
+  }
+
+  return Object.freeze({
+    sendableTotal: input.sendableTotal,
+    runDurationMs: input.runDurationMs,
+    stoppedBeforeDeadline: input.stoppedBeforeDeadline,
+    queueMigrationRecommended: triggers.some((trigger) =>
+      trigger !== "deadline_stop_before_edge_cap"
+    ),
+    triggers: Object.freeze(triggers),
+  });
+}
+
+function isAtOrAfterKyivHeartbeatDeadline(instant: Date): boolean {
+  const parts = getKyivDateTimeParts(instant);
+  return parts.hour > 12 || (parts.hour === 12 && parts.minute >= 30);
 }
 
 function runResultDates(dates: ReturnType<typeof computeKyivRunDates>) {

@@ -16,6 +16,9 @@ export interface RuntimeConfig {
   smsSenderId: string;
   clinicPhone: string;
   smsIdempotencyMode: string;
+  healthchecksStartUrl?: string;
+  healthchecksSuccessUrl?: string;
+  healthchecksFailUrl?: string;
   clinicCardsToken?: string;
   smsProviderApiKey?: string;
   tokenPepper?: string;
@@ -41,6 +44,9 @@ const rawEnvSchema = z.object({
   SMS_SENDER_ID: z.string().optional(),
   CLINIC_PHONE: z.string().optional(),
   SMS_IDEMPOTENCY_MODE: z.string().optional(),
+  HEALTHCHECKS_START_URL: z.string().optional(),
+  HEALTHCHECKS_SUCCESS_URL: z.string().optional(),
+  HEALTHCHECKS_FAIL_URL: z.string().optional(),
   CLINICCARDS_TOKEN: z.string().optional(),
   SMS_PROVIDER_API_KEY: z.string().optional(),
   TOKEN_PEPPER: z.string().optional(),
@@ -106,6 +112,9 @@ export function loadRuntimeConfig(
     smsSenderId: trimOrDefault(raw.SMS_SENDER_ID, "Dentino"),
     clinicPhone: trimOrDefault(raw.CLINIC_PHONE, "+380679876111"),
     smsIdempotencyMode: trimOrDefault(raw.SMS_IDEMPOTENCY_MODE, "none"),
+    healthchecksStartUrl: cleanOptional(raw.HEALTHCHECKS_START_URL),
+    healthchecksSuccessUrl: cleanOptional(raw.HEALTHCHECKS_SUCCESS_URL),
+    healthchecksFailUrl: cleanOptional(raw.HEALTHCHECKS_FAIL_URL),
     clinicCardsToken: cleanOptional(raw.CLINICCARDS_TOKEN),
     smsProviderApiKey: cleanOptional(raw.SMS_PROVIDER_API_KEY),
     tokenPepper: cleanOptional(raw.TOKEN_PEPPER),
@@ -177,6 +186,12 @@ function assertBootGuard(
   if (isSafeEnv(config.appEnv)) {
     assertNoLiveBaseUrl("CLINICCARDS_BASE_URL", config.clinicCardsBaseUrl);
     assertNoLiveBaseUrl("SMS_PROVIDER_BASE_URL", config.smsProviderBaseUrl);
+    assertNoLiveBaseUrl("HEALTHCHECKS_START_URL", config.healthchecksStartUrl);
+    assertNoLiveBaseUrl(
+      "HEALTHCHECKS_SUCCESS_URL",
+      config.healthchecksSuccessUrl,
+    );
+    assertNoLiveBaseUrl("HEALTHCHECKS_FAIL_URL", config.healthchecksFailUrl);
     assertNoLiveSecret("CLINICCARDS_TOKEN", config.clinicCardsToken);
     assertNoLiveSecret("SMS_PROVIDER_API_KEY", config.smsProviderApiKey);
     assertNoLiveSecret("TOKEN_PEPPER", config.tokenPepper);
@@ -207,9 +222,24 @@ function assertBootGuard(
   assertProdSecret("PHONE_PEPPER", config.phonePepper);
   assertProdBaseUrl("CLINICCARDS_BASE_URL", config.clinicCardsBaseUrl);
   assertProdBaseUrl("SMS_PROVIDER_BASE_URL", config.smsProviderBaseUrl);
+  assertProdRequiredBaseUrl(
+    "HEALTHCHECKS_START_URL",
+    config.healthchecksStartUrl,
+  );
+  assertProdRequiredBaseUrl(
+    "HEALTHCHECKS_SUCCESS_URL",
+    config.healthchecksSuccessUrl,
+  );
+  assertProdRequiredBaseUrl(
+    "HEALTHCHECKS_FAIL_URL",
+    config.healthchecksFailUrl,
+  );
 }
 
-function assertNoLiveBaseUrl(key: string, value: string): void {
+function assertNoLiveBaseUrl(key: string, value: string | undefined): void {
+  if (value === undefined) {
+    return;
+  }
   if (!isHarnessUrl(value)) {
     throw new ConfigError(`${key} must be local or cassette-only outside prod`);
   }
@@ -218,6 +248,15 @@ function assertNoLiveBaseUrl(key: string, value: string): void {
 function assertProdBaseUrl(key: string, value: string): void {
   if (isHarnessUrl(value)) {
     throw new ConfigError(`${key} must be a live provider URL in prod`);
+  }
+}
+
+function assertProdRequiredBaseUrl(
+  key: string,
+  value: string | undefined,
+): void {
+  if (!value || isHarnessUrl(value)) {
+    throw new ConfigError(`${key} must be a live external URL in prod`);
   }
 }
 

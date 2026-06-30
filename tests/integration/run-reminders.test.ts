@@ -6,6 +6,7 @@ import {
   assertRejects,
 } from "@std/assert";
 import {
+  type Clock,
   FixedClock,
   type LocalDate,
 } from "../../supabase/functions/_shared/clock.ts";
@@ -39,9 +40,14 @@ import {
   createSmsSender,
 } from "../../supabase/functions/_shared/smsSender.ts";
 import type { GuardedCrmWriteBack } from "../../supabase/functions/_shared/writeBack.ts";
+import type { PendingCrmWriteBack } from "../../supabase/functions/_shared/writeBack.ts";
 import {
   createInMemoryReminderRunStore,
+  handleRunRemindersRequest,
   reconcileMessagesAndFacts,
+  type ReminderHeartbeatClient,
+  type ReminderHeartbeatKind,
+  type ReminderHeartbeatPayload,
   type ReminderMessageRecord,
   runReminders,
 } from "../../supabase/functions/run-reminders/index.ts";
@@ -565,12 +571,221 @@ Deno.test("IT-RECON-01 reconciliation reports unaccounted and pending current ap
   assertEquals(reconciliation.pendingTotal, 1);
 });
 
+Deno.test("IT-HEARTBEAT-01 pings start/success with counts-only payload and fail instead of success on red", async () => {
+  const greenHeartbeat = captureHeartbeat();
+  const greenSender = captureSender();
+  const green = await runReminders({
+    config,
+    clock: fixedClock(),
+    clinicCardsClient: mutableClinicCardsClient([visit("visit-heartbeat")])
+      .client,
+    sender: greenSender.sender,
+    store: createInMemoryReminderRunStore(),
+    writeBack: noopWriteBack,
+    heartbeatClient: greenHeartbeat.client,
+    rng: createSeededByteStreamRng(byteRange(0, 32)),
+    sendClaimTokenFactory: () => syntheticFenceValue("heartbeat-green"),
+    trigger: "cron",
+  });
+
+  assertEquals(green.status, "completed");
+  assertEquals(green.reconciliation?.health, "green");
+  assertEquals(greenHeartbeat.kinds(), ["start", "success"]);
+  assertEquals(green.heartbeat?.success?.ok, true);
+  const heartbeatText = JSON.stringify(greenHeartbeat.payloads);
+  assertFalse(heartbeatText.includes(syntheticPhone));
+  assertFalse(heartbeatText.includes("Олена"));
+  assertFalse(heartbeatText.includes("/r/"));
+
+  const redHeartbeat = captureHeartbeat();
+  const red = await runReminders({
+    config,
+    clock: fixedClock(),
+    clinicCardsClient: mutableClinicCardsClient([visit("visit-red-heartbeat")])
+      .client,
+    sender: captureSender().sender,
+    store: createInMemoryReminderRunStore(),
+    writeBack: noopWriteBack,
+    heartbeatClient: redHeartbeat.client,
+    trigger: "cron",
+    stopAfterMaterialize: true,
+  });
+
+  assertEquals(red.status, "failed");
+  assertEquals(red.reconciliation?.health, "red");
+  assertEquals(redHeartbeat.kinds(), ["start", "fail"]);
+  assertEquals(
+    redHeartbeat.payloads.find((payload) => payload.kind === "success"),
+    undefined,
+  );
+  assertEquals(redHeartbeat.payloads.at(-1)?.counts?.pendingTotal, 1);
+});
+
+Deno.test("IT-HEARTBEAT-01 failed success ping alerts without mutating reconciliation health", async () => {
+  const heartbeat = captureHeartbeat(new Set(["success"]));
+  const result = await runReminders({
+    config,
+    clock: fixedClock(),
+    clinicCardsClient: mutableClinicCardsClient([visit("visit-ping-fails")])
+      .client,
+    sender: captureSender().sender,
+    store: createInMemoryReminderRunStore(),
+    writeBack: noopWriteBack,
+    heartbeatClient: heartbeat.client,
+    rng: createSeededByteStreamRng(byteRange(0, 32)),
+    sendClaimTokenFactory: () => syntheticFenceValue("success-ping-fails"),
+    trigger: "cron",
+  });
+
+  assertEquals(result.status, "completed");
+  assertEquals(result.reconciliation?.health, "green");
+  assertEquals(result.heartbeat?.success?.ok, false);
+  assertEquals(result.heartbeat?.operationalAlerts, [
+    "success_heartbeat_failed",
+  ]);
+});
+
+Deno.test("FR-L2-RUN-07 healthz is liveness only and distinct from run proof", async () => {
+  const response = await handleRunRemindersRequest(
+    new Request("http://localhost/functions/v1/run-reminders/healthz", {
+      method: "GET",
+    }),
+  );
+  assertEquals(response.status, 200);
+  assertEquals(await response.json(), {
+    ok: true,
+    service: "run-reminders",
+    purpose: "liveness_readiness",
+  });
+});
+
+Deno.test("IT-BUDGET-01 stops claiming near the deadline and reconciles pending red", async () => {
+  const clock = mutableClock(fixedNowIso);
+  const sender = advancingSender(clock, 2_000);
+  const result = await runReminders({
+    config,
+    clock,
+    clinicCardsClient: mutableClinicCardsClient([
+      visit("visit-budget-1"),
+      visit("visit-budget-2"),
+    ]).client,
+    sender: sender.sender,
+    store: createInMemoryReminderRunStore(),
+    writeBack: noopWriteBack,
+    rng: createSeededByteStreamRng(byteRange(0, 64)),
+    sendClaimTokenFactory: () => syntheticFenceValue("budget"),
+    trigger: "cron",
+    stopClaimingAfterMs: 1_000,
+  });
+
+  assertEquals(sender.requests.length, 1);
+  assertEquals(result.status, "failed");
+  assertEquals(result.reconciliation?.pendingTotal, 1);
+  assertEquals(result.budget?.stoppedBeforeDeadline, true);
+  assert(result.budget?.triggers.includes("deadline_stop_before_edge_cap"));
+});
+
+Deno.test("IT-BUDGET-01 high sendable volume marks queue migration recommended", async () => {
+  const result = await runReminders({
+    config,
+    clock: fixedClock(),
+    clinicCardsClient: mutableClinicCardsClient(
+      Array.from({ length: 101 }, (_, index) => visit(`visit-heavy-${index}`)),
+    ).client,
+    sender: captureSender().sender,
+    store: createInMemoryReminderRunStore(),
+    writeBack: noopWriteBack,
+    trigger: "cron",
+    stopAfterMaterialize: true,
+  });
+
+  assertEquals(result.budget?.queueMigrationRecommended, true);
+  assert(result.budget?.triggers.includes("sendable_total_over_100"));
+});
+
+Deno.test("IT-WRITEBACK-REAPER-02 run-owned reaper redrives unfinished CRM writes before reconciliation", async () => {
+  const redriven: unknown[] = [];
+  const writeBack: GuardedCrmWriteBack = Object.freeze({
+    write(): Promise<never> {
+      throw new Error("run-reminders test uses redrivePending only");
+    },
+    redrivePending(pending: readonly PendingCrmWriteBack[]) {
+      redriven.push(...pending);
+      return Promise.resolve([]);
+    },
+  });
+  const result = await runReminders({
+    config,
+    clock: fixedClock(),
+    clinicCardsClient: mutableClinicCardsClient([]).client,
+    sender: captureSender().sender,
+    store: createInMemoryReminderRunStore({
+      messages: [
+        messageRecord({
+          id: 99,
+          cliniccardsVisitId: "visit-writeback-gap",
+          actionTaken: "cancelled",
+          crmWritebackOk: null,
+        }),
+      ],
+    }),
+    writeBack,
+    trigger: "cron",
+  });
+
+  assertEquals(redriven, [{
+    messageId: 99,
+    cliniccardsVisitId: "visit-writeback-gap",
+    action: "cancel",
+    expectedAppointmentFingerprint: "fingerprint-1",
+    crmWritebackOk: null,
+    supersededAt: undefined,
+  }]);
+  assertEquals(result.status, "failed");
+  assertEquals(result.reconciliation?.writebackPendingTotal, 1);
+});
+
 function fixedClock(): FixedClock {
   return new FixedClock(fixedNowIso);
 }
 
 function fixedNow(): Date {
   return new Date(fixedNowIso);
+}
+
+function mutableClock(initialIso: string): Clock & {
+  advance(milliseconds: number): void;
+} {
+  let current = new Date(initialIso);
+  return {
+    now(): Date {
+      return new Date(current.getTime());
+    },
+    advance(milliseconds: number): void {
+      current = new Date(current.getTime() + milliseconds);
+    },
+  };
+}
+
+function captureHeartbeat(failingKinds = new Set<ReminderHeartbeatKind>()): {
+  client: ReminderHeartbeatClient;
+  payloads: ReminderHeartbeatPayload[];
+  kinds(): ReminderHeartbeatKind[];
+} {
+  const payloads: ReminderHeartbeatPayload[] = [];
+  return {
+    payloads,
+    kinds: () => payloads.map((payload) => payload.kind),
+    client: {
+      ping(kind, payload) {
+        payloads.push(structuredClone(payload));
+        return Promise.resolve({
+          ok: !failingKinds.has(kind),
+          status: failingKinds.has(kind) ? 599 : 200,
+        });
+      },
+    },
+  };
 }
 
 function syntheticSecretValue(scope: string): string {
@@ -657,6 +872,26 @@ function captureSender(): {
           dryRun: true,
           segments: 1,
         });
+      },
+    },
+  };
+}
+
+function advancingSender(
+  clock: { advance(milliseconds: number): void },
+  advanceByMs: number,
+): {
+  sender: MessageSender;
+  requests: SendMessageRequest[];
+} {
+  const sender = captureSender();
+  return {
+    requests: sender.requests,
+    sender: {
+      async send(request): Promise<SendMessageResult> {
+        const result = await sender.sender.send(request);
+        clock.advance(advanceByMs);
+        return result;
       },
     },
   };
