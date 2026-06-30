@@ -5,7 +5,7 @@ set search_path = extensions, public;
 select set_config('app.env', 'test', false);
 select set_config('app.test_now', '2026-06-30 09:00:00+00', false);
 
-select plan(15);
+select plan(18);
 
 create or replace function pg_temp.claim_day(
   p_target_date date,
@@ -116,6 +116,36 @@ begin
    where id = p_message_id
      and status = 'sending'
      and send_claim_token = p_claim_token;
+
+  get diagnostics updated_count = row_count;
+  return updated_count;
+end;
+$$;
+
+create or replace function pg_temp.record_action_cas(
+  p_message_id bigint,
+  p_action text
+)
+returns int
+language plpgsql
+as $$
+declare
+  updated_count int;
+begin
+  update app.reminder_messages
+     set response = p_action,
+         responded_at = app.now(),
+         action_locked_at = app.now(),
+         action_taken = case
+           when p_action = 'confirm' then 'confirmed'
+           else 'cancelled'
+         end
+   where id = p_message_id
+     and action_locked_at is null
+     and response is null
+     and status in ('sent', 'delivered', 'send_unknown')
+     and token_expires_at > app.now()
+     and superseded_at is null;
 
   get diagnostics updated_count = row_count;
   return updated_count;
@@ -376,6 +406,41 @@ select
   extensions.gen_random_uuid(),
   extensions.gen_random_uuid();
 
+create temp table action_cas_case(message_id bigint not null);
+
+with run as (
+  insert into app.reminder_runs(run_date, target_date, trigger, pass_kind)
+  values ('2026-06-30', '2026-07-04', 'manual', 'initial')
+  returning id
+),
+message as (
+  insert into app.reminder_messages(
+    run_id,
+    cliniccards_visit_id,
+    target_date,
+    target_at,
+    message_kind,
+    appointment_fingerprint,
+    status,
+    tracking_token_digest,
+    token_expires_at
+  )
+  select
+    id,
+    'visit-action-cas',
+    '2026-07-04',
+    '2026-07-04 09:00+00',
+    'initial_reminder',
+    'action-cas-fingerprint',
+    'sent',
+    extensions.gen_random_bytes(32),
+    app.now() + interval '1 day'
+  from run
+  returning id
+)
+insert into action_cas_case(message_id)
+select id from message;
+
 select ok(
   pg_temp.claim_day(
     (select target_date from day_claim_case),
@@ -479,6 +544,35 @@ select ok(
     app.now()
   ) is null,
   'non-retry terminal message is fenced from blind resend'
+);
+
+select is(
+  pg_temp.record_action_cas(
+    (select message_id from action_cas_case),
+    'confirm'
+  ),
+  1,
+  'first action CAS consumes exactly one action lock'
+);
+
+select is(
+  pg_temp.record_action_cas(
+    (select message_id from action_cas_case),
+    'cancel'
+  ),
+  0,
+  'second action CAS affects zero rows'
+);
+
+select throws_like(
+  $$
+    update app.reminder_messages
+       set action_locked_at = null,
+           response = 'cancel'
+     where id = (select message_id from action_cas_case)
+  $$,
+  '%single-use%',
+  'action-lock trigger rejects unlock and re-response attempts'
 );
 
 select ok(

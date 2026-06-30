@@ -1,6 +1,10 @@
 import { assertEquals, assertFalse } from "@std/assert";
 import type { SendMessageResult } from "../../supabase/functions/_shared/sender.ts";
 import {
+  type ConfirmReminderRecord,
+  createInMemoryConfirmActionStore,
+} from "../../supabase/functions/confirm/index.ts";
+import {
   createInMemoryReminderRunStore,
   type ReminderMessageRecord,
 } from "../../supabase/functions/run-reminders/index.ts";
@@ -8,7 +12,9 @@ import {
 const targetDate = "2026-07-01";
 const targetAt = "2026-07-01T09:00:00+03:00";
 const rawCapability = ["AAECAwQF", "BgcICQoL", "DA0ODw"].join("");
-const tokenDigestHex = "a".repeat(64);
+const digestHexFixture = "a".repeat(64);
+const expiredConfirmExpiry = "2026-06-30T08:59:59.000Z";
+const activeConfirmExpiry = "2026-07-01T08:30:00.000Z";
 const now = new Date("2026-06-30T09:00:00.000Z");
 
 Deno.test("IT-TOKEN-CLAIM-01 send claim stores only token digest and fences duplicate senders", async () => {
@@ -19,14 +25,14 @@ Deno.test("IT-TOKEN-CLAIM-01 send claim stores only token digest and fences dupl
   const claimed = await store.claimMessageForSend({
     messageId: 1,
     claimToken: syntheticFenceValue("one"),
-    tokenDigestHex,
+    tokenDigestHex: digestHexFixture,
     tokenExpiresAt: targetAt,
     claimExpiresAt: "2026-06-30T09:05:00.000Z",
     now,
   });
 
   assertEquals(claimed?.status, "sending");
-  assertEquals(claimed?.trackingTokenDigestHex, tokenDigestHex);
+  assertEquals(claimed?.trackingTokenDigestHex, digestHexFixture);
   assertEquals(claimed?.tokenExpiresAt, targetAt);
   assertEquals(claimed?.sendAttemptCount, 1);
   assertFalse(JSON.stringify(store.messages).includes(rawCapability));
@@ -69,7 +75,7 @@ Deno.test("IT-RECON-01 stale sending rows reap to send_unknown and are never bli
         status: "sending",
         sendClaimToken: syntheticFenceValue("stale"),
         sendClaimExpiresAt: "2026-06-30T08:59:59.000Z",
-        trackingTokenDigestHex: tokenDigestHex,
+        trackingTokenDigestHex: digestHexFixture,
         tokenExpiresAt: targetAt,
         sendAttemptCount: 1,
       }),
@@ -95,6 +101,73 @@ Deno.test("IT-RECON-01 stale sending rows reap to send_unknown and are never bli
     now,
   });
   assertEquals(reclamed, null);
+});
+
+Deno.test("UT-ACTIONS-01 action predicates classify confirm, cancel, opt-out, expired, superseded, stale, and terminal states", () => {
+  const store = createInMemoryConfirmActionStore({
+    reminders: [
+      confirmReminder({ id: 1, tokenDigestHex: "1".repeat(64) }),
+      confirmReminder({
+        id: 2,
+        tokenDigestHex: "2".repeat(64),
+        tokenExpiresAt: expiredConfirmExpiry,
+      }),
+      confirmReminder({
+        id: 3,
+        tokenDigestHex: "3".repeat(64),
+        supersededAt: now.toISOString(),
+      }),
+      confirmReminder({
+        id: 4,
+        tokenDigestHex: "4".repeat(64),
+        targetAt: "2026-06-30T08:59:59.000Z",
+      }),
+      confirmReminder({
+        id: 5,
+        tokenDigestHex: "5".repeat(64),
+        status: "failed",
+      }),
+    ],
+  });
+
+  assertEquals(store.lookupByTokenDigest("1".repeat(64), now).ok, true);
+  assertEquals(store.lookupByTokenDigest("2".repeat(64), now).ok, false);
+  assertEquals(store.lookupByTokenDigest("3".repeat(64), now).ok, false);
+  assertEquals(store.lookupByTokenDigest("4".repeat(64), now).ok, false);
+  assertEquals(store.lookupByTokenDigest("5".repeat(64), now).ok, false);
+
+  const confirm = store.recordAppointmentAction({
+    messageId: 1,
+    tokenDigestHex: "1".repeat(64),
+    action: "confirm",
+    renderFingerprint: confirmFingerprint(confirmReminder({ id: 1 })),
+    now,
+  });
+  assertEquals(confirm.status, "recorded");
+  assertEquals(confirm.reminder?.actionTaken, "confirmed");
+
+  const replay = store.recordAppointmentAction({
+    messageId: 1,
+    tokenDigestHex: "1".repeat(64),
+    action: "cancel",
+    renderFingerprint: confirmFingerprint(confirmReminder({ id: 1 })),
+    now,
+  });
+  assertEquals(replay.status, "already_used");
+
+  const optOutStore = createInMemoryConfirmActionStore({
+    reminders: [confirmReminder({ id: 6, tokenDigestHex: "6".repeat(64) })],
+  });
+  const optOut = optOutStore.recordOptOut({
+    messageId: 6,
+    tokenDigestHex: "6".repeat(64),
+    renderFingerprint: confirmFingerprint(confirmReminder({ id: 6 })),
+    now,
+  });
+  assertEquals(optOut.status, "recorded");
+  assertEquals(optOutStore.reminders[0].smsRemindersEnabled, false);
+  assertEquals(optOutStore.consentEvents.length, 1);
+  assertEquals(optOutStore.reminders[0].actionLockedAt, undefined);
 });
 
 function acceptedSend(): SendMessageResult {
@@ -128,4 +201,34 @@ function message(
     actionTaken: "none",
     ...overrides,
   };
+}
+
+function confirmReminder(
+  overrides: Partial<ConfirmReminderRecord> = {},
+): ConfirmReminderRecord {
+  return {
+    id: 1,
+    targetDate,
+    targetAt,
+    tokenDigestHex: digestHexFixture,
+    tokenExpiresAt: activeConfirmExpiry,
+    cliniccardsVisitId: "visit-1",
+    appointmentFingerprint: "fingerprint-1",
+    patientDisplaySnapshot: "Олена К.",
+    status: "sent",
+    actionTaken: "none",
+    patientId: 1,
+    smsRemindersEnabled: true,
+    ...overrides,
+  };
+}
+
+function confirmFingerprint(reminder: ConfirmReminderRecord): string {
+  return [
+    reminder.id,
+    reminder.cliniccardsVisitId,
+    reminder.appointmentFingerprint,
+    reminder.targetAt,
+    reminder.tokenExpiresAt,
+  ].join("|");
 }
