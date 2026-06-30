@@ -1,4 +1,10 @@
-import { assert, assertEquals, assertFalse, assertMatch } from "@std/assert";
+import {
+  assert,
+  assertEquals,
+  assertFalse,
+  assertMatch,
+  assertRejects,
+} from "@std/assert";
 import {
   FixedClock,
   type LocalDate,
@@ -231,6 +237,181 @@ Deno.test("IT-IDEMPOTENCY-01 repeated initial runs do not double-send the same a
   assertEquals(second.claimReason, "completed_initial");
   assertEquals(store.messages.length, 1);
   assertEquals(sender.requests.length, 1);
+});
+
+Deno.test("IT-IDEMPOTENCY-01 catch-up rescans a completed day without duplicating ordinary reminders", async () => {
+  const sender = captureSender();
+  const store = createInMemoryReminderRunStore();
+  const crm = mutableClinicCardsClient([visit("visit-catchup-original")]);
+  let fenceOrdinal = 0;
+
+  await runReminders({
+    config,
+    clock: fixedClock(),
+    clinicCardsClient: crm.client,
+    sender: sender.sender,
+    store,
+    writeBack: noopWriteBack,
+    rng: createSeededByteStreamRng(byteRange(0, 32)),
+    sendClaimTokenFactory: () =>
+      syntheticFenceValue(`catchup-${++fenceOrdinal}`),
+    trigger: "cron",
+  });
+  crm.setVisits([
+    visit("visit-catchup-original"),
+    visit("visit-catchup-late"),
+  ]);
+
+  const catchup = await runReminders({
+    config,
+    clock: fixedClock(),
+    clinicCardsClient: crm.client,
+    sender: sender.sender,
+    store,
+    writeBack: noopWriteBack,
+    rng: createSeededByteStreamRng(byteRange(32, 32)),
+    sendClaimTokenFactory: () =>
+      syntheticFenceValue(`catchup-${++fenceOrdinal}`),
+    trigger: "cron",
+    passKind: "catchup",
+  });
+
+  assertEquals(catchup.status, "completed");
+  assertEquals(store.messages.length, 2);
+  assertEquals(sender.requests.length, 2);
+  assertEquals(
+    store.messages.find((message) =>
+      message.cliniccardsVisitId === "visit-catchup-original"
+    )?.messageKind,
+    "initial_reminder",
+  );
+  assertEquals(
+    store.messages.find((message) =>
+      message.cliniccardsVisitId === "visit-catchup-late"
+    )?.messageKind,
+    "catchup_reminder",
+  );
+  assert(crm.calls.includes("GET catchup 2026-07-01"));
+});
+
+Deno.test("IT-LEASE-STEAL-01 live heartbeat holder is not stolen", async () => {
+  const sender = captureSender();
+  const store = createInMemoryReminderRunStore({
+    days: [{
+      targetDate,
+      status: "running",
+      lockedByRunId: 41,
+      lockToken: syntheticFenceValue("live-day"),
+      lockStartedAt: new Date(fixedNow().getTime() - 60_000).toISOString(),
+      lockHeartbeatAt: new Date(fixedNow().getTime() - 30_000).toISOString(),
+      lockExpiresAt: new Date(fixedNow().getTime() + 600_000).toISOString(),
+    }],
+  });
+  const crm = mutableClinicCardsClient([visit("visit-live-holder")]);
+
+  const result = await runReminders({
+    config,
+    clock: fixedClock(),
+    clinicCardsClient: crm.client,
+    sender: sender.sender,
+    store,
+    writeBack: noopWriteBack,
+    trigger: "cron",
+  });
+
+  assertEquals(result.status, "no_op");
+  assertEquals(result.claimReason, "live_lease");
+  assertEquals(sender.requests.length, 0);
+  assertEquals(crm.calls, []);
+});
+
+Deno.test("IT-LEASE-STEAL-01 stale heartbeat holder is stolen and orphaned sends are reaped", async () => {
+  const sender = captureSender();
+  const store = createInMemoryReminderRunStore({
+    days: [{
+      targetDate,
+      status: "running",
+      lockedByRunId: 42,
+      lockToken: syntheticFenceValue("dead-day"),
+      lockStartedAt: new Date(fixedNow().getTime() - 180_000).toISOString(),
+      lockHeartbeatAt: new Date(fixedNow().getTime() - 121_000).toISOString(),
+      lockExpiresAt: new Date(fixedNow().getTime() + 600_000).toISOString(),
+    }],
+    messages: [
+      messageRecord({
+        cliniccardsVisitId: "visit-orphaned-send",
+        status: "sending",
+        sendClaimToken: syntheticFenceValue("orphaned-send"),
+        sendClaimExpiresAt: new Date(fixedNow().getTime() + 60_000)
+          .toISOString(),
+        trackingTokenDigestHex: "a".repeat(64),
+      }),
+    ],
+  });
+  const crm = mutableClinicCardsClient([visit("visit-after-steal")]);
+
+  const result = await runReminders({
+    config,
+    clock: fixedClock(),
+    clinicCardsClient: crm.client,
+    sender: sender.sender,
+    store,
+    writeBack: noopWriteBack,
+    rng: createSeededByteStreamRng(byteRange(0, 32)),
+    sendClaimTokenFactory: () => syntheticFenceValue("after-steal"),
+    trigger: "cron",
+  });
+
+  assertEquals(result.status, "failed");
+  assertEquals(result.reconciliation?.sendUnknownTotal, 1);
+  assertEquals(
+    store.messages.find((message) =>
+      message.cliniccardsVisitId === "visit-orphaned-send"
+    )?.status,
+    "send_unknown",
+  );
+  assertEquals(sender.requests.length, 1);
+});
+
+Deno.test("FR-L2-RUN-06 Kyiv cron gate and target-date guard stop before side effects", async () => {
+  const preNoonSender = captureSender();
+  const preNoonStore = createInMemoryReminderRunStore();
+  const preNoonCrm = mutableClinicCardsClient([visit("visit-before-noon")]);
+
+  const preNoon = await runReminders({
+    config,
+    clock: new FixedClock("2026-01-15T09:30:00.000Z"),
+    clinicCardsClient: preNoonCrm.client,
+    sender: preNoonSender.sender,
+    store: preNoonStore,
+    writeBack: noopWriteBack,
+    trigger: "cron",
+  });
+
+  assertEquals(preNoon.status, "no_op");
+  assertEquals(preNoon.claimReason, "before_noon_kyiv");
+  assertEquals(preNoon.dates.targetDateKyiv, "2026-01-16");
+  assertEquals(preNoonStore.runs.length, 0);
+  assertEquals(preNoonSender.requests.length, 0);
+  assertEquals(preNoonCrm.calls, []);
+
+  const mismatchCrm = mutableClinicCardsClient([visit("visit-mismatch")]);
+  await assertRejects(
+    () =>
+      runReminders({
+        config,
+        clock: fixedClock(),
+        clinicCardsClient: mismatchCrm.client,
+        sender: captureSender().sender,
+        store: createInMemoryReminderRunStore(),
+        writeBack: noopWriteBack,
+        trigger: "cron",
+        expectedTargetDate: "2026-07-02",
+      }),
+    RangeError,
+    "Expected Kyiv target date 2026-07-02",
+  );
+  assertEquals(mismatchCrm.calls, []);
 });
 
 Deno.test("IT-TOKEN-CLAIM-01 raw capability token is rendered only into SMS and never stored", async () => {

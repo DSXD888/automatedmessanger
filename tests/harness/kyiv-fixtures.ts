@@ -12,6 +12,17 @@ export interface KyivNoonWindowFixture extends KyivFixture {
   shouldProceed: boolean;
 }
 
+export const kyivNoonMultiFireUtcSlots = Object.freeze(
+  [
+    "09:00",
+    "09:30",
+    "10:00",
+    "10:30",
+  ] as const,
+);
+
+export const kyivCatchupLocalTime = "16:30";
+
 export const kyivDateFixtures: readonly KyivFixture[] = Object.freeze([
   {
     name: "winter EET noon",

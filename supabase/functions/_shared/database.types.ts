@@ -747,6 +747,10 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      invoke_run_reminders: {
+        Args: { p_pass_kind: string; p_target_date?: string };
+        Returns: number;
+      };
       purge_privacy: { Args: never; Returns: Json };
       reap_stale_sends: { Args: { p_target_date?: string }; Returns: number };
     };

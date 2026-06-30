@@ -5,7 +5,7 @@ set search_path = extensions, public;
 select set_config('app.env', 'test', false);
 select set_config('app.test_now', '2026-06-30 09:00:00+00', false);
 
-select plan(18);
+select plan(20);
 
 create or replace function pg_temp.claim_day(
   p_target_date date,
@@ -49,6 +49,7 @@ begin
   where (
       app.reminder_days.status <> 'running'
       or app.reminder_days.lock_expires_at <= p_now
+      or app.reminder_days.lock_heartbeat_at < p_now - interval '120 seconds'
     )
     and (
       app.reminder_days.status <> 'completed'
@@ -461,6 +462,33 @@ select ok(
     'initial'
   ),
   'second reminder-day claimant cannot steal a live lease'
+);
+
+update app.reminder_days
+   set lock_heartbeat_at = app.now() + interval '30 seconds',
+       lock_expires_at = app.now() + interval '15 minutes'
+ where target_date = (select target_date from day_claim_case);
+
+select ok(
+  not pg_temp.claim_day(
+    (select target_date from day_claim_case),
+    (select second_run_id from day_claim_case),
+    (select second_token from day_claim_case),
+    app.now() + interval '60 seconds',
+    'initial'
+  ),
+  'renewed reminder-day heartbeat within 30 seconds is not stolen'
+);
+
+select ok(
+  pg_temp.claim_day(
+    (select target_date from day_claim_case),
+    (select second_run_id from day_claim_case),
+    (select second_token from day_claim_case),
+    app.now() + interval '151 seconds',
+    'initial'
+  ),
+  'stopped reminder-day heartbeat is stealable before absolute TTL'
 );
 
 update app.reminder_days

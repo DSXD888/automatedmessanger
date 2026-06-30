@@ -34,7 +34,10 @@ import { createGuardedCrmWriteBack } from "../_shared/writeBack.ts";
 export type ReminderRunTrigger = "cron" | "manual";
 export type ReminderRunPassKind = "initial" | "catchup" | "manual";
 export type ReminderRunOutcomeStatus = "completed" | "failed" | "no_op";
-export type ReminderDayClaimReason = "live_lease" | "completed_initial";
+export type ReminderDayClaimReason =
+  | "before_noon_kyiv"
+  | "live_lease"
+  | "completed_initial";
 export type ReminderMessageKind =
   | "initial_reminder"
   | "catchup_reminder"
@@ -150,8 +153,15 @@ export interface ReminderRunStore {
     lockToken: string;
     now: Date;
   }): Promise<
-    { claimed: true } | { claimed: false; reason: ReminderDayClaimReason }
+    | { claimed: true; stoleExistingLease: boolean }
+    | { claimed: false; reason: ReminderDayClaimReason }
   >;
+  renewDayHeartbeat(input: {
+    targetDate: LocalDate;
+    runId: number;
+    lockToken: string;
+    now: Date;
+  }): Promise<boolean>;
   recordVisitFacts(
     runId: number,
     facts: readonly CrmVisitFact[],
@@ -179,6 +189,10 @@ export interface ReminderRunStore {
     error?: string;
   }): Promise<void>;
   reapExpiredSendClaims(input: {
+    targetDate: LocalDate;
+    now: Date;
+  }): Promise<number>;
+  reapOrphanedSendClaims(input: {
     targetDate: LocalDate;
     now: Date;
   }): Promise<number>;
@@ -235,6 +249,8 @@ export interface InMemoryReminderDayRecord {
   status: "idle" | "running" | "completed" | "partial" | "failed";
   lockedByRunId?: number;
   lockToken?: string;
+  lockStartedAt?: string;
+  lockHeartbeatAt?: string;
   lockExpiresAt?: string;
   reconciliation?: ReminderDayReconciliation;
 }
@@ -262,7 +278,9 @@ interface SendableWork {
 }
 
 const dayLeaseTtlMs = 15 * 60 * 1000;
+const dayLeaseHeartbeatGraceMs = 120 * 1000;
 const sendClaimTtlMs = 5 * 60 * 1000;
+const maxRunRequestBodyBytes = 4096;
 const defaultPassKindByTrigger = Object.freeze(
   {
     cron: "initial",
@@ -359,6 +377,9 @@ export async function runReminders(
   const clock = options.clock ?? systemClock;
   const now = clock.now();
   const dates = computeKyivRunDates(now);
+  const trigger = options.trigger ?? "manual";
+  const passKind = options.passKind ?? defaultPassKindByTrigger[trigger];
+  const store = options.store ?? createInMemoryReminderRunStore();
   const expectedTargetDate = options.expectedTargetDate;
   if (
     expectedTargetDate !== undefined &&
@@ -368,10 +389,19 @@ export async function runReminders(
       `Expected Kyiv target date ${expectedTargetDate}, computed ${dates.targetDateKyiv}`,
     );
   }
+  if (shouldRefuseBeforeKyivNoon(trigger, passKind, dates)) {
+    return {
+      status: "no_op",
+      claimReason: "before_noon_kyiv",
+      dates: runResultDates(dates),
+      messages: await store.messagesForTargetDate(dates.targetDateKyiv),
+      wouldSendCount: 0,
+      sentCount: 0,
+      skippedCount: 0,
+      failedCount: 0,
+    };
+  }
 
-  const trigger = options.trigger ?? "manual";
-  const passKind = options.passKind ?? defaultPassKindByTrigger[trigger];
-  const store = options.store ?? createInMemoryReminderRunStore();
   const clinicCardsClient = options.clinicCardsClient ??
     createClinicCardsClient({ config });
   const sender = options.sender ?? createSmsSender({ config });
@@ -389,11 +419,12 @@ export async function runReminders(
     now,
   });
 
+  const lockToken = lockTokenFactory();
   const dayClaim = await store.claimDay({
     targetDate: dates.targetDateKyiv,
     runId: run.id,
     passKind,
-    lockToken: lockTokenFactory(),
+    lockToken,
     now,
   });
   if (!dayClaim.claimed) {
@@ -411,20 +442,42 @@ export async function runReminders(
     };
   }
 
-  await store.reapExpiredSendClaims({
-    targetDate: dates.targetDateKyiv,
-    now,
-  });
+  const renewHeartbeat = async (): Promise<void> => {
+    const renewed = await store.renewDayHeartbeat({
+      targetDate: dates.targetDateKyiv,
+      runId: run.id,
+      lockToken,
+      now: clock.now(),
+    });
+    if (!renewed) {
+      throw new Error("lost reminder-day lease heartbeat fence");
+    }
+  };
+
+  await renewHeartbeat();
+  if (dayClaim.stoleExistingLease) {
+    await store.reapOrphanedSendClaims({
+      targetDate: dates.targetDateKyiv,
+      now: clock.now(),
+    });
+  } else {
+    await store.reapExpiredSendClaims({
+      targetDate: dates.targetDateKyiv,
+      now: clock.now(),
+    });
+  }
 
   const crmRead = await clinicCardsClient.getVisitsForDate(
     dates.targetDateKyiv,
     crmReadPurposeByPassKind[passKind],
   );
+  await renewHeartbeat();
   await store.recordVisitFacts(run.id, crmRead.facts);
   const patients = await readPatientsForVisits(
     clinicCardsClient,
     crmRead.visits,
   );
+  await renewHeartbeat();
   const sendable = await materializeObservedVisits({
     runId: run.id,
     targetDate: dates.targetDateKyiv,
@@ -434,17 +487,18 @@ export async function runReminders(
     passKind,
     now,
   });
+  await renewHeartbeat();
 
   if (options.stopAfterMaterialize) {
     const reconciliation = await store.reconcileDay({
       targetDate: dates.targetDateKyiv,
-      now,
+      now: clock.now(),
     });
     await store.finishRun({
       runId: run.id,
       status: "failed",
       reconciliation,
-      now,
+      now: clock.now(),
     });
     return resultFromStore(
       "failed",
@@ -457,6 +511,7 @@ export async function runReminders(
 
   let wouldSendCount = 0;
   for (const work of sendable) {
+    await renewHeartbeat();
     const sendResult = await claimRenderAndSend({
       config,
       clinicCardsClient,
@@ -468,15 +523,18 @@ export async function runReminders(
       sendClaimTokenFactory,
       now,
     });
+    await renewHeartbeat();
     if (sendResult && wouldSendStatuses.has(sendResult.status)) {
       wouldSendCount += 1;
     }
   }
 
+  await renewHeartbeat();
   await writeBack.redrivePending(await store.pendingWriteBacks());
+  await renewHeartbeat();
   const reconciliation = await store.reconcileDay({
     targetDate: dates.targetDateKyiv,
-    now,
+    now: clock.now(),
   });
   const runStatus = redHealth.has(reconciliation.health)
     ? "failed"
@@ -485,7 +543,7 @@ export async function runReminders(
     runId: run.id,
     status: runStatus,
     reconciliation,
-    now,
+    now: clock.now(),
   });
   const messages = await store.messagesForTargetDate(dates.targetDateKyiv);
   return {
@@ -543,19 +601,16 @@ export function createInMemoryReminderRunStore(
     },
 
     claimDay(input): Promise<
-      { claimed: true } | { claimed: false; reason: ReminderDayClaimReason }
+      | { claimed: true; stoleExistingLease: boolean }
+      | { claimed: false; reason: ReminderDayClaimReason }
     > {
       const existing = days.get(input.targetDate);
       if (
         existing &&
         runningReminderDayStatuses.has(existing.status) &&
-        existing.lockExpiresAt
+        isLiveReminderDayLease(existing, input.now)
       ) {
-        const liveLease =
-          Date.parse(existing.lockExpiresAt) > input.now.getTime();
-        if (liveLease) {
-          return Promise.resolve({ claimed: false, reason: "live_lease" });
-        }
+        return Promise.resolve({ claimed: false, reason: "live_lease" });
       }
       if (
         existing &&
@@ -568,15 +623,42 @@ export function createInMemoryReminderRunStore(
         });
       }
 
+      const stoleExistingLease = Boolean(
+        existing && runningReminderDayStatuses.has(existing.status),
+      );
       days.set(input.targetDate, {
         targetDate: input.targetDate,
         status: "running",
         lockedByRunId: input.runId,
         lockToken: input.lockToken,
+        lockStartedAt: input.now.toISOString(),
+        lockHeartbeatAt: input.now.toISOString(),
         lockExpiresAt: new Date(input.now.getTime() + dayLeaseTtlMs)
           .toISOString(),
       });
-      return Promise.resolve({ claimed: true });
+      return Promise.resolve({ claimed: true, stoleExistingLease });
+    },
+
+    renewDayHeartbeat(input): Promise<boolean> {
+      const day = days.get(input.targetDate);
+      if (!day) {
+        return Promise.resolve(false);
+      }
+      if (!runningReminderDayStatuses.has(day.status)) {
+        return Promise.resolve(false);
+      }
+      if (!Object.is(day.lockedByRunId, input.runId)) {
+        return Promise.resolve(false);
+      }
+      if (!constantTimeEqual(day.lockToken, input.lockToken)) {
+        return Promise.resolve(false);
+      }
+
+      day.lockHeartbeatAt = input.now.toISOString();
+      day.lockExpiresAt = new Date(input.now.getTime() + dayLeaseTtlMs)
+        .toISOString();
+      days.set(input.targetDate, day);
+      return Promise.resolve(true);
     },
 
     recordVisitFacts(runId, inputFacts): Promise<void> {
@@ -712,6 +794,25 @@ export function createInMemoryReminderRunStore(
           message.error = "stale send claim reaped";
           message.sendClaimToken = undefined;
           message.sendClaimExpiresAt = undefined;
+          reaped += 1;
+        }
+      }
+      return Promise.resolve(reaped);
+    },
+
+    reapOrphanedSendClaims(input): Promise<number> {
+      let reaped = 0;
+      for (const message of messages) {
+        if (
+          message.targetDate === input.targetDate &&
+          messageStatusIn(message, sendingMessageStatuses)
+        ) {
+          message.status = "send_unknown";
+          message.skipReason = "send_ambiguous";
+          message.error = "orphaned send claim reaped after day lease steal";
+          message.sendClaimToken = undefined;
+          message.sendClaimExpiresAt = undefined;
+          message.lastAttemptAt = input.now.toISOString();
           reaped += 1;
         }
       }
@@ -909,11 +1010,158 @@ export async function handleRunRemindersRequest(
       headers: { "content-type": "application/json" },
     });
   }
-  const result = await runReminders(options);
+  const requestOptions = await runOptionsFromRequest(request);
+  const result = await runReminders({ ...requestOptions, ...options });
   return new Response(JSON.stringify(result), {
     status: failedRunOutcomeStatuses.has(result.status) ? 500 : 200,
     headers: { "content-type": "application/json" },
   });
+}
+
+function shouldRefuseBeforeKyivNoon(
+  trigger: ReminderRunTrigger,
+  passKind: ReminderRunPassKind,
+  dates: ReturnType<typeof computeKyivRunDates>,
+): boolean {
+  return trigger === "cron" && passKind === "initial" &&
+    !dates.isAtOrAfterNoonKyiv;
+}
+
+async function runOptionsFromRequest(
+  request: Request,
+): Promise<
+  Pick<
+    RunRemindersOptions,
+    "trigger" | "passKind" | "expectedTargetDate"
+  >
+> {
+  const url = new URL(request.url);
+  const body = await jsonObjectBody(request);
+  return {
+    trigger: parseTrigger(
+      scalarValue(body.trigger) ?? url.searchParams.get("trigger"),
+    ),
+    passKind: parsePassKind(
+      scalarValue(body.pass_kind) ?? scalarValue(body.passKind) ??
+        url.searchParams.get("pass_kind") ?? url.searchParams.get("passKind"),
+    ),
+    expectedTargetDate: parseLocalDate(
+      scalarValue(body.target_date) ?? scalarValue(body.targetDate) ??
+        url.searchParams.get("target_date") ??
+        url.searchParams.get("targetDate"),
+    ),
+  };
+}
+
+async function jsonObjectBody(
+  request: Request,
+): Promise<Record<string, unknown>> {
+  const contentType = request.headers.get("content-type") ?? "";
+  if (!contentType.toLowerCase().includes("application/json")) {
+    return {};
+  }
+  const rawBody = await readLimitedBodyText(request, maxRunRequestBodyBytes);
+  if (rawBody === "") {
+    return {};
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(rawBody);
+  } catch {
+    return {};
+  }
+  return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+    ? parsed as Record<string, unknown>
+    : {};
+}
+
+async function readLimitedBodyText(
+  request: Request,
+  maxBytes: number,
+): Promise<string> {
+  const contentLengthHeader = request.headers.get("content-length");
+  if (contentLengthHeader) {
+    const contentLength = Number(contentLengthHeader);
+    if (
+      !Number.isSafeInteger(contentLength) ||
+      contentLength < 0 ||
+      contentLength > maxBytes
+    ) {
+      throw new RangeError("run-reminders request body is too large");
+    }
+  }
+
+  const reader = request.body?.getReader();
+  if (!reader) {
+    return "";
+  }
+
+  const chunks: Uint8Array[] = [];
+  let totalBytes = 0;
+  while (true) {
+    const readResult = await reader.read();
+    if (readResult.done) {
+      break;
+    }
+    const chunk = readResult.value ?? new Uint8Array();
+    if (chunk.byteLength === 0) {
+      continue;
+    }
+    totalBytes += chunk.byteLength;
+    if (totalBytes > maxBytes) {
+      await reader.cancel();
+      throw new RangeError("run-reminders request body is too large");
+    }
+    chunks.push(chunk);
+  }
+
+  const bytes = new Uint8Array(totalBytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return new TextDecoder().decode(bytes);
+}
+
+function scalarValue(value: unknown): string | undefined {
+  return typeof value === "string" ? value : undefined;
+}
+
+function parseTrigger(
+  value: string | null | undefined,
+): ReminderRunTrigger | undefined {
+  if (value === undefined || value === null || value === "") {
+    return undefined;
+  }
+  if (value === "cron" || value === "manual") {
+    return value;
+  }
+  throw new RangeError(`Unsupported run trigger: ${value}`);
+}
+
+function parsePassKind(
+  value: string | null | undefined,
+): ReminderRunPassKind | undefined {
+  if (value === undefined || value === null || value === "") {
+    return undefined;
+  }
+  if (value === "initial" || value === "catchup" || value === "manual") {
+    return value;
+  }
+  throw new RangeError(`Unsupported run pass kind: ${value}`);
+}
+
+function parseLocalDate(
+  value: string | null | undefined,
+): LocalDate | undefined {
+  if (value === undefined || value === null || value === "") {
+    return undefined;
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/u.test(value)) {
+    return value as LocalDate;
+  }
+  throw new RangeError(`Unsupported target date: ${value}`);
 }
 
 async function readPatientsForVisits(
@@ -976,6 +1224,19 @@ async function materializeObservedVisits(input: {
     }
   }
   return sendable;
+}
+
+function isLiveReminderDayLease(
+  day: InMemoryReminderDayRecord,
+  now: Date,
+): boolean {
+  if (day.lockHeartbeatAt) {
+    return now.getTime() - Date.parse(day.lockHeartbeatAt) <=
+      dayLeaseHeartbeatGraceMs;
+  }
+  return Boolean(
+    day.lockExpiresAt && Date.parse(day.lockExpiresAt) > now.getTime(),
+  );
 }
 
 async function claimRenderAndSend(input: {
