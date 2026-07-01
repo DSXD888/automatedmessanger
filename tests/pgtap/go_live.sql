@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set search_path = extensions, public;
 
-select plan(9);
+select plan(11);
 
 select throws_like(
   $$
@@ -120,6 +120,31 @@ select ok(
      limit 1
   ),
   'guard-liveness alert captures allowlist and dashboard drift'
+);
+
+select ok(
+  exists (
+    select 1
+      from cron.job
+     where jobname = 'dentino-guard-liveness-hourly'
+       and command like '%maintenance.record_guard_liveness%'
+       and command like '%''off'', ''off''%'
+       and command like '%''SHADOW''%'
+  ),
+  'REL-GUARD-LIVENESS-01 schedules the guard-liveness check'
+);
+
+select ok(
+  exists (
+    select 1
+      from cron.job
+     where jobname = 'dentino-guard-liveness-hourly'
+       and (
+         username = 'dentino_maintenance_runner'
+         or to_regprocedure('cron.schedule_in_database(text,text,text,text,text)') is null
+       )
+  ),
+  'guard-liveness cron job uses maintenance runner when username-scoped cron is available'
 );
 
 select is(

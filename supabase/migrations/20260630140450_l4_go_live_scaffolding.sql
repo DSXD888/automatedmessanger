@@ -1,6 +1,8 @@
 -- L4 go-live operational scaffold: audited mode flips and guard-liveness evidence.
 -- Source of truth: research section 6.6, section 11 step 5, ADR-017, and ADR-024.
 
+create extension if not exists pg_cron;
+
 create or replace function api.record_go_live_mode_flip(
   p_actor text,
   p_prior_send_mode text,
@@ -192,3 +194,37 @@ revoke execute on function maintenance.record_guard_liveness(text, text, integer
   from public, anon, authenticated, dentino_confirm_api, dentino_run_api;
 grant execute on function maintenance.record_guard_liveness(text, text, integer, integer, text, text, jsonb)
   to dentino_maintenance_runner;
+
+do $$
+begin
+  if exists (select 1 from cron.job where jobname = 'dentino-guard-liveness-hourly') then
+    perform cron.unschedule('dentino-guard-liveness-hourly');
+  end if;
+end;
+$$;
+
+create or replace function pg_temp.schedule_dentino_job(
+  p_job_name text,
+  p_schedule text,
+  p_command text
+)
+returns void
+language plpgsql
+as $$
+begin
+  if to_regprocedure('cron.schedule_in_database(text,text,text,text,text)') is not null then
+    execute
+      'select cron.schedule_in_database($1, $2, $3, current_database(), $4)'
+      using p_job_name, p_schedule, p_command, 'dentino_maintenance_runner';
+  else
+    execute 'select cron.schedule($1, $2, $3)'
+      using p_job_name, p_schedule, p_command;
+  end if;
+end;
+$$;
+
+select pg_temp.schedule_dentino_job(
+  'dentino-guard-liveness-hourly',
+  '11 * * * *',
+  $$select maintenance.record_guard_liveness('off', 'off', 0, 0, 'SHADOW', 'guard_liveness_schedule', '{"scheduled": true}'::jsonb);$$
+);
