@@ -210,7 +210,7 @@ test.describe("authenticated dashboard", () => {
             element.getAttribute("type") ?? ""
           } ${element.textContent?.trim() ?? ""}`
         );
-        expect(box?.height ?? 0, label).toBeGreaterThanOrEqual(40);
+        expect(box?.height ?? 0, label).toBeGreaterThanOrEqual(48);
       }
     },
   );

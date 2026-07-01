@@ -71,9 +71,10 @@ Deno.test("E2E-A11Y-CONFIRM-01 confirm page chrome is inline, small, readable, a
   assertEquals(await gzipByteLength(html) <= CONFIRM_PAGE_MAX_GZIP_BYTES, true);
   assertNoThirdPartyAssets(html);
   assertNoScannerContaminatedMetrics(html);
-  assertContrast("#51606F", "#FFFFFF", 6.456);
-  assertContrast("#0A3576", "#FFFFFF", 11.77);
-  assertContrast("#14213A", "#FFFFFF", 16.05);
+  const cssVariables = rootCssVariables(html);
+  assertContrast(cssVariables["--muted"], cssVariables["--surface"], 4.5);
+  assertContrast(cssVariables["--brand"], cssVariables["--surface"], 4.5);
+  assertContrast(cssVariables["--ink"], cssVariables["--surface"], 4.5);
   assertFalse(html.includes("maximum-scale"));
   assertFalse(html.includes("user-scalable"));
   assertFalse(html.includes(":hover"));
@@ -201,13 +202,27 @@ function assertNoScannerContaminatedMetrics(html: string): void {
 }
 
 function assertContrast(
-  foreground: string,
-  background: string,
+  foreground: string | undefined,
+  background: string | undefined,
   minimum: number,
 ): void {
+  assert(foreground, "foreground CSS variable is present");
+  assert(background, "background CSS variable is present");
   assert(
     contrastRatio(foreground, background) >= minimum,
     `${foreground} on ${background}`,
+  );
+}
+
+function rootCssVariables(html: string): Record<string, string> {
+  const rootBlock = /:root\s*\{(?<declarations>[\s\S]*?)\}/u.exec(html)
+    ?.groups?.declarations;
+  assert(rootBlock, "rendered HTML contains a :root CSS block");
+
+  return Object.fromEntries(
+    [...rootBlock.matchAll(/(--[a-z0-9-]+)\s*:\s*([^;]+);/giu)].map((
+      match,
+    ) => [match[1], match[2].trim()]),
   );
 }
 
