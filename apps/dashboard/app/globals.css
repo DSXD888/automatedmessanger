@@ -73,6 +73,23 @@ select:focus-visible {
   padding: 18px clamp(14px, 3vw, 28px) 56px;
 }
 
+.loginShell {
+  display: grid;
+  min-height: 100vh;
+  place-items: center;
+  padding: 24px;
+}
+
+.loginPanel {
+  display: grid;
+  width: min(440px, 100%);
+  gap: 20px;
+  padding: 24px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--card);
+}
+
 .topbar {
   display: flex;
   align-items: center;
@@ -615,6 +632,18 @@ select {
   background: var(--card);
   color: var(--ink);
   padding: 12px;
+}
+
+.inputWithIcon {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  margin-top: 6px;
+}
+
+.inputWithIcon input {
+  margin: 0;
 }
 
 textarea {
