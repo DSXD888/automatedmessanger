@@ -212,6 +212,12 @@ select:focus-visible {
   color: #25612f;
 }
 
+.modeBanner.invalid {
+  border-color: var(--danger);
+  background: #fff0f0;
+  color: var(--danger);
+}
+
 .modeBanner span {
   color: #614000;
   font-weight: 600;
@@ -219,6 +225,10 @@ select:focus-visible {
 
 .modeBanner.live span {
   color: #25612f;
+}
+
+.modeBanner.invalid span {
+  color: var(--danger);
 }
 
 .pageHeader {

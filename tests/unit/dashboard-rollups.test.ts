@@ -1,5 +1,6 @@
 import { assertEquals } from "@std/assert";
 import {
+  computeModeBanner,
   computeTrustPanel,
   computeValueMetrics,
   type ReminderDayRollup,
@@ -89,6 +90,22 @@ Deno.test("UT-TRUST-ROLLUP-01 turns stale current-day absence red after 12:30 Ky
   assertEquals(result.reason, "stale_current_day");
   assertEquals(result.currentDayPresent, false);
   assertEquals(result.staleCurrentDay, true);
+});
+
+Deno.test("REL-GOLIVE-AUDIT-01 dashboard banner surfaces invalid mode combinations", () => {
+  const result = computeModeBanner({
+    sendMode: "full",
+    crmWriteMode: "off",
+  });
+
+  assertEquals(result.mode, "INVALID");
+  assertEquals(result.sendMode, "full");
+  assertEquals(result.crmWriteMode, "off");
+  assertEquals(result.live, false);
+  assertEquals(
+    result.text,
+    "Непідтримана комбінація режимів: перевірте SEND_MODE/CRM_WRITE_MODE",
+  );
 });
 
 Deno.test("UT-VALUE-METRICS-01 computes action rate, staff minutes, segmentation, and missing baselines", () => {

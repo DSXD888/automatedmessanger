@@ -1,4 +1,15 @@
 export type TrustHealth = "green" | "amber" | "red";
+export type DashboardMode = "SHADOW" | "SEED" | "CANARY" | "LIVE" | "INVALID";
+type SendMode = "off" | "seed" | "canary" | "full";
+type CrmWriteMode = "off" | "allowlist" | "full";
+
+export interface ModeBannerData {
+  mode: DashboardMode;
+  sendMode: SendMode;
+  crmWriteMode: CrmWriteMode;
+  live: boolean;
+  text: string;
+}
 
 export interface ReminderDayRollup {
   targetDateIso: string;
@@ -80,6 +91,23 @@ export interface ValueMetricsSnapshot {
 }
 
 const defaultStaleCutoffMinute = (12 * 60) + 30;
+
+export function computeModeBanner(input: {
+  sendMode?: string;
+  crmWriteMode?: string;
+}): ModeBannerData {
+  const sendMode = parseSendMode(input.sendMode);
+  const crmWriteMode = parseCrmWriteMode(input.crmWriteMode);
+  const mode = dashboardModeFromModes(sendMode, crmWriteMode);
+
+  return Object.freeze({
+    mode,
+    sendMode,
+    crmWriteMode,
+    live: mode === "LIVE",
+    text: modeBannerText(mode),
+  });
+}
 
 export function computeTrustPanel(input: TrustPanelInput): TrustPanelSnapshot {
   const staleCutoffMinute = input.staleCutoffMinute ?? defaultStaleCutoffMinute;
@@ -187,6 +215,45 @@ export function formatPercent(rate: number | null): string {
     return "missing";
   }
   return `${Math.round(rate * 100)}%`;
+}
+
+function parseSendMode(value: string | undefined): SendMode {
+  return value === "seed" || value === "canary" || value === "full"
+    ? value
+    : "off";
+}
+
+function parseCrmWriteMode(value: string | undefined): CrmWriteMode {
+  return value === "allowlist" || value === "full" ? value : "off";
+}
+
+function dashboardModeFromModes(
+  sendMode: SendMode,
+  crmWriteMode: CrmWriteMode,
+): DashboardMode {
+  if (sendMode === "full" && crmWriteMode === "full") {
+    return "LIVE";
+  }
+  if (sendMode === "off" && crmWriteMode === "off") {
+    return "SHADOW";
+  }
+  if (sendMode === "seed" && crmWriteMode === "off") {
+    return "SEED";
+  }
+  if (sendMode === "canary" && crmWriteMode === "allowlist") {
+    return "CANARY";
+  }
+  return "INVALID";
+}
+
+function modeBannerText(mode: DashboardMode): string {
+  if (mode === "LIVE") {
+    return "Реальні SMS та CRM-записи увімкнені";
+  }
+  if (mode === "INVALID") {
+    return "Непідтримана комбінація режимів: перевірте SEND_MODE/CRM_WRITE_MODE";
+  }
+  return "Нефінальний режим: перевірте дозволені номери/візити";
 }
 
 function ratio(numerator: number, denominator: number): number | null {

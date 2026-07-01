@@ -3,8 +3,10 @@ import {
   validateDashboardTemplateBody,
 } from "./template-validation";
 import {
+  computeModeBanner,
   computeTrustPanel,
   computeValueMetrics,
+  type ModeBannerData,
   type ReminderDayRollup,
 } from "./rollups";
 
@@ -42,18 +44,6 @@ export interface LastRunRecap {
   problems: number;
   responses: number;
   successHeartbeatSent: boolean;
-}
-
-type DashboardMode = "SHADOW" | "SEED" | "CANARY" | "LIVE";
-type SendMode = "off" | "seed" | "canary" | "full";
-type CrmWriteMode = "off" | "allowlist" | "full";
-
-export interface ModeBannerData {
-  mode: DashboardMode;
-  sendMode: SendMode;
-  crmWriteMode: CrmWriteMode;
-  live: boolean;
-  text: string;
 }
 
 export interface OperationalReadinessItem {
@@ -159,20 +149,22 @@ export const valueMetrics = computeValueMetrics({
   ],
 });
 
-const operationalReadinessItems: readonly OperationalReadinessItem[] =
-  Object.freeze([
+const operationalReadinessItems: readonly OperationalReadinessItem[] = Object
+  .freeze([
     {
       key: "sms_balance",
       title: "SMS balance / quota",
       status: "watch",
-      evidence: "Low-balance alert before seed/canary/full; no send path involved.",
+      evidence:
+        "Low-balance alert before seed/canary/full; no send path involved.",
       staffAction: "Top up TurboSMS before continuing the go-live ladder.",
     },
     {
       key: "complaint",
       title: "Complaint micro-runbook",
       status: "ready",
-      evidence: "Use reminder_message_id plus audit evidence; no full phone stored.",
+      evidence:
+        "Use reminder_message_id plus audit evidence; no full phone stored.",
       staffAction:
         "Pause automation, reverse the appointment manually in ClinicCards, escalate the id.",
     },
@@ -180,7 +172,8 @@ const operationalReadinessItems: readonly OperationalReadinessItem[] =
       key: "continuity",
       title: "Continuity drill",
       status: "ready",
-      evidence: "Monthly 5-minute fallback drill is owner-facing operational work.",
+      evidence:
+        "Monthly 5-minute fallback drill is owner-facing operational work.",
       staffAction:
         "Practice dashboard-down flow: open tomorrow in ClinicCards and call patients.",
     },
@@ -196,7 +189,8 @@ const operationalReadinessItems: readonly OperationalReadinessItem[] =
       key: "stop_loss",
       title: "Stop-loss",
       status: "ready",
-      evidence: "Value-red if action rate <35% or staff-time saving <10 min/day.",
+      evidence:
+        "Value-red if action rate <35% or staff-time saving <10 min/day.",
       staffAction:
         "Tune priming, copy, send time, call-list workflow, then selective calling.",
     },
@@ -216,51 +210,6 @@ export const operationalReadiness: OperationalReadinessData = Object.freeze({
     "SMS balance read checked against 7-day projected usage; alert evidence is counts-only.",
   items: operationalReadinessItems,
 });
-
-export function computeModeBanner(input: {
-  sendMode?: string;
-  crmWriteMode?: string;
-}): ModeBannerData {
-  const sendMode = parseSendMode(input.sendMode);
-  const crmWriteMode = parseCrmWriteMode(input.crmWriteMode);
-  const mode = dashboardModeFromModes(sendMode, crmWriteMode);
-
-  return Object.freeze({
-    mode,
-    sendMode,
-    crmWriteMode,
-    live: mode === "LIVE",
-    text: mode === "LIVE"
-      ? "Реальні SMS та CRM-записи увімкнені"
-      : "Нефінальний режим: перевірте дозволені номери/візити",
-  });
-}
-
-function parseSendMode(value: string | undefined): SendMode {
-  return value === "seed" || value === "canary" || value === "full"
-    ? value
-    : "off";
-}
-
-function parseCrmWriteMode(value: string | undefined): CrmWriteMode {
-  return value === "allowlist" || value === "full" ? value : "off";
-}
-
-function dashboardModeFromModes(
-  sendMode: SendMode,
-  crmWriteMode: CrmWriteMode,
-): DashboardMode {
-  if (sendMode === "full" && crmWriteMode === "full") {
-    return "LIVE";
-  }
-  if (sendMode === "seed" && crmWriteMode === "off") {
-    return "SEED";
-  }
-  if (sendMode === "canary" && crmWriteMode === "allowlist") {
-    return "CANARY";
-  }
-  return "SHADOW";
-}
 
 export const boardRows: readonly BoardRow[] = [
   {

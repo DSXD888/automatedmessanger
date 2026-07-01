@@ -438,9 +438,15 @@ function Topbar() {
 }
 
 function ModeBanner() {
+  const modeClass = modeBanner.mode === "INVALID"
+    ? "invalid"
+    : modeBanner.live
+    ? "live"
+    : "guarded";
+
   return (
     <section
-      className={`modeBanner ${modeBanner.live ? "live" : "guarded"}`}
+      className={`modeBanner ${modeClass}`}
       data-testid="mode-banner"
     >
       <strong>{modeBanner.mode}</strong>
