@@ -704,16 +704,39 @@ begin
 end;
 $$;
 
+create or replace function api.crm_write_lock_still_owns(
+  p_cliniccards_visit_id text,
+  p_message_id bigint,
+  p_lock_token uuid
+)
+returns boolean
+language sql
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1
+      from app.crm_visit_write_locks write_lock
+     where write_lock.cliniccards_visit_id = p_cliniccards_visit_id
+       and write_lock.locked_by_message_id = p_message_id
+       and write_lock.lock_token = p_lock_token
+       and write_lock.lock_expires_at > app.now()
+  );
+$$;
+
 alter function api.lookup_reminder_by_token(text) owner to dentino_confirm_definer;
 alter function api.prepare_reminder_action(text, text) owner to dentino_confirm_definer;
 alter function api.record_reminder_action(text, text, text) owner to dentino_confirm_definer;
 alter function api.finish_reminder_action(bigint, boolean, text, jsonb) owner to dentino_confirm_definer;
+alter function api.crm_write_lock_still_owns(text, bigint, uuid) owner to dentino_confirm_definer;
 
 revoke execute on all functions in schema api from public, anon, authenticated, dentino_run_api, dentino_maintenance_runner;
+revoke execute on function api.crm_write_lock_still_owns(text, bigint, uuid) from public, anon, authenticated, dentino_run_api, dentino_maintenance_runner;
 grant execute on function api.lookup_reminder_by_token(text) to dentino_confirm_api;
 grant execute on function api.prepare_reminder_action(text, text) to dentino_confirm_api;
 grant execute on function api.record_reminder_action(text, text, text) to dentino_confirm_api;
 grant execute on function api.finish_reminder_action(bigint, boolean, text, jsonb) to dentino_confirm_api;
+grant execute on function api.crm_write_lock_still_owns(text, bigint, uuid) to dentino_confirm_api;
 
 alter function maintenance.reap_stale_sends(date) owner to dentino_maintenance_definer;
 alter function maintenance.purge_privacy() owner to dentino_maintenance_definer;

@@ -42,7 +42,7 @@ exception when insufficient_privilege then
 end;
 $$;
 
-select plan(43);
+select plan(46);
 
 select ok(exists (select 1 from pg_roles where rolname = 'dentino_confirm_api'), 'dentino_confirm_api role exists');
 select ok(exists (select 1 from pg_roles where rolname = 'dentino_confirm_definer'), 'dentino_confirm_definer role exists');
@@ -109,7 +109,7 @@ select is(
     join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'api'
   ),
-  27,
+  28,
   'api exposes confirm, run-store, and L3/L4 dashboard functions'
 );
 
@@ -117,6 +117,7 @@ select ok(has_function_privilege('dentino_confirm_api', 'api.lookup_reminder_by_
 select ok(has_function_privilege('dentino_confirm_api', 'api.prepare_reminder_action(text,text)'::regprocedure, 'execute'), 'confirm role executes prepare RPC');
 select ok(has_function_privilege('dentino_confirm_api', 'api.record_reminder_action(text,text,text)'::regprocedure, 'execute'), 'confirm role executes record RPC');
 select ok(has_function_privilege('dentino_confirm_api', 'api.finish_reminder_action(bigint,boolean,text,jsonb)'::regprocedure, 'execute'), 'confirm role executes finish RPC');
+select ok(has_function_privilege('dentino_confirm_api', 'api.crm_write_lock_still_owns(text,bigint,uuid)'::regprocedure, 'execute'), 'confirm role executes CRM write lock ownership RPC');
 
 select is(
   (
@@ -126,8 +127,8 @@ select is(
     where n.nspname = 'api'
       and has_function_privilege('dentino_confirm_api', p.oid, 'execute')
   ),
-  4,
-  'dentino_confirm_api executes only the four api RPCs'
+  5,
+  'dentino_confirm_api executes only the five confirm api RPCs'
 );
 
 select ok(not has_function_privilege('dentino_confirm_api', 'private.token_digest(text)'::regprocedure, 'execute'), 'dentino_confirm_api cannot execute private token digest');

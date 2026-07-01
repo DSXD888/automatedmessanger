@@ -1,5 +1,6 @@
 import type { RuntimeConfig } from "./config.ts";
 import { loadRuntimeConfig } from "./config.ts";
+import type { DentinoDbRpcClient } from "./db.ts";
 import type {
   ClinicCardsClient,
   ClinicCardsVisit,
@@ -36,6 +37,7 @@ export interface CrmWriteLease {
   lockToken: string;
   messageId: number;
   expiresAt: string;
+  externallyManaged?: boolean;
 }
 
 export interface CrmWriteLeaseStore {
@@ -54,6 +56,7 @@ export interface GuardedCrmWriteBackRequest {
   cliniccardsVisitId: string;
   action: CrmWriteBackAction;
   expectedAppointmentFingerprint: string;
+  crmWriteLockToken?: string;
 }
 
 export interface GuardedCrmWriteBackResult {
@@ -182,6 +185,29 @@ export function createInMemoryCrmWriteLeaseStore(options: {
   });
 }
 
+export function createDbCrmWriteLeaseStore(
+  rpcClient: DentinoDbRpcClient,
+): CrmWriteLeaseStore {
+  return Object.freeze({
+    acquire(): Promise<CrmWriteLease | null> {
+      return Promise.resolve(null);
+    },
+
+    async stillOwns(lease: CrmWriteLease): Promise<boolean> {
+      const owns = await rpcClient.rpc("crm_write_lock_still_owns", {
+        p_cliniccards_visit_id: lease.visitId,
+        p_message_id: lease.messageId,
+        p_lock_token: lease.lockToken,
+      });
+      return owns === true;
+    },
+
+    release(): Promise<void> {
+      return Promise.resolve();
+    },
+  });
+}
+
 export function createGuardedCrmWriteBack(
   options: GuardedCrmWriteBackOptions = {},
 ): GuardedCrmWriteBack {
@@ -263,12 +289,14 @@ async function guardedWriteBack(input: {
     });
   }
 
-  const lease = await input.leaseStore.acquire({
-    visitId: input.request.cliniccardsVisitId,
-    messageId: input.request.messageId,
-    ttlMs: input.writeLeaseTtlMs,
-    now: input.now(),
-  });
+  const lease = input.request.crmWriteLockToken
+    ? externalCrmWriteLease(input.request, input.writeLeaseTtlMs, input.now())
+    : await input.leaseStore.acquire({
+      visitId: input.request.cliniccardsVisitId,
+      messageId: input.request.messageId,
+      ttlMs: input.writeLeaseTtlMs,
+      now: input.now(),
+    });
   if (!lease) {
     return result(input.request, crmTargetStatus, {
       status: "lock_busy",
@@ -433,8 +461,24 @@ async function guardedWriteBack(input: {
       currentVisit: preWrite.visit,
     });
   } finally {
-    await input.leaseStore.release(lease);
+    if (!lease.externallyManaged) {
+      await input.leaseStore.release(lease);
+    }
   }
+}
+
+function externalCrmWriteLease(
+  request: GuardedCrmWriteBackRequest,
+  ttlMs: number,
+  now: Date,
+): CrmWriteLease {
+  return Object.freeze({
+    visitId: request.cliniccardsVisitId,
+    lockToken: request.crmWriteLockToken ?? "",
+    messageId: request.messageId,
+    expiresAt: new Date(now.getTime() + ttlMs).toISOString(),
+    externallyManaged: true,
+  });
 }
 
 function targetStatusForAction(

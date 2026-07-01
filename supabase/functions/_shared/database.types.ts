@@ -82,6 +82,14 @@ export type Database = {
       };
     };
     Functions: {
+      crm_write_lock_still_owns: {
+        Args: {
+          p_cliniccards_visit_id: string;
+          p_lock_token: string;
+          p_message_id: number;
+        };
+        Returns: boolean;
+      };
       dashboard_board_rows: {
         Args: never;
         Returns: {

@@ -10,7 +10,10 @@ import type {
   GuardedCrmWriteBack,
   GuardedCrmWriteBackResult,
 } from "../_shared/writeBack.ts";
-import { createGuardedCrmWriteBack } from "../_shared/writeBack.ts";
+import {
+  createDbCrmWriteLeaseStore,
+  createGuardedCrmWriteBack,
+} from "../_shared/writeBack.ts";
 import {
   digestCapabilityTokenHex,
   generateActionNonce,
@@ -929,6 +932,7 @@ async function handlePostAction(
       cliniccardsVisitId: outcome.reminder.cliniccardsVisitId,
       action: action as CrmWriteBackAction,
       expectedAppointmentFingerprint: outcome.reminder.appointmentFingerprint,
+      crmWriteLockToken: outcome.reminder.crmWriteLockToken,
     });
     await runtime.store.finishAppointmentAction({
       messageId: outcome.reminder.id,
@@ -1340,20 +1344,29 @@ function withDefaultStore(
   }
 
   const config = options.config ?? loadRuntimeConfig();
+  const rpcClient = createDefaultConfirmRpcClient();
   return {
     ...options,
     config,
-    store: createDefaultDbBackedConfirmActionStore(),
+    store: createDefaultDbBackedConfirmActionStore(rpcClient),
+    writeBack: options.writeBack ?? createGuardedCrmWriteBack({
+      config,
+      leaseStore: createDbCrmWriteLeaseStore(rpcClient),
+    }),
   };
 }
 
-function createDefaultDbBackedConfirmActionStore(): ConfirmActionStore {
-  return createDbBackedConfirmActionStore({
-    rpcClient: createDentinoDbRpcClient({
-      supabaseUrl: requiredEnv(supabaseUrlEnvKey),
-      apiKey: firstRequiredEnv(confirmApiKeyEnvKeys),
-      role: "dentino_confirm_api",
-    }),
+function createDefaultDbBackedConfirmActionStore(
+  rpcClient: DentinoDbRpcClient,
+): ConfirmActionStore {
+  return createDbBackedConfirmActionStore({ rpcClient });
+}
+
+function createDefaultConfirmRpcClient(): DentinoDbRpcClient {
+  return createDentinoDbRpcClient({
+    supabaseUrl: requiredEnv(supabaseUrlEnvKey),
+    apiKey: firstRequiredEnv(confirmApiKeyEnvKeys),
+    role: "dentino_confirm_api",
   });
 }
 

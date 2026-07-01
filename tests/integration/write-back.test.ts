@@ -33,6 +33,13 @@ import writeBackCassetteJson from "../fixtures/cassettes/cliniccards-writeback.j
 
 const clinicTokenKey = ["CLINICCARDS", "TOKEN"].join("_");
 const fixedNow = () => new Date("2026-06-30T09:00:00.000Z");
+const durableLockToken = [
+  "00000000",
+  "0000",
+  "4000",
+  "8000",
+  "000000000018",
+].join("-");
 
 const statusPolicy: readonly ClinicCardsStatusPolicyEntry[] = [
   {
@@ -359,6 +366,50 @@ Deno.test("E2E-WRITELEASE-01 write lease loser and stale actor make zero externa
   assertEquals(crmCalls, 0);
 });
 
+Deno.test("E2E-WRITELEASE-01 stolen durable DB lease stops before PUT", async () => {
+  const preWrite = visit("visit-db-stolen", "PLANNED");
+  const calls: string[] = [];
+  const observedLockTokens: string[] = [];
+  let stillOwnsChecks = 0;
+  const writeBack = createGuardedCrmWriteBack({
+    config: crmWriteConfigForAllowed("visit-db-stolen"),
+    clinicCardsClient: fakeClinicCardsClient({
+      getVisitById: (visitId, purpose = "writeback_pre") => {
+        calls.push(`GET ${purpose} ${visitId}`);
+        return Promise.resolve(readResult(preWrite));
+      },
+      putVisitStatus: (visitId, status) => {
+        calls.push(`PUT ${visitId} ${status}`);
+        return Promise.resolve(writeResult(null));
+      },
+    }),
+    leaseStore: durableStolenBeforePutLeaseStore((lockToken) => {
+      observedLockTokens.push(lockToken);
+      stillOwnsChecks += 1;
+      return stillOwnsChecks === 1;
+    }),
+    now: fixedNow,
+  });
+
+  const result = await writeBack.write({
+    messageId: 18,
+    cliniccardsVisitId: "visit-db-stolen",
+    action: "confirm",
+    expectedAppointmentFingerprint: await clinicCardsAppointmentFingerprint(
+      preWrite,
+    ),
+    crmWriteLockToken: durableLockToken,
+  });
+
+  assertEquals(result.status, "stale_actor_lost");
+  assertEquals(
+    result.errorMessage,
+    "CRM write lease ownership was lost before PUT",
+  );
+  assertEquals(observedLockTokens, [durableLockToken, durableLockToken]);
+  assertEquals(calls, ["GET writeback_pre visit-db-stolen"]);
+});
+
 Deno.test("IT-FAILURE-WRITEBACK-01 write failures retry at most twice and surface red", async () => {
   const preWrite = visit("visit-retry-fail", "PLANNED");
   let attempts = 0;
@@ -580,3 +631,15 @@ const staleBeforeFetchLeaseStore = (): CrmWriteLeaseStore => {
     release: () => Promise.resolve(),
   };
 };
+
+function durableStolenBeforePutLeaseStore(
+  stillOwns: (lockToken: string) => boolean,
+): CrmWriteLeaseStore {
+  return {
+    acquire: () => {
+      throw new Error("durable DB token should bypass local lease acquire");
+    },
+    stillOwns: (lease) => Promise.resolve(stillOwns(lease.lockToken)),
+    release: () => Promise.resolve(),
+  };
+}

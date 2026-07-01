@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set search_path = extensions, public;
 
-select plan(14);
+select plan(15);
 
 select is(
   (
@@ -14,6 +14,7 @@ select is(
         ('api.prepare_reminder_action(text,text)'::regprocedure),
         ('api.record_reminder_action(text,text,text)'::regprocedure),
         ('api.finish_reminder_action(bigint,boolean,text,jsonb)'::regprocedure),
+        ('api.crm_write_lock_still_owns(text,bigint,uuid)'::regprocedure),
         ('api.dashboard_board_rows()'::regprocedure),
         ('api.dashboard_needs_attention_rows()'::regprocedure),
         ('api.update_message_template(bigint,text,text)'::regprocedure),
@@ -113,6 +114,12 @@ select is(
   (select r.rolname from pg_proc p join pg_roles r on r.oid = p.proowner where p.oid = 'api.record_reminder_action(text,text,text)'::regprocedure),
   'dentino_confirm_definer',
   'record_reminder_action is owned by confirm definer'
+);
+
+select is(
+  (select r.rolname from pg_proc p join pg_roles r on r.oid = p.proowner where p.oid = 'api.crm_write_lock_still_owns(text,bigint,uuid)'::regprocedure),
+  'dentino_confirm_definer',
+  'crm_write_lock_still_owns is owned by confirm definer'
 );
 
 select is(
