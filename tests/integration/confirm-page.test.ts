@@ -85,6 +85,61 @@ Deno.test("E2E-AUTOFETCH-01..08 safe methods, previews, query actions, overrides
   assertNoBusinessWrites(fixture);
 });
 
+Deno.test("E2E-AUTOFETCH-04 30x-followed redirect/preload fetch performs zero writes", async () => {
+  const fixture = await confirmFixture();
+
+  const response = await call(fixture, "GET", `/r/${rawToken}`, undefined, {
+    accept: "text/html,*/*",
+    purpose: "prefetch",
+    referer: `https://preview.test/redirect?next=${
+      encodeURIComponent(`/r/${rawToken}`)
+    }`,
+    "sec-fetch-dest": "document",
+    "sec-fetch-mode": "navigate",
+    "sec-purpose": "prefetch;prerender",
+  });
+
+  assertEquals(response.status, 200);
+  assertNoBusinessWrites(fixture);
+});
+
+Deno.test("E2E-AUTOFETCH-05 image/script/link preview preloads perform zero writes and expose no third-party request surface", async () => {
+  const fixture = await confirmFixture();
+  const previewHeaders: HeadersInit[] = [
+    {
+      accept: "image/avif,image/webp,image/png,*/*",
+      "sec-fetch-dest": "image",
+      "sec-fetch-mode": "no-cors",
+      "sec-fetch-site": "cross-site",
+    },
+    {
+      accept: "*/*",
+      "sec-fetch-dest": "script",
+      "sec-fetch-mode": "no-cors",
+      "sec-fetch-site": "cross-site",
+    },
+    {
+      accept: "text/html,*/*",
+      purpose: "preview",
+      "sec-fetch-dest": "document",
+      "sec-fetch-mode": "navigate",
+    },
+  ];
+
+  for (const headers of previewHeaders) {
+    const response = await call(
+      fixture,
+      "GET",
+      `/r/${rawToken}`,
+      undefined,
+      headers,
+    );
+    assertEquals(response.status, 200);
+    await assertNoThirdPartyPreviewSurface(response);
+  }
+  assertNoBusinessWrites(fixture);
+});
+
 Deno.test("E2E-NONCE-01..08 nonce failures are fail-closed with zero business writes and zero CRM calls", async () => {
   const missing = await confirmFixture();
   await call(missing, "POST", `/r/${rawToken}/action`, { action: "confirm" });
@@ -141,6 +196,44 @@ Deno.test("E2E-NONCE-01..08 nonce failures are fail-closed with zero business wr
     nonce: badNonce,
   });
   assertNoBusinessWrites(tampered);
+});
+
+Deno.test("E2E-NONCE-02 replayed nonce fails without consuming a second action", async () => {
+  const fixture = await confirmFixture();
+  const nonce = await nonceFromGet(fixture, "confirm");
+
+  const first = await call(fixture, "POST", `/r/${rawToken}/action`, {
+    action: "confirm",
+    nonce,
+  });
+  const second = await call(fixture, "POST", `/r/${rawToken}/action`, {
+    action: "confirm",
+    nonce,
+  });
+
+  assertEquals(first.status, 200);
+  assertEquals(second.status, 200);
+  assertEquals(actionTakenAt(fixture, 0), "confirmed");
+  assertEquals(responseAt(fixture, 0), "confirm");
+  assertEquals(fixture.writeCalls.length, 1);
+  assertEquals(consentEventCount(fixture), 0);
+  assertEquals(circuitCount(fixture), 0);
+});
+
+Deno.test("E2E-NONCE-05 nonce for a superseded row fails closed", async () => {
+  const fixture = await confirmFixture({
+    reminder: { supersededAt: nowIso },
+  });
+  const nonce = await nonceForRecord(reminderAt(fixture, 0), "cancel");
+
+  const response = await call(fixture, "POST", `/r/${rawToken}/action`, {
+    action: "cancel",
+    nonce,
+  });
+
+  assertEquals(response.status, 200);
+  assertEquals(actionTakenAt(fixture, 0), "none");
+  assertNoBusinessWrites(fixture);
 });
 
 Deno.test("E2E-TOKEN-01 malformed, unknown, expired, superseded, stale, and terminal tokens render the same neutral response", async () => {
@@ -1233,6 +1326,20 @@ function assertNoBusinessWrites(fixture: ConfirmFixture): void {
   assertEquals(actionLockedAtAt(fixture, 0), undefined);
   assertEquals(consentEventCount(fixture), 0);
   assertEquals(circuitCount(fixture), 0);
+}
+
+async function assertNoThirdPartyPreviewSurface(
+  response: Response,
+): Promise<void> {
+  const body = await response.text();
+  const contentSecurityPolicy =
+    response.headers.get("content-security-policy") ?? "";
+
+  assertMatch(contentSecurityPolicy, /default-src 'none'/u);
+  assertMatch(contentSecurityPolicy, /connect-src 'none'/u);
+  assertMatch(contentSecurityPolicy, /script-src 'none'/u);
+  assertMatch(contentSecurityPolicy, /img-src 'self' data:/u);
+  assertFalse(/https?:\/\//u.test(body));
 }
 
 function fakeWriteBack(writeCalls: unknown[]): GuardedCrmWriteBack {
