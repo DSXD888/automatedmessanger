@@ -153,6 +153,7 @@ export interface ReminderDayReconciliation {
   skippedTotal: number;
   failedTotal: number;
   sendUnknownTotal: number;
+  supersededTotal: number;
   pendingTotal: number;
   writebackPendingTotal: number;
   unaccountedTotal: number;
@@ -183,6 +184,7 @@ export interface ReminderHeartbeatPayload {
     skippedTotal: number;
     failedTotal: number;
     sendUnknownTotal: number;
+    supersededTotal: number;
     pendingTotal: number;
     writebackPendingTotal: number;
     unaccountedTotal: number;
@@ -777,7 +779,15 @@ class DbBackedReminderRunStore implements ReminderRunStore {
       p_target_date: input.targetDate,
       p_now: input.now.toISOString(),
     });
-    return rowToReconciliation(singleRow(rows, "run_reconcile_day"));
+    const reconciliation = rowToReconciliation(
+      singleRow(rows, "run_reconcile_day"),
+    );
+    return withSupersededTotal(
+      reconciliation,
+      countSupersededMessages(
+        await this.messagesForTargetDate(input.targetDate),
+      ),
+    );
   }
 
   async finishRun(input: {
@@ -867,10 +877,21 @@ function rowToReconciliation(
     skippedTotal: Number(row.skipped_total),
     failedTotal: Number(row.failed_total),
     sendUnknownTotal: Number(row.send_unknown_total),
+    supersededTotal: 0,
     pendingTotal: Number(row.pending_total),
     writebackPendingTotal: Number(row.writeback_pending_total),
     unaccountedTotal: Number(row.unaccounted_total),
     health: row.health as ReminderDayReconciliation["health"],
+  });
+}
+
+function withSupersededTotal(
+  reconciliation: ReminderDayReconciliation,
+  supersededTotal: number,
+): ReminderDayReconciliation {
+  return Object.freeze({
+    ...reconciliation,
+    supersededTotal,
   });
 }
 
@@ -942,6 +963,7 @@ function reconciliationToRpcJson(reconciliation: ReminderDayReconciliation) {
     skippedTotal: reconciliation.skippedTotal,
     failedTotal: reconciliation.failedTotal,
     sendUnknownTotal: reconciliation.sendUnknownTotal,
+    supersededTotal: reconciliation.supersededTotal,
     pendingTotal: reconciliation.pendingTotal,
     writebackPendingTotal: reconciliation.writebackPendingTotal,
     unaccountedTotal: reconciliation.unaccountedTotal,
@@ -1720,6 +1742,7 @@ export function reconcileMessagesAndFacts(input: {
   const activeMessages = dayMessages.filter((message) =>
     !messageStatusIn(message, supersededMessageStatuses)
   );
+  const supersededTotal = countSupersededMessages(dayMessages);
   const currentRemindableFacts = dayFacts.filter((fact) => fact.remindable);
   const currentVisitIds = new Set(
     dayFacts.map((fact) => fact.cliniccards_visit_id),
@@ -1790,11 +1813,20 @@ export function reconcileMessagesAndFacts(input: {
     skippedTotal,
     failedTotal,
     sendUnknownTotal,
+    supersededTotal,
     pendingTotal,
     writebackPendingTotal,
     unaccountedTotal,
     health,
   });
+}
+
+function countSupersededMessages(
+  messages: readonly ReminderMessageRecord[],
+): number {
+  return messages.filter((message) =>
+    messageStatusIn(message, supersededMessageStatuses)
+  ).length;
 }
 
 export async function handleRunRemindersRequest(
@@ -2512,6 +2544,7 @@ function reconciliationCounts(
     skippedTotal: reconciliation.skippedTotal,
     failedTotal: reconciliation.failedTotal,
     sendUnknownTotal: reconciliation.sendUnknownTotal,
+    supersededTotal: reconciliation.supersededTotal,
     pendingTotal: reconciliation.pendingTotal,
     writebackPendingTotal: reconciliation.writebackPendingTotal,
     unaccountedTotal: reconciliation.unaccountedTotal,

@@ -286,7 +286,10 @@ Deno.test("IT-RUN-01 DB store persists through the dentino_run_api RPC surface",
       attempts: 1,
     },
   });
-  await store.reconcileDay({ targetDate, now: fixedNow() });
+  const reconciliation = await store.reconcileDay({
+    targetDate,
+    now: fixedNow(),
+  });
   await store.finishRun({
     runId: run.id,
     status: "completed",
@@ -297,6 +300,7 @@ Deno.test("IT-RUN-01 DB store persists through the dentino_run_api RPC surface",
   assertEquals(policy?.[0].status, "PLANNED");
   assertEquals(claim, { claimed: true, stoleExistingLease: false });
   assertEquals(message.cliniccardsVisitId, "visit-db");
+  assertEquals(reconciliation.supersededTotal, 0);
   assertEquals(calls.map((call) => call.name), [
     "run_cliniccards_status_policy",
     "run_start_run",
@@ -308,6 +312,7 @@ Deno.test("IT-RUN-01 DB store persists through the dentino_run_api RPC surface",
     "run_commit_send_outcome",
     "run_finish_writeback",
     "run_reconcile_day",
+    "run_messages_for_target_date",
     "run_finish_run",
   ]);
   assertEquals(
@@ -612,6 +617,57 @@ Deno.test("IT-LEASE-STEAL-01 stale heartbeat holder is stolen and orphaned sends
   assertEquals(sender.requests.length, 1);
 });
 
+Deno.test("IT-TOTALITY-01 one maintenance sweep reaps a sole mid-send claim without resend", async () => {
+  const totalityVisit = visit("visit-mid-send");
+  const totalityFingerprint = await clinicCardsAppointmentFingerprint(
+    totalityVisit,
+  );
+  const store = createInMemoryReminderRunStore({
+    facts: [
+      fact(totalityVisit, "visits_initial", totalityFingerprint, { runId: 1 }),
+    ],
+    messages: [
+      messageRecord({
+        id: 31,
+        runId: 1,
+        cliniccardsVisitId: totalityVisit.id,
+        cliniccardsPatientId: totalityVisit.patientId,
+        appointmentFingerprint: totalityFingerprint,
+        status: "sending",
+        sendClaimToken: syntheticFenceValue("mid-send"),
+        sendClaimExpiresAt: new Date(fixedNow().getTime() - 1).toISOString(),
+        trackingTokenDigestHex: "b".repeat(64),
+        tokenExpiresAt: totalityVisit.targetAt,
+        sendAttemptCount: 1,
+        lastAttemptAt: new Date(fixedNow().getTime() - 300_001).toISOString(),
+      }),
+    ],
+  });
+
+  const reaped = await store.reapExpiredSendClaims({
+    targetDate,
+    now: fixedNow(),
+  });
+  const reconciliation = await store.reconcileDay({
+    targetDate,
+    now: fixedNow(),
+  });
+
+  assertEquals(reaped, 1);
+  assertEquals(store.messages[0].status, "send_unknown");
+  assertEquals(store.messages[0].skipReason, "send_ambiguous");
+  assertEquals(store.messages[0].sendClaimToken, undefined);
+  assertEquals(store.messages[0].sendClaimExpiresAt, undefined);
+  assertFalse(
+    store.messages.some((message) =>
+      message.status === "pending" || message.status === "sending"
+    ),
+  );
+  assertEquals(reconciliation.health, "red");
+  assertEquals(reconciliation.sendUnknownTotal, 1);
+  assertEquals(reconciliation.unaccountedTotal, 0);
+});
+
 Deno.test("FR-L2-RUN-06 Kyiv cron gate and target-date guard stop before side effects", async () => {
   const preNoonSender = captureSender();
   const preNoonStore = createInMemoryReminderRunStore();
@@ -700,7 +756,7 @@ Deno.test("IT-SUPERSEDE-01 changed appointment fingerprint kills the old token b
     }),
   ]);
 
-  await runReminders({
+  const catchup = await runReminders({
     config,
     clock: fixedClock(),
     clinicCardsClient: crm.client,
@@ -720,6 +776,7 @@ Deno.test("IT-SUPERSEDE-01 changed appointment fingerprint kills the old token b
   assertEquals(oldMessage.supersededByMessageId, replacement.id);
   assertEquals(replacement.messageKind, "time_change_notice");
   assertEquals(replacement.status, "sent");
+  assertEquals(catchup.reconciliation?.supersededTotal, 1);
   assertEquals(sender.requests.length, 2);
 });
 
@@ -762,6 +819,7 @@ Deno.test("IT-SUPERSEDE-PARTIAL-01 partial supersede leaves old token dead and r
   const [oldMessage, replacement] = store.messages;
   assertEquals(partial.status, "failed");
   assertEquals(partial.reconciliation?.health, "red");
+  assertEquals(partial.reconciliation?.supersededTotal, 1);
   assertEquals(oldMessage.status, "superseded");
   assertEquals(oldMessage.tokenExpiresAt, oldMessage.supersededAt);
   assertEquals(replacement.status, "pending");
@@ -769,11 +827,13 @@ Deno.test("IT-SUPERSEDE-PARTIAL-01 partial supersede leaves old token dead and r
   assertEquals(sender.requests.length, 1);
 });
 
-Deno.test("IT-RECON-01 reconciliation reports unaccounted and pending current appointments as red", async () => {
-  const currentVisit = visit("visit-unaccounted", "PLANNED");
-  const currentFingerprint = await clinicCardsAppointmentFingerprint(
-    currentVisit,
-  );
+Deno.test("IT-RECON-01 reconciliation reports deleted, stale, vanished, and pending shortfalls as red", async () => {
+  const deletedMaterializedVisit = visit("visit-deleted-row", "PLANNED");
+  const deletedMaterializedFingerprint =
+    await clinicCardsAppointmentFingerprint(
+      deletedMaterializedVisit,
+    );
+  const staleVisit = visit("visit-stale", "PLANNED");
   const vanishedVisit = visit("visit-vanished", "PLANNED");
   const movedVisit = visit("visit-moved", "PLANNED", {
     targetAt: "2026-07-03T09:00:00+03:00",
@@ -781,10 +841,15 @@ Deno.test("IT-RECON-01 reconciliation reports unaccounted and pending current ap
   const reconciliation = reconcileMessagesAndFacts({
     targetDate,
     facts: [
-      fact(currentVisit, "visits_initial", currentFingerprint, {
-        runId: 2,
-      }),
-      fact(visit("visit-stale", "PLANNED"), "catchup", "fresh-fingerprint", {
+      fact(
+        deletedMaterializedVisit,
+        "visits_initial",
+        deletedMaterializedFingerprint,
+        {
+          runId: 2,
+        },
+      ),
+      fact(staleVisit, "catchup", "fresh-fingerprint", {
         runId: 2,
       }),
       fact(vanishedVisit, "visits_initial", "vanished-fingerprint", {
@@ -828,12 +893,20 @@ Deno.test("IT-RECON-01 reconciliation reports unaccounted and pending current ap
         appointmentFingerprint: "old-moved-fingerprint",
         status: "sent",
       }),
+      messageRecord({
+        id: 6,
+        cliniccardsVisitId: "visit-superseded",
+        appointmentFingerprint: "superseded-fingerprint",
+        status: "superseded",
+        supersededAt: fixedNowIso,
+      }),
     ],
   });
 
   assertEquals(reconciliation.health, "red");
   assertEquals(reconciliation.unaccountedTotal, 3);
   assertEquals(reconciliation.pendingTotal, 1);
+  assertEquals(reconciliation.supersededTotal, 1);
 });
 
 Deno.test("IT-HEARTBEAT-01 pings start/success with counts-only payload and fail instead of success on red", async () => {
@@ -1526,6 +1599,7 @@ function dbReconciliationRow() {
     skipped_total: 0,
     failed_total: 0,
     send_unknown_total: 0,
+    superseded_total: 0,
     pending_total: 0,
     writeback_pending_total: 0,
     unaccounted_total: 0,
@@ -1543,6 +1617,7 @@ function dbReconciliationRecord() {
     skippedTotal: 0,
     failedTotal: 0,
     sendUnknownTotal: 0,
+    supersededTotal: 0,
     pendingTotal: 0,
     writebackPendingTotal: 0,
     unaccountedTotal: 0,
