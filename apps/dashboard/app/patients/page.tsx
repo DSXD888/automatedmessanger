@@ -9,6 +9,7 @@ import Link from "next/link";
 import { loadPatientsData } from "../../lib/dashboard-data";
 
 const queueTitles: Record<string, string> = {
+  blocked_allowlist: "Заблоковано allowlist",
   held_cancel: "Утримано запобіжником",
   no_phone: "Немає номера телефону",
   send_unknown: "Невідомий статус надсилання",
@@ -113,6 +114,14 @@ const PatientsPage = async () => {
             >
               <ShieldCheck key="held-close" size={18} aria-hidden="true" />
               Закрити без запису
+            </button>
+            <button
+              className="button secondary"
+              name="resolution"
+              value="bulk_approved_safe"
+            >
+              <ShieldCheck key="held-approve" size={18} aria-hidden="true" />
+              Bulk approve safe
             </button>
           </form>
         </aside>

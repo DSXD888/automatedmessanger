@@ -354,6 +354,19 @@ const fixtureBoardRows: readonly BoardRow[] = [
     actionLabel: "Розглянути",
     needsAttention: true,
   },
+  {
+    id: 710,
+    time: "16:30",
+    patient: "Тестовий Візит",
+    visitId: "1112199",
+    phoneLast4: "0101",
+    sourceStatus: "PLANNED",
+    sendState: "failed",
+    responseState: "failed",
+    staffState: "blocked_allowlist",
+    actionLabel: "Перевірити allowlist",
+    needsAttention: true,
+  },
 ];
 
 export async function loadDashboardData(options: {
@@ -767,6 +780,9 @@ function isPermissionDenied(error: { code?: string; message?: string }) {
 }
 
 function actionLabelFor(state: BoardState, staffState: string): string {
+  if (staffState === "blocked_allowlist") {
+    return "Перевірити allowlist";
+  }
   if (staffState === "writeback_attention") {
     return "Записати вручну";
   }

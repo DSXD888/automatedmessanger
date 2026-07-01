@@ -180,6 +180,8 @@ as $$
       else 'no_reply'
     end as response_state,
     case
+      when lower(coalesce(m.error, '')) like '%not allowed under the current send_mode%'
+        or lower(coalesce(m.error, '')) like '%not allowed under the current crm_write_mode%' then 'blocked_allowlist'
       when m.action_taken = 'pending_staff_review' then 'held_cancel'
       when m.action_taken = 'error'
         or (m.action_taken in ('confirmed', 'cancelled') and m.crm_writeback_ok is not true) then 'writeback_attention'
@@ -270,9 +272,10 @@ as $$
      case staff_state
        when 'writeback_attention' then 1
        when 'held_cancel' then 2
-       when 'send_failed' then 3
-       when 'send_unknown' then 4
-       else 5
+       when 'blocked_allowlist' then 3
+       when 'send_failed' then 4
+       when 'send_unknown' then 5
+       else 6
      end,
      target_at,
      message_id;

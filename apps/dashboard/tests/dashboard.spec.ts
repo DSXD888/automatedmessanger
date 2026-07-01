@@ -123,6 +123,9 @@ test.describe("authenticated dashboard", () => {
       "Невідомий статус надсилання",
     );
     await expect(page.getByTestId("needs-attention-list")).toContainText(
+      "Заблоковано allowlist",
+    );
+    await expect(page.getByTestId("needs-attention-list")).toContainText(
       "Утримано запобіжником",
     );
     await expect(page.getByTestId("needs-attention-list")).toContainText(
@@ -168,6 +171,20 @@ test.describe("authenticated dashboard", () => {
   });
 
   test("E2E-HELD-CANCEL-01 held-cancel form targets the admin RPC path", async ({ page }) => {
+    await page.route("**/held-cancels/resolve", async (route) => {
+      expect(route.request().method()).toBe("POST");
+      const body = route.request().postData() ?? "";
+      expect(body).toContain("target_date=2026-06-19");
+      expect(body).toContain("message_ids=709");
+      expect(body).toContain("resolution=bulk_approved_safe");
+      expect(decodeURIComponent(body)).toContain("appointment_fingerprint");
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ resolved: [{ message_id: 709 }] }),
+      });
+    });
+
     await page.goto("/patients?needs_attention=1");
 
     const heldForm = page.getByTestId("held-cancel-form");
@@ -178,6 +195,16 @@ test.describe("authenticated dashboard", () => {
     await expect(
       heldForm.getByRole("button", { name: /Закрити без запису/u }),
     ).toBeVisible();
+    await expect(
+      heldForm.getByRole("button", { name: /Bulk approve safe/u }),
+    ).toBeVisible();
+
+    const requestPromise = page.waitForRequest((request) =>
+      request.method() === "POST" &&
+      request.url().endsWith("/held-cancels/resolve")
+    );
+    await heldForm.getByRole("button", { name: /Bulk approve safe/u }).click();
+    await requestPromise;
   });
 
   test(
