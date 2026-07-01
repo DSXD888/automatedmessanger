@@ -155,6 +155,38 @@ Deno.test("L1 CI wiring keeps real-key and deliverability seed gates out of norm
   assertNoMatch(ciGateCorpus, /https:\/\/r\.dentino\.com\.ua/iu);
 });
 
+Deno.test("CI no-egress ring denies non-local outbound network", () => {
+  const supabaseStartIndex = ciWorkflowSource.indexOf(
+    "- run: supabase start",
+  );
+  const denyRingIndex = ciWorkflowSource.indexOf(
+    "name: Enable CI egress deny ring",
+  );
+
+  assert(supabaseStartIndex >= 0, "CI must start local Supabase");
+  assert(
+    denyRingIndex > supabaseStartIndex,
+    "CI must deny egress after local Supabase is available",
+  );
+  assertMatch(
+    ciWorkflowSource,
+    /sudo iptables -I OUTPUT ! -o lo -j REJECT/u,
+  );
+  assertMatch(
+    ciWorkflowSource,
+    /sudo ip6tables -I OUTPUT ! -o lo -j REJECT/u,
+  );
+  assertMatch(
+    ciWorkflowSource,
+    /--allow-net=1\.1\.1\.1:80/u,
+  );
+  assertMatch(
+    ciWorkflowSource,
+    /http:\/\/1\.1\.1\.1\/ci-egress-negative-control/u,
+  );
+  assertMatch(ciWorkflowSource, /Unexpected outbound network access/u);
+});
+
 function assertNoMatch(value: string, pattern: RegExp): void {
   assertFalse(
     pattern.test(value),
