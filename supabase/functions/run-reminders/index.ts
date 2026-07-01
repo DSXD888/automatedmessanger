@@ -16,6 +16,7 @@ import type {
 } from "../_shared/clinicCardsClient.ts";
 import {
   clinicCardsAppointmentFingerprint,
+  ClinicCardsContractError,
   createClinicCardsClient,
 } from "../_shared/clinicCardsClient.ts";
 import type { RuntimeConfig } from "../_shared/config.ts";
@@ -80,6 +81,7 @@ export type ReminderSkipReason =
   | "no_phone"
   | "invalid_phone"
   | "missing_patient"
+  | "patient_merged_or_unresolved"
   | "patient_changed"
   | "non_remindable_status"
   | "unknown_status"
@@ -389,6 +391,10 @@ interface SendableWork {
   message: ReminderMessageRecord;
   patient: ClinicCardsPatient;
   patientName: string;
+}
+
+interface RunPatientReadResult extends ClinicCardsPatientReadResult {
+  patientSkipReasons: ReadonlyMap<string, ReminderSkipReason>;
 }
 
 type DbReminderRunRow = DentinoApiRpcReturns<"run_start_run">[number];
@@ -1161,6 +1167,7 @@ export async function runReminders(
       targetDate: dates.targetDateKyiv,
       visits: crmRead.visits,
       patients: patientRead.patients,
+      patientSkipReasons: patientRead.patientSkipReasons,
       store,
       passKind,
       now,
@@ -1452,7 +1459,9 @@ export function createInMemoryReminderRunStore(
         targetDate: input.targetDate,
         targetAt: input.targetAt,
         channel: "sms",
-        messageKind: active ? "time_change_notice" : input.messageKind,
+        messageKind: active && input.status === "pending"
+          ? "time_change_notice"
+          : input.messageKind,
         appointmentFingerprint: input.appointmentFingerprint,
         sourceStatus: input.sourceStatus,
         status: input.status,
@@ -1970,7 +1979,7 @@ function parseLocalDate(
 async function readPatientsForVisits(
   clinicCardsClient: ClinicCardsClient,
   visits: readonly ClinicCardsVisit[],
-): Promise<ClinicCardsPatientReadResult> {
+): Promise<RunPatientReadResult> {
   const patientIds = [
     ...new Set(
       visits.flatMap((visit) => visit.patientId ? [visit.patientId] : []),
@@ -1980,9 +1989,49 @@ async function readPatientsForVisits(
     return Object.freeze({
       patients: new Map(),
       fetchLogs: Object.freeze([]),
+      patientSkipReasons: new Map(),
     });
   }
-  return await clinicCardsClient.getPatientsByIds(patientIds);
+
+  try {
+    const result = await clinicCardsClient.getPatientsByIds(patientIds);
+    return Object.freeze({
+      ...result,
+      patientSkipReasons: new Map(),
+    });
+  } catch (error) {
+    if (!(error instanceof ClinicCardsContractError)) {
+      throw error;
+    }
+  }
+
+  const patients = new Map<string, ClinicCardsPatient>();
+  const fetchLogs: CrmFetchLogRecord[] = [];
+  const patientSkipReasons = new Map<string, ReminderSkipReason>();
+  for (const patientId of patientIds) {
+    try {
+      const result = await clinicCardsClient.getPatientsByIds([patientId]);
+      for (const [id, patient] of result.patients) {
+        patients.set(id, patient);
+      }
+      fetchLogs.push(...result.fetchLogs);
+    } catch (error) {
+      if (!(error instanceof ClinicCardsContractError)) {
+        throw error;
+      }
+      const reason = patientContractSkipReason(error, patientId);
+      if (!reason) {
+        throw error;
+      }
+      patientSkipReasons.set(patientId, reason);
+    }
+  }
+
+  return Object.freeze({
+    patients,
+    fetchLogs: Object.freeze(fetchLogs),
+    patientSkipReasons,
+  });
 }
 
 async function redrivePendingWriteBacks(input: {
@@ -2012,16 +2061,31 @@ async function materializeObservedVisits(input: {
   targetDate: LocalDate;
   visits: readonly ClinicCardsVisit[];
   patients: ReadonlyMap<string, ClinicCardsPatient>;
+  patientSkipReasons: ReadonlyMap<string, ReminderSkipReason>;
   store: ReminderRunStore;
   passKind: ReminderRunPassKind;
   now: Date;
 }): Promise<SendableWork[]> {
   const sendable: SendableWork[] = [];
+  const existingMessages = await input.store.messagesForTargetDate(
+    input.targetDate,
+  );
   for (const visit of input.visits) {
     const patient = visit.patientId
       ? input.patients.get(visit.patientId) ?? null
       : null;
     const eligibility = classifyReminderEligibility({ visit, patient });
+    const activeMessage = findActiveMessageForVisit(
+      existingMessages,
+      input.targetDate,
+      visit.id,
+    );
+    const skipReason = materializationSkipReason({
+      visit,
+      eligibility,
+      activeMessage,
+      patientSkipReasons: input.patientSkipReasons,
+    });
     const appointmentFingerprint = await clinicCardsAppointmentFingerprint(
       visit,
     );
@@ -2035,14 +2099,14 @@ async function materializeObservedVisits(input: {
       messageKind: messageKindByPassKind[input.passKind],
       appointmentFingerprint,
       sourceStatus: visit.status.status,
-      status: eligibility.sendable ? "pending" : "skipped",
-      skipReason: eligibility.sendable ? undefined : eligibility.reason,
+      status: skipReason ? "skipped" : "pending",
+      skipReason,
       patientDisplaySnapshot: patientName || undefined,
       now: input.now,
     });
 
     if (
-      eligibility.sendable &&
+      !skipReason &&
       patient?.mobileE164 &&
       messageStatusIn(message, pendingMessageStatuses) &&
       !message.sendClaimToken
@@ -2087,18 +2151,15 @@ async function claimRenderAndSend(input: {
   const liveFingerprint = await clinicCardsAppointmentFingerprint(
     liveVisit.visit,
   );
-  if (
-    !constantTimeEqual(
-      liveFingerprint,
-      input.work.message.appointmentFingerprint,
-    ) ||
-    !liveVisit.visit.status.remindable
-  ) {
+  const revalidationSkipReason = preSendRevalidationSkipReason({
+    liveVisit: liveVisit.visit,
+    message: input.work.message,
+    liveFingerprint,
+  });
+  if (revalidationSkipReason) {
     await input.store.markMessageSkipped({
       messageId: input.work.message.id,
-      reason: liveVisit.visit.status.unknownStatus
-        ? "unknown_status"
-        : skipReasonForNonRemindableStatus(liveVisit.visit.status.status),
+      reason: revalidationSkipReason,
       error: "pre-send revalidation refused the message",
     });
     return null;
@@ -2161,6 +2222,113 @@ function displayNameForPatient(patient: ClinicCardsPatient): string {
 
 function skipReasonForNonRemindableStatus(status: string): ReminderSkipReason {
   return nonRemindableStatusReasons.get(status) ?? "non_remindable_status";
+}
+
+function patientContractSkipReason(
+  error: ClinicCardsContractError,
+  patientId: string,
+): ReminderSkipReason | undefined {
+  if (
+    error.message.includes("unresolved or merged") &&
+    error.details.patientId === patientId
+  ) {
+    return "patient_merged_or_unresolved";
+  }
+
+  const missing = error.details.missing;
+  if (
+    Array.isArray(missing) &&
+    missing.every((value) => typeof value === "string") &&
+    missing.includes(patientId)
+  ) {
+    return "missing_patient";
+  }
+
+  return undefined;
+}
+
+function materializationSkipReason(input: {
+  visit: ClinicCardsVisit;
+  eligibility:
+    | { sendable: true }
+    | { sendable: false; reason: ReminderSkipReason };
+  activeMessage?: ReminderMessageRecord;
+  patientSkipReasons: ReadonlyMap<string, ReminderSkipReason>;
+}): ReminderSkipReason | undefined {
+  if (!input.eligibility.sendable) {
+    if (
+      input.eligibility.reason === "missing_patient" &&
+      input.visit.patientId
+    ) {
+      return input.patientSkipReasons.get(input.visit.patientId) ??
+        input.eligibility.reason;
+    }
+    return input.eligibility.reason;
+  }
+
+  if (patientChangedSinceActiveMessage(input.activeMessage, input.visit)) {
+    return "patient_changed";
+  }
+
+  return undefined;
+}
+
+function patientChangedSinceActiveMessage(
+  activeMessage: ReminderMessageRecord | undefined,
+  visit: ClinicCardsVisit,
+): boolean {
+  return Boolean(
+    activeMessage &&
+      activeMessage.cliniccardsPatientId &&
+      visit.patientId &&
+      activeMessage.cliniccardsPatientId !== visit.patientId,
+  );
+}
+
+function preSendRevalidationSkipReason(input: {
+  liveVisit: ClinicCardsVisit;
+  message: ReminderMessageRecord;
+  liveFingerprint: string;
+}): ReminderSkipReason | undefined {
+  if (input.liveVisit.status.unknownStatus) {
+    return "unknown_status";
+  }
+  if (!input.liveVisit.status.remindable) {
+    return skipReasonForNonRemindableStatus(input.liveVisit.status.status);
+  }
+  if (input.liveVisit.patientId !== input.message.cliniccardsPatientId) {
+    return "patient_changed";
+  }
+  if (visitTargetDateKyiv(input.liveVisit) !== input.message.targetDate) {
+    return "moved_before_send";
+  }
+  if (
+    !constantTimeEqual(
+      input.liveFingerprint,
+      input.message.appointmentFingerprint,
+    )
+  ) {
+    return "non_remindable_status";
+  }
+  return undefined;
+}
+
+function visitTargetDateKyiv(visit: ClinicCardsVisit): LocalDate {
+  const parts = getKyivDateTimeParts(new Date(visit.targetAt));
+  return `${parts.year}-${pad2(parts.month)}-${pad2(parts.day)}` as LocalDate;
+}
+
+function findActiveMessageForVisit(
+  messages: readonly ReminderMessageRecord[],
+  targetDate: LocalDate,
+  cliniccardsVisitId: string,
+): ReminderMessageRecord | undefined {
+  return messages.find((message) =>
+    message.cliniccardsVisitId === cliniccardsVisitId &&
+    message.targetDate === targetDate &&
+    !messageStatusIn(message, supersededMessageStatuses) &&
+    liveReminderKinds.has(message.messageKind)
+  );
 }
 
 function messageStatusFromSendResult(
@@ -2548,6 +2716,10 @@ function compareFactFreshness(left: CrmVisitFact, right: CrmVisitFact): number {
   }
 
   return (left.run_id ?? 0) - (right.run_id ?? 0);
+}
+
+function pad2(value: number): string {
+  return String(value).padStart(2, "0");
 }
 
 function constantTimeEqual(left: string | undefined, right: string): boolean {

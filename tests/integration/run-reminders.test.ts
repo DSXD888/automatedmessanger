@@ -26,6 +26,7 @@ import type {
 import {
   classifyClinicCardsStatus,
   clinicCardsAppointmentFingerprint,
+  ClinicCardsContractError,
   createClinicCardsStatusPolicy,
 } from "../../supabase/functions/_shared/clinicCardsClient.ts";
 import { loadRuntimeConfig } from "../../supabase/functions/_shared/config.ts";
@@ -326,23 +327,43 @@ Deno.test("IT-RUN-02 every observed visit is either sent or explicitly skipped",
     visit("visit-no-phone"),
     visit("visit-invalid-phone"),
     visit("visit-missing-patient", "PLANNED", { patientId: null }),
+    visit("visit-merged"),
+    visit("visit-patient-changed"),
+    visit("visit-cross-day-move"),
     visit("visit-unknown", "RESERVED"),
     visit("visit-moved", "MOVED"),
     visit("visit-cancelled", "CANCELLED"),
   ], {
-    "patient-visit-disabled": patient("patient-visit-disabled", {
-      smsRemindersEnabled: false,
-    }),
-    "patient-visit-no-phone": patient("patient-visit-no-phone", {
-      mobileE164: null,
-      phoneLast4: null,
-      phoneInvalidReason: "missing_phone",
-    }),
-    "patient-visit-invalid-phone": patient("patient-visit-invalid-phone", {
-      mobileE164: null,
-      phoneLast4: null,
-      phoneInvalidReason: "invalid_ukrainian_mobile",
-    }),
+    patientOverrides: {
+      "patient-visit-disabled": patient("patient-visit-disabled", {
+        smsRemindersEnabled: false,
+      }),
+      "patient-visit-no-phone": patient("patient-visit-no-phone", {
+        mobileE164: null,
+        phoneLast4: null,
+        phoneInvalidReason: "missing_phone",
+      }),
+      "patient-visit-invalid-phone": patient("patient-visit-invalid-phone", {
+        mobileE164: null,
+        phoneLast4: null,
+        phoneInvalidReason: "invalid_ukrainian_mobile",
+      }),
+    },
+    patientErrors: {
+      "patient-visit-merged": new ClinicCardsContractError(
+        "ClinicCards patient response was unresolved or merged",
+        { patientId: "patient-visit-merged" },
+      ),
+    },
+    visitByIdOverrides: {
+      "visit-patient-changed": visit("visit-patient-changed", "PLANNED", {
+        patientId: "patient-reassigned",
+      }),
+      "visit-cross-day-move": visit("visit-cross-day-move", "PLANNED", {
+        targetAt: "2026-07-02T09:00:00+03:00",
+        endAt: "2026-07-02T09:30:00+03:00",
+      }),
+    },
   });
 
   const result = await runReminders({
@@ -357,16 +378,19 @@ Deno.test("IT-RUN-02 every observed visit is either sent or explicitly skipped",
     trigger: "cron",
   });
 
-  assertEquals(result.messages.length, 8);
+  assertEquals(result.messages.length, 11);
   assertEquals(sender.requests.length, 1);
   assertEquals(result.reconciliation?.health, "amber");
   assertEquals(skipReasonsByVisit(result.messages), {
     "visit-cancelled": "cancelled_before_send",
+    "visit-cross-day-move": "moved_before_send",
     "visit-disabled": "not_enabled",
     "visit-invalid-phone": "invalid_phone",
+    "visit-merged": "patient_merged_or_unresolved",
     "visit-missing-patient": "missing_patient",
     "visit-moved": "moved_before_send",
     "visit-no-phone": "no_phone",
+    "visit-patient-changed": "patient_changed",
     "visit-unknown": "unknown_status",
   });
 });
@@ -459,6 +483,54 @@ Deno.test("IT-IDEMPOTENCY-01 catch-up rescans a completed day without duplicatin
     "catchup_reminder",
   );
   assert(crm.calls.includes("GET catchup 2026-07-01"));
+});
+
+Deno.test("IT-RUN-02 changed patient id supersedes stale token and skips staff-visible row", async () => {
+  const sender = captureSender();
+  const store = createInMemoryReminderRunStore();
+  const crm = mutableClinicCardsClient([visit("visit-patient-reassigned")]);
+  let fenceOrdinal = 0;
+
+  await runReminders({
+    config,
+    clock: fixedClock(),
+    clinicCardsClient: crm.client,
+    sender: sender.sender,
+    store,
+    writeBack: noopWriteBack,
+    rng: createSeededByteStreamRng(byteRange(0, 32)),
+    sendClaimTokenFactory: () =>
+      syntheticFenceValue(`patient-change-${++fenceOrdinal}`),
+    trigger: "cron",
+  });
+
+  crm.setVisits([
+    visit("visit-patient-reassigned", "PLANNED", {
+      patientId: "patient-reassigned-new",
+    }),
+  ]);
+  const catchup = await runReminders({
+    config,
+    clock: fixedClock(),
+    clinicCardsClient: crm.client,
+    sender: sender.sender,
+    store,
+    writeBack: noopWriteBack,
+    rng: createSeededByteStreamRng(byteRange(32, 32)),
+    sendClaimTokenFactory: () =>
+      syntheticFenceValue(`patient-change-${++fenceOrdinal}`),
+    trigger: "manual",
+    passKind: "catchup",
+  });
+
+  const [stale, replacement] = store.messages;
+  assertEquals(sender.requests.length, 1);
+  assertEquals(catchup.reconciliation?.health, "amber");
+  assertEquals(stale.status, "superseded");
+  assertEquals(stale.tokenExpiresAt, stale.supersededAt);
+  assertEquals(replacement.status, "skipped");
+  assertEquals(replacement.skipReason, "patient_changed");
+  assertEquals(replacement.cliniccardsPatientId, "patient-reassigned-new");
 });
 
 Deno.test("IT-LEASE-STEAL-01 live heartbeat holder is not stolen", async () => {
@@ -1202,7 +1274,11 @@ function syntheticFenceValue(suffix: string): string {
 
 function mutableClinicCardsClient(
   initialVisits: readonly ClinicCardsVisit[],
-  patientOverrides: Record<string, ClinicCardsPatient> = {},
+  options: {
+    patientOverrides?: Record<string, ClinicCardsPatient>;
+    patientErrors?: Record<string, ClinicCardsContractError>;
+    visitByIdOverrides?: Record<string, ClinicCardsVisit>;
+  } = {},
 ): {
   client: ClinicCardsClient;
   calls: string[];
@@ -1210,6 +1286,9 @@ function mutableClinicCardsClient(
 } {
   let visits = [...initialVisits];
   const calls: string[] = [];
+  const patientOverrides = options.patientOverrides ?? {};
+  const patientErrors = options.patientErrors ?? {};
+  const visitByIdOverrides = options.visitByIdOverrides ?? {};
 
   const client: ClinicCardsClient = {
     async getVisitsForDate(
@@ -1227,6 +1306,12 @@ function mutableClinicCardsClient(
       patientIds,
     ): Promise<ClinicCardsPatientReadResult> {
       calls.push(`GET patients ${patientIds.join(",")}`);
+      for (const id of patientIds) {
+        const error = patientErrors[id];
+        if (error) {
+          throw error;
+        }
+      }
       const patients = new Map<string, ClinicCardsPatient>();
       for (const id of patientIds) {
         patients.set(id, patientOverrides[id] ?? patient(id));
@@ -1242,7 +1327,8 @@ function mutableClinicCardsClient(
     ): Promise<ClinicCardsVisitByIdResult> {
       calls.push(`GET ${purpose} ${visitId}`);
       return Promise.resolve({
-        visit: visits.find((candidate) => candidate.id === visitId) ??
+        visit: visitByIdOverrides[visitId] ??
+          visits.find((candidate) => candidate.id === visitId) ??
           visit(visitId),
         fetchLog: fetchLog(purpose, "GET", `/visits/${visitId}`),
       });

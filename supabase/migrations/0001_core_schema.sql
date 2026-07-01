@@ -133,6 +133,7 @@ create table app.reminder_messages (
       'no_phone',
       'invalid_phone',
       'missing_patient',
+      'patient_merged_or_unresolved',
       'patient_changed',
       'non_remindable_status',
       'unknown_status',

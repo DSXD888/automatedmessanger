@@ -185,7 +185,7 @@ as $$
         or (m.action_taken in ('confirmed', 'cancelled') and m.crm_writeback_ok is not true) then 'writeback_attention'
       when m.status = 'failed' then 'send_failed'
       when m.status = 'send_unknown' and m.response is null and m.action_taken = 'none' then 'send_unknown'
-      when m.status = 'skipped' and m.skip_reason in ('no_phone', 'invalid_phone', 'missing_patient', 'patient_changed', 'unknown_status', 'not_enabled', 'provider_pre_submit_failure') then 'staff_data_fix'
+      when m.status = 'skipped' and m.skip_reason in ('no_phone', 'invalid_phone', 'missing_patient', 'patient_merged_or_unresolved', 'patient_changed', 'unknown_status', 'not_enabled', 'provider_pre_submit_failure') then 'staff_data_fix'
       when m.status = 'superseded' then 'stale_or_moved'
       else 'normal'
     end as staff_state,
