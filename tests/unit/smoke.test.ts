@@ -10,6 +10,20 @@ import ciWorkflowSource from "../../.github/workflows/ci.yml" with {
   type: "text",
 };
 import denoConfigSource from "../../deno.json" with { type: "text" };
+import rootPackageSource from "../../package.json" with { type: "text" };
+import pnpmLockSource from "../../pnpm-lock.yaml" with { type: "text" };
+import dashboardPackageSource from "../../apps/dashboard/package.json" with {
+  type: "text",
+};
+import dashboardDataSource from "../../apps/dashboard/lib/dashboard-data.ts" with {
+  type: "text",
+};
+import dashboardRollupsSource from "../../apps/dashboard/lib/rollups.ts" with {
+  type: "text",
+};
+import dashboardTemplateValidationSource from "../../apps/dashboard/lib/template-validation.ts" with {
+  type: "text",
+};
 import confirmSource from "../../supabase/functions/confirm/index.ts" with {
   type: "text",
 };
@@ -52,6 +66,16 @@ const engineSourceCorpus = [
   templatesSource,
   runRemindersSource,
 ].join("\n");
+const packageSourceCorpus = [
+  rootPackageSource,
+  dashboardPackageSource,
+  pnpmLockSource,
+].join("\n");
+const dashboardRuntimeSourceCorpus = [
+  dashboardDataSource,
+  dashboardRollupsSource,
+  dashboardTemplateValidationSource,
+].join("\n");
 
 Deno.test("Rung A smoke covers clock, token digest, and phone normalization", async () => {
   assertEquals(
@@ -79,6 +103,16 @@ Deno.test("STATIC-PLAT-01 excludes unsupported v1 runtimes and direct egress", (
   assertNoMatch(engineSourceCorpus, /\b(?:aws-sdk|Step Functions)\b/iu);
   assertNoMatch(engineSourceCorpus, /\b(?:electron|desktop runtime)\b/iu);
   assertNoMatch(engineSourceCorpus, /\b(?:require\(|process\.env|node:)\b/iu);
+
+  assertNoMatch(packageSourceCorpus, /\b(?:puppeteer|selenium)\b/iu);
+  assertNoMatch(packageSourceCorpus, /\b(?:sqlite|better-sqlite3)\b/iu);
+  assertNoMatch(packageSourceCorpus, /\b(?:rust|cargo|tauri)\b/iu);
+  assertNoMatch(packageSourceCorpus, /\b(?:aws-sdk|Step Functions)\b/iu);
+  assertNoMatch(packageSourceCorpus, /\b(?:electron|desktop runtime)\b/iu);
+  assertNoMatch(
+    dashboardRuntimeSourceCorpus,
+    /\b(?:sqlite|better-sqlite3|tauri|electron|aws-sdk)\b/iu,
+  );
 
   assertMatch(httpSource, /export function createHttpClient/u);
   assertMatch(httpSource, /const platformFetch/u);

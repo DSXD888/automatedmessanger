@@ -5,7 +5,7 @@
     "zod": "npm:zod@4.4.3"
   },
   "tasks": {
-    "check:no-egress-static": "deno run --allow-read=supabase/functions,tests tests/harness/no-egress.ts",
+    "check:no-egress-static": "deno run --allow-read=supabase/functions,tests,apps/dashboard tests/harness/no-egress.ts",
     "ci:engine": "deno fmt --check && deno lint && deno check supabase/functions/**/*.ts && deno task check:no-egress-static && deno test tests/unit && deno test tests/integration/no-egress.test.ts",
     "test:no-egress": "deno test tests/integration/no-egress.test.ts",
     "test:security-gate": "deno test tests/release/security-go-live-gate.test.ts"

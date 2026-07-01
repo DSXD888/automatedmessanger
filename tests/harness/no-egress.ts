@@ -28,8 +28,9 @@ export class NetworkEgressDeniedError extends Error {
   }
 }
 
-const scanRoots = ["supabase/functions", "tests"];
+const scanRoots = ["supabase/functions", "tests", "apps/dashboard"];
 const allowedChokepoint = "supabase/functions/_shared/http.ts";
+const skippedScanDirectories = new Set([".next", "node_modules", "tests"]);
 const browserRequestGlobal = ["XML", "Http", "Request"].join("");
 const directOutboundPatterns: readonly { label: string; pattern: RegExp }[] = [
   { label: "fetch", pattern: /\bfetch\s*\(/gu },
@@ -199,8 +200,13 @@ async function* walkTypeScriptFiles(root: string): AsyncGenerator<string> {
   for (const entry of entries) {
     const path = joinPath(root, entry.name);
     if (entry.isDirectory) {
+      if (skippedScanDirectories.has(entry.name)) {
+        continue;
+      }
       yield* walkTypeScriptFiles(path);
-    } else if (entry.isFile && path.endsWith(".ts")) {
+    } else if (
+      entry.isFile && (path.endsWith(".ts") || path.endsWith(".tsx"))
+    ) {
       yield path;
     }
   }

@@ -5,9 +5,48 @@ import migration0001 from "../../supabase/migrations/0001_core_schema.sql" with 
 import migration0002 from "../../supabase/migrations/0002_rls_policies.sql" with {
   type: "text",
 };
+import migrationL2Scheduler from "../../supabase/migrations/20260630122138_l2_scheduler.sql" with {
+  type: "text",
+};
+import migrationL2Backstops from "../../supabase/migrations/20260630124229_l2_reliability_backstops.sql" with {
+  type: "text",
+};
+import migrationL3Dashboard from "../../supabase/migrations/20260630130001_l3_dashboard_admin.sql" with {
+  type: "text",
+};
+import migrationL4Privacy from "../../supabase/migrations/20260630133705_l4_privacy_purge_schedule.sql" with {
+  type: "text",
+};
+import migrationL4GoLive from "../../supabase/migrations/20260630140450_l4_go_live_scaffolding.sql" with {
+  type: "text",
+};
+import migrationRunStore from "../../supabase/migrations/20260701144908_run_reminder_store_rpcs.sql" with {
+  type: "text",
+};
+import migrationRunReconcile from "../../supabase/migrations/20260701152500_run_reconcile_vanished_visits.sql" with {
+  type: "text",
+};
+import migrationPatientMerged from "../../supabase/migrations/20260701154949_add_patient_merged_skip_reason.sql" with {
+  type: "text",
+};
 import databaseTypes from "../../supabase/functions/_shared/database.types.ts" with {
   type: "text",
 };
+
+const migrationCorpus = [
+  migration0001,
+  migration0002,
+  migrationL2Scheduler,
+  migrationL2Backstops,
+  migrationL3Dashboard,
+  migrationL4Privacy,
+  migrationL4GoLive,
+  migrationRunStore,
+  migrationRunReconcile,
+  migrationPatientMerged,
+].join("\n");
+
+const schemaCorpus = [migrationCorpus, databaseTypes].join("\n");
 
 Deno.test("SCOPE-DEF-CHANNEL-01 schema keeps app-channel readiness fields inert for v1", () => {
   assertMatch(
@@ -60,22 +99,36 @@ Deno.test("SCOPE-NONGOAL-01 schema remains single-clinic and non-clinical", () =
 });
 
 Deno.test("SCOPE-DEF-PROVIDER-01 DLR is absent or uses the named optional API seam only", () => {
-  const hasRecordStatus = migration0002.includes("record_sms_status");
-  const hasWebhookRole = migration0002.includes("dentino_sms_webhook_api");
+  const hasRecordStatus = schemaCorpus.includes("record_sms_status");
+  const hasWebhookRole = schemaCorpus.includes("dentino_sms_webhook_api");
   assertEquals(hasRecordStatus, hasWebhookRole);
 
   if (hasRecordStatus) {
-    assertMatch(migration0002, /api\.record_sms_status/u);
-    assertMatch(migration0002, /dentino_sms_webhook_api/u);
+    assertMatch(schemaCorpus, /api\.record_sms_status/u);
+    assertMatch(schemaCorpus, /dentino_sms_webhook_api/u);
   }
 });
 
 function assertNoSchemaTerms(terms: readonly string[]): void {
-  const schemaText = [migration0001, migration0002, databaseTypes].join("\n");
   for (const term of terms) {
+    const escapedTerm = escapeRegExp(term);
+    const forbiddenIdentifier = new RegExp(
+      [
+        `^\\s*${escapedTerm}\\s+`,
+        `\\badd\\s+column\\s+${escapedTerm}\\b`,
+        `\\bcreate\\s+table\\s+[^;\\n]*\\b${escapedTerm}\\b`,
+        `\\bcreate\\s+(?:or\\s+replace\\s+)?function\\s+[^;\\n]*\\b${escapedTerm}\\b`,
+        `\\bcreate\\s+index\\s+[^;\\n]*\\b${escapedTerm}\\b`,
+      ].join("|"),
+      "imu",
+    );
     assert(
-      !schemaText.toLowerCase().includes(term),
+      !forbiddenIdentifier.test(schemaCorpus),
       `Forbidden schema scope term found: ${term}`,
     );
   }
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
 }

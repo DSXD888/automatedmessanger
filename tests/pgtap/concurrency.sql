@@ -12,7 +12,7 @@ begin
 end;
 $$;
 
-select plan(43);
+select plan(44);
 
 create or replace function pg_temp.claim_day(
   p_target_date date,
@@ -268,7 +268,9 @@ select
 
 create temp table action_cas_case(
   message_id bigint not null,
-  raw_token text not null
+  raw_token text not null,
+  superseded_message_id bigint not null,
+  superseded_raw_token text not null
 );
 
 with run as (
@@ -300,9 +302,45 @@ message as (
     app.now() + interval '1 day'
   from run
   returning id
+),
+superseded_message as (
+  insert into app.reminder_messages(
+    run_id,
+    cliniccards_visit_id,
+    target_date,
+    target_at,
+    message_kind,
+    appointment_fingerprint,
+    status,
+    tracking_token_digest,
+    token_expires_at,
+    superseded_at
+  )
+  select
+    id,
+    'visit-action-superseded',
+    '2026-07-04',
+    '2026-07-04 10:00+00',
+    'initial_reminder',
+    'action-superseded-fingerprint',
+    'superseded',
+    private.token_digest('token-action-superseded-0001'),
+    app.now() + interval '1 day',
+    app.now()
+  from run
+  returning id
 )
-insert into action_cas_case(message_id, raw_token)
-select id, 'token-action-cas-0001' from message;
+insert into action_cas_case(
+  message_id,
+  raw_token,
+  superseded_message_id,
+  superseded_raw_token
+)
+select
+  (select id from message),
+  'token-action-cas-0001',
+  (select id from superseded_message),
+  'token-action-superseded-0001';
 
 create temp table write_lock_case(
   visit_id text not null,
@@ -390,6 +428,12 @@ with no data;
 create temp table action_cas_second_recorded as
 select * from api.record_reminder_action('token-action-cas-0001', 'cancel', 'nonce')
 with no data;
+create temp table action_cas_superseded_prepare as
+select * from api.prepare_reminder_action('token-action-superseded-0001', 'confirm')
+with no data;
+create temp table action_cas_superseded_recorded as
+select * from api.record_reminder_action('token-action-superseded-0001', 'confirm', 'nonce')
+with no data;
 create temp table write_lock_first_prepare as
 select * from api.prepare_reminder_action('token-write-lock-0001', 'confirm')
 with no data;
@@ -423,6 +467,8 @@ grant insert, select on
   action_cas_prepare,
   action_cas_recorded,
   action_cas_second_recorded,
+  action_cas_superseded_prepare,
+  action_cas_superseded_recorded,
   write_lock_first_prepare,
   write_lock_first_record,
   write_lock_second_prepare,
@@ -456,6 +502,21 @@ from api.record_reminder_action(
   (select raw_token from action_cas_case),
   'cancel',
   (select action_nonce from action_cas_prepare)
+);
+
+insert into action_cas_superseded_prepare
+select *
+from api.prepare_reminder_action(
+  (select superseded_raw_token from action_cas_case),
+  'confirm'
+);
+
+insert into action_cas_superseded_recorded
+select *
+from api.record_reminder_action(
+  (select superseded_raw_token from action_cas_case),
+  'confirm',
+  'nonce-superseded'
 );
 
 insert into write_lock_first_prepare
@@ -741,6 +802,22 @@ select throws_like(
   $$,
   '%single-use%',
   'action-lock trigger rejects unlock and re-response attempts'
+);
+
+select is(
+  (
+    select prep.ok::text || ':' ||
+      prep.neutral_reason || ':' ||
+      recorded.ok::text || ':' ||
+      recorded.neutral_reason || ':' ||
+      (message.action_locked_at is null)::text
+    from action_cas_superseded_prepare prep
+    cross join action_cas_superseded_recorded recorded
+    join app.reminder_messages message
+      on message.id = (select superseded_message_id from action_cas_case)
+  ),
+  'false:invalid_or_expired:false:invalid_or_expired:true',
+  'superseded reminder token is unreachable through api prepare/record and remains unlocked'
 );
 
 select is(

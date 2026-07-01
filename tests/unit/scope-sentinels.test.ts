@@ -10,6 +10,12 @@ import smsSenderSource from "../../supabase/functions/_shared/smsSender.ts" with
 import templatesSource from "../../supabase/functions/_shared/templates.ts" with {
   type: "text",
 };
+import dashboardDataSource from "../../apps/dashboard/lib/dashboard-data.ts" with {
+  type: "text",
+};
+import dashboardRollupsSource from "../../apps/dashboard/lib/rollups.ts" with {
+  type: "text",
+};
 import clinicCardsSource from "../../supabase/functions/_shared/clinicCardsClient.ts" with {
   type: "text",
 };
@@ -34,10 +40,13 @@ void deferredNudgeKind;
 const workflowSource = [
   senderSource,
   smsSenderSource,
+  templatesSource,
   clinicCardsSource,
   writeBackSource,
   runRemindersSource,
   confirmSource,
+  dashboardDataSource,
+  dashboardRollupsSource,
 ].join("\n");
 
 Deno.test("SCOPE-NONGOAL-01 v1 has no conversational booking, telemedicine, clinical workflow, or multi-tenant routing surface", () => {
