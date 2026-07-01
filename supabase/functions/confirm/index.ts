@@ -1864,6 +1864,10 @@ function hasCrossSiteSignal(request: Required<ConfirmHttpRequest>): boolean {
   }
 
   const origin = headers.get("origin");
+  if (Object.is(origin, "null")) {
+    return !secFetchSite || !sameSiteFetchValues.has(secFetchSite);
+  }
+
   try {
     return !Object.is(origin, null) &&
       !Object.is(new URL(origin as string).origin, new URL(request.url).origin);

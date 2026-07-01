@@ -19,11 +19,23 @@ export default defineConfig({
   projects: [
     {
       name: "desktop",
+      testMatch: /dashboard\.spec\.ts/u,
       use: { ...devices["Desktop Chrome"] },
     },
     {
       name: "mobile",
+      testMatch: /dashboard\.spec\.ts/u,
       use: { ...devices["Pixel 7"] },
+    },
+    {
+      name: "confirm-js-disabled",
+      testMatch: /confirm-page\.spec\.ts/u,
+      use: { ...devices["Pixel 7"], javaScriptEnabled: false },
+    },
+    {
+      name: "confirm-a11y",
+      testMatch: /confirm-page\.spec\.ts/u,
+      use: { ...devices["Desktop Chrome"] },
     },
   ],
 });
