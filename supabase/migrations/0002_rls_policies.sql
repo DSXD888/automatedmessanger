@@ -383,6 +383,13 @@ declare
   desired_crm_target_status text;
   desired_lock_token uuid;
   acquired_lock_token uuid;
+  prior_ten_minute_cancel_count integer;
+  prior_thirty_minute_cancel_count integer;
+  prior_cancel_count integer;
+  sent_message_count integer;
+  daily_hard_ceiling integer;
+  breaker_threshold integer;
+  breaker_reason text;
 begin
   if p_raw_token is null
      or p_raw_token !~ '^[A-Za-z0-9_-]{20,128}$'
@@ -497,15 +504,99 @@ begin
     else 'CANCELLED'
   end;
 
-  if p_action = 'cancel'
-     and exists (
-       select 1
-         from app.cancellation_circuits c
-        where c.target_date = reminder.target_date
-          and c.status = 'open'
-     ) then
-    desired_action_taken := 'pending_staff_review';
-    desired_crm_target_status := null;
+  if p_action = 'cancel' then
+    perform pg_catalog.pg_advisory_xact_lock(
+      pg_catalog.hashtext('dentino.cancel.breaker'),
+      pg_catalog.hashtext(reminder.target_date::text)
+    );
+
+    select
+      count(*) filter (
+        where message.responded_at >= app.now() - interval '10 minutes'
+      )::integer,
+      count(*) filter (
+        where message.responded_at >= app.now() - interval '30 minutes'
+      )::integer,
+      count(*)::integer
+      into prior_ten_minute_cancel_count,
+           prior_thirty_minute_cancel_count,
+           prior_cancel_count
+      from app.reminder_messages message
+     where message.target_date = reminder.target_date
+       and message.id <> reminder.id
+       and message.response = 'cancel'
+       and message.responded_at is not null
+       and message.responded_at <= app.now()
+       and message.action_locked_at is not null;
+
+    select count(*)::integer
+      into sent_message_count
+      from app.reminder_messages message
+     where message.target_date = reminder.target_date
+       and message.superseded_at is null
+       and message.status in ('sent', 'delivered', 'send_unknown');
+
+    daily_hard_ceiling := greatest(
+      8,
+      ceiling(coalesce(sent_message_count, 0)::numeric * 0.6)::integer
+    );
+    breaker_threshold := null;
+    breaker_reason := null;
+
+    if coalesce(prior_ten_minute_cancel_count, 0) + 1 >= 4 then
+      breaker_threshold := 4;
+      breaker_reason := 'cancel_velocity';
+    elsif coalesce(prior_thirty_minute_cancel_count, 0) + 1 >= 6 then
+      breaker_threshold := 6;
+      breaker_reason := 'cancel_velocity';
+    elsif coalesce(prior_cancel_count, 0) + 1 > daily_hard_ceiling then
+      breaker_threshold := daily_hard_ceiling;
+      breaker_reason := 'cancel_daily_ceiling';
+    end if;
+
+    if breaker_threshold is not null then
+      insert into app.cancellation_circuits as circuit (
+        target_date,
+        threshold,
+        status,
+        opened_at,
+        opened_reason
+      )
+      values (
+        reminder.target_date,
+        breaker_threshold,
+        'open',
+        app.now(),
+        breaker_reason
+      )
+      on conflict (target_date) do update
+         set threshold = case
+               when circuit.status = 'open'
+                 then least(circuit.threshold, excluded.threshold)
+               else excluded.threshold
+             end,
+             status = 'open',
+             opened_at = case
+               when circuit.status = 'open'
+                 then coalesce(circuit.opened_at, excluded.opened_at)
+               else excluded.opened_at
+             end,
+             opened_reason = case
+               when circuit.status = 'open'
+                 then coalesce(circuit.opened_reason, excluded.opened_reason)
+               else excluded.opened_reason
+             end;
+    end if;
+
+    if exists (
+      select 1
+        from app.cancellation_circuits c
+       where c.target_date = reminder.target_date
+         and c.status = 'open'
+    ) then
+      desired_action_taken := 'pending_staff_review';
+      desired_crm_target_status := null;
+    end if;
   end if;
 
   if desired_crm_target_status is not null then

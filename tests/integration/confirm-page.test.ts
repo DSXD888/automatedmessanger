@@ -665,6 +665,126 @@ Deno.test("DB-backed confirm store records footer opt-out through record RPC wit
   );
 });
 
+Deno.test("DB-backed confirm store halts CRM write-back when the DB breaker holds a cancel", async () => {
+  const calls: { name: string; args: unknown }[] = [];
+  const dbNonce = base64UrlEncode(
+    new Uint8Array([
+      61,
+      62,
+      63,
+      64,
+      65,
+      66,
+      67,
+      68,
+      69,
+      70,
+      71,
+      72,
+      73,
+      74,
+      75,
+      76,
+    ]),
+  );
+  const rpcClient: DentinoDbRpcClient = {
+    rpc: ((name: string, args: unknown) => {
+      calls.push({ name, args });
+      if (name === "prepare_reminder_action") {
+        return Promise.resolve([{
+          ok: true,
+          neutral_reason: null,
+          action_nonce: dbNonce,
+          nonce_expires_at: "2026-06-30T09:10:00.000Z",
+          target_at: targetAt,
+          display_snapshot: "Олена К.",
+          clinic_phone: "+380679876111",
+        }]);
+      }
+      if (name === "record_reminder_action") {
+        return Promise.resolve([{
+          ok: true,
+          neutral_reason: null,
+          message_id: 45,
+          cliniccards_visit_id: "visit-db-breaker",
+          crm_target_status: null,
+          lock_token: null,
+          action_taken: "pending_staff_review",
+          target_at: targetAt,
+          display_snapshot: "Олена К.",
+        }]);
+      }
+      throw new Error(`Unexpected RPC ${name}`);
+    }) as DentinoDbRpcClient["rpc"],
+  };
+  const writeCalls: unknown[] = [];
+  const store = createDbBackedConfirmActionStore({ rpcClient });
+  const handlerOptions = {
+    config,
+    store,
+    writeBack: fakeWriteBack(writeCalls),
+    now: () => new Date(nowIso),
+  };
+
+  const interstitial = await responseText(
+    handleConfirmRequest(
+      request(
+        "POST",
+        `/r/${rawToken}/prepare`,
+        new URLSearchParams({ action: "cancel" }).toString(),
+        new Headers({
+          "content-type": "application/x-www-form-urlencoded",
+          origin: "https://local.test",
+        }),
+      ),
+      handlerOptions,
+    ) as Promise<Response>,
+  );
+  const action = await handleConfirmRequest(
+    request(
+      "POST",
+      `/r/${rawToken}/action`,
+      new URLSearchParams({
+        action: "cancel",
+        nonce: nonceForAction(interstitial, "cancel"),
+      }).toString(),
+      new Headers({
+        "content-type": "application/x-www-form-urlencoded",
+        origin: "https://local.test",
+      }),
+    ),
+    handlerOptions,
+  ) as Response;
+
+  assertEquals(action.status, 200);
+  assertMatch(await action.text(), /Адміністратор перевірить запит/u);
+  assertEquals(writeCalls.length, 0);
+  assertEquals(calls.map((call) => call.name), [
+    "prepare_reminder_action",
+    "record_reminder_action",
+  ]);
+  assertEquals(
+    (calls[1].args as { p_action: string; p_nonce: string }).p_action,
+    "cancel",
+  );
+  assertEquals(
+    (calls[1].args as { p_action: string; p_nonce: string }).p_nonce,
+    dbNonce,
+  );
+});
+
+Deno.test("E2E-BREAKER-01..03 DB RPC opens circuits only for valid nonce-backed cancel records", async () => {
+  const runPermission = await Deno.permissions.query({
+    name: "run",
+    command: "docker",
+  });
+  if (runPermission.state !== "granted") {
+    return;
+  }
+
+  await runPsqlSmoke(dbBreakerRpcSql());
+});
+
 Deno.test("E2E-BREAKER-01 four valid cancels in ten minutes hard-open the breaker and halt CRM writes", async () => {
   const reminders: ConfirmReminderRecord[] = [];
   for (const id of [1, 2, 3, 4]) {
@@ -1145,4 +1265,378 @@ function throwingWriteBack(message: string): GuardedCrmWriteBack {
       return Promise.resolve([]);
     },
   };
+}
+
+async function runPsqlSmoke(sql: string): Promise<void> {
+  const process = new Deno.Command("docker", {
+    args: [
+      "exec",
+      "-i",
+      "supabase_db_automatedmessanger",
+      "psql",
+      "-U",
+      "postgres",
+      "-d",
+      "postgres",
+      "-v",
+      "ON_ERROR_STOP=1",
+    ],
+    stdin: "piped",
+    stdout: "piped",
+    stderr: "piped",
+  }).spawn();
+
+  const writer = process.stdin.getWriter();
+  await writer.write(new TextEncoder().encode(sql));
+  await writer.close();
+
+  const output = await process.output();
+  const stdout = new TextDecoder().decode(output.stdout);
+  const stderr = new TextDecoder().decode(output.stderr);
+  const combined = `${stdout}\n${stderr}`;
+  if (output.code !== 0) {
+    throw new Error(`psql smoke exited with ${output.code}\n${combined}`);
+  }
+}
+
+function dbBreakerRpcSql(): string {
+  return `
+begin;
+
+select set_config('app.env', 'test', false);
+select set_config('app.test_now', '2026-07-31 08:55:00+00', false);
+
+delete from app.crm_visit_write_locks
+ where cliniccards_visit_id like 't9x3-%';
+delete from app.cancellation_circuits
+ where target_date between '2026-08-01'::date and '2026-08-05'::date;
+delete from app.reminder_messages
+ where cliniccards_visit_id like 't9x3-%';
+
+create temp table db_breaker_results (
+  scenario text not null,
+  ordinal integer not null,
+  ok boolean not null,
+  neutral_reason text,
+  message_id bigint,
+  crm_target_status text,
+  lock_token uuid,
+  action_taken text
+);
+
+create or replace function pg_temp.db_breaker_token(
+  p_scenario text,
+  p_ordinal integer
+)
+returns text
+language sql
+as $$
+  select 't9x3' || p_scenario || 'token' ||
+    lpad(p_ordinal::text, 3, '0') || '000000000000000000'
+$$;
+
+create or replace function pg_temp.db_breaker_nonce(
+  p_scenario text,
+  p_ordinal integer
+)
+returns text
+language sql
+as $$
+  select 't9x3' || p_scenario || 'nonce' ||
+    lpad(p_ordinal::text, 3, '0') || '000000000000000000'
+$$;
+
+create or replace function pg_temp.db_breaker_seed(
+  p_scenario text,
+  p_target_date date,
+  p_total integer
+)
+returns void
+language plpgsql
+as $$
+begin
+  insert into app.reminder_messages(
+    cliniccards_visit_id,
+    target_date,
+    target_at,
+    appointment_fingerprint,
+    status,
+    tracking_token_digest,
+    token_expires_at,
+    action_nonce_digest,
+    action_nonce_expires_at,
+    patient_display_snapshot
+  )
+  select
+    't9x3-' || p_scenario || '-' || ordinal::text,
+    p_target_date,
+    (p_target_date::timestamp + interval '9 hours')::timestamptz,
+    'fingerprint-' || p_scenario || '-' || ordinal::text,
+    'sent',
+    private.token_digest(pg_temp.db_breaker_token(p_scenario, ordinal)),
+    (p_target_date::timestamp + interval '23 hours')::timestamptz,
+    private.token_digest(pg_temp.db_breaker_nonce(p_scenario, ordinal)),
+    (p_target_date::timestamp + interval '23 hours')::timestamptz,
+    'DB Breaker'
+  from generate_series(1, p_total) as ordinal;
+end;
+$$;
+
+create or replace function pg_temp.db_breaker_record(
+  p_scenario text,
+  p_ordinal integer,
+  p_now timestamptz
+)
+returns void
+language plpgsql
+as $$
+begin
+  perform set_config('app.test_now', p_now::text, false);
+
+  insert into pg_temp.db_breaker_results(
+    scenario,
+    ordinal,
+    ok,
+    neutral_reason,
+    message_id,
+    crm_target_status,
+    lock_token,
+    action_taken
+  )
+  select
+    p_scenario,
+    p_ordinal,
+    result.ok,
+    result.neutral_reason,
+    result.message_id,
+    result.crm_target_status,
+    result.lock_token,
+    result.action_taken
+  from api.record_reminder_action(
+    pg_temp.db_breaker_token(p_scenario, p_ordinal),
+    'cancel',
+    pg_temp.db_breaker_nonce(p_scenario, p_ordinal)
+  ) as result;
+end;
+$$;
+
+create or replace function pg_temp.db_breaker_assert(
+  p_condition boolean,
+  p_message text
+)
+returns void
+language plpgsql
+as $$
+begin
+  if not coalesce(p_condition, false) then
+    raise exception '%', p_message;
+  end if;
+end;
+$$;
+
+select pg_temp.db_breaker_seed('ten', '2026-08-01'::date, 4);
+select pg_temp.db_breaker_record('ten', 1, '2026-07-31 09:00:00+00');
+select pg_temp.db_breaker_record('ten', 2, '2026-07-31 09:01:00+00');
+select pg_temp.db_breaker_record('ten', 3, '2026-07-31 09:02:00+00');
+select pg_temp.db_breaker_record('ten', 4, '2026-07-31 09:03:00+00');
+
+select pg_temp.db_breaker_assert(
+  (
+    select action_taken
+      from pg_temp.db_breaker_results
+     where scenario = 'ten'
+       and ordinal = 4
+  ) = 'pending_staff_review',
+  'fourth valid cancel in ten minutes must be held'
+);
+select pg_temp.db_breaker_assert(
+  (
+    select crm_target_status
+      from pg_temp.db_breaker_results
+     where scenario = 'ten'
+       and ordinal = 4
+  ) is null,
+  'held ten-minute cancel must not request a CRM write'
+);
+select pg_temp.db_breaker_assert(
+  exists (
+    select 1
+      from app.cancellation_circuits
+     where target_date = '2026-08-01'
+       and status = 'open'
+       and threshold = 4
+       and opened_reason = 'cancel_velocity'
+  ),
+  'ten-minute velocity must open the DB circuit'
+);
+select pg_temp.db_breaker_assert(
+  (
+    select count(*)::integer
+      from app.crm_visit_write_locks
+     where cliniccards_visit_id like 't9x3-ten-%'
+  ) = 3,
+  'ten-minute circuit must halt the fourth CRM write lock'
+);
+
+select pg_temp.db_breaker_seed('thirty', '2026-08-02'::date, 6);
+select pg_temp.db_breaker_record('thirty', 1, '2026-08-01 09:00:00+00');
+select pg_temp.db_breaker_record('thirty', 2, '2026-08-01 09:05:00+00');
+select pg_temp.db_breaker_record('thirty', 3, '2026-08-01 09:10:00+00');
+select pg_temp.db_breaker_record('thirty', 4, '2026-08-01 09:15:00+00');
+select pg_temp.db_breaker_record('thirty', 5, '2026-08-01 09:20:00+00');
+select pg_temp.db_breaker_record('thirty', 6, '2026-08-01 09:25:00+00');
+
+select pg_temp.db_breaker_assert(
+  (
+    select action_taken
+      from pg_temp.db_breaker_results
+     where scenario = 'thirty'
+       and ordinal = 6
+  ) = 'pending_staff_review',
+  'sixth valid cancel in thirty minutes must be held'
+);
+select pg_temp.db_breaker_assert(
+  exists (
+    select 1
+      from app.cancellation_circuits
+     where target_date = '2026-08-02'
+       and status = 'open'
+       and threshold = 6
+       and opened_reason = 'cancel_velocity'
+  ),
+  'thirty-minute velocity must open the DB circuit'
+);
+select pg_temp.db_breaker_assert(
+  (
+    select count(*)::integer
+      from app.crm_visit_write_locks
+     where cliniccards_visit_id like 't9x3-thirty-%'
+  ) = 5,
+  'thirty-minute circuit must halt the sixth CRM write lock'
+);
+
+select pg_temp.db_breaker_seed('slow', '2026-08-03'::date, 20);
+select pg_temp.db_breaker_record('slow', 1, '2026-08-02 09:00:00+00');
+select pg_temp.db_breaker_record('slow', 2, '2026-08-02 09:50:00+00');
+select pg_temp.db_breaker_record('slow', 3, '2026-08-02 10:40:00+00');
+select pg_temp.db_breaker_record('slow', 4, '2026-08-02 11:30:00+00');
+select pg_temp.db_breaker_record('slow', 5, '2026-08-02 12:20:00+00');
+select pg_temp.db_breaker_record('slow', 6, '2026-08-02 13:10:00+00');
+select pg_temp.db_breaker_record('slow', 7, '2026-08-02 14:00:00+00');
+select pg_temp.db_breaker_record('slow', 8, '2026-08-02 14:50:00+00');
+
+select pg_temp.db_breaker_assert(
+  not exists (
+    select 1
+      from app.cancellation_circuits
+     where target_date = '2026-08-03'
+       and status = 'open'
+  ),
+  'slow eight-of-twenty cancel drip must not hard-open the DB circuit'
+);
+select pg_temp.db_breaker_assert(
+  (
+    select count(*)::integer
+      from app.crm_visit_write_locks
+     where cliniccards_visit_id like 't9x3-slow-%'
+  ) = 8,
+  'slow cancel drip must continue CRM write locks'
+);
+
+select pg_temp.db_breaker_seed('daily', '2026-08-05'::date, 20);
+select pg_temp.db_breaker_record('daily', 1, '2026-08-04 09:00:00+00');
+select pg_temp.db_breaker_record('daily', 2, '2026-08-04 09:11:00+00');
+select pg_temp.db_breaker_record('daily', 3, '2026-08-04 09:22:00+00');
+select pg_temp.db_breaker_record('daily', 4, '2026-08-04 09:33:00+00');
+select pg_temp.db_breaker_record('daily', 5, '2026-08-04 09:44:00+00');
+select pg_temp.db_breaker_record('daily', 6, '2026-08-04 09:55:00+00');
+select pg_temp.db_breaker_record('daily', 7, '2026-08-04 10:06:00+00');
+select pg_temp.db_breaker_record('daily', 8, '2026-08-04 10:17:00+00');
+select pg_temp.db_breaker_record('daily', 9, '2026-08-04 10:28:00+00');
+select pg_temp.db_breaker_record('daily', 10, '2026-08-04 10:39:00+00');
+select pg_temp.db_breaker_record('daily', 11, '2026-08-04 10:50:00+00');
+select pg_temp.db_breaker_record('daily', 12, '2026-08-04 11:01:00+00');
+select pg_temp.db_breaker_record('daily', 13, '2026-08-04 11:12:00+00');
+
+select pg_temp.db_breaker_assert(
+  (
+    select action_taken
+      from pg_temp.db_breaker_results
+     where scenario = 'daily'
+       and ordinal = 13
+  ) = 'pending_staff_review',
+  'thirteenth cancel of twenty must trip the daily hard ceiling'
+);
+select pg_temp.db_breaker_assert(
+  exists (
+    select 1
+      from app.cancellation_circuits
+     where target_date = '2026-08-05'
+       and status = 'open'
+       and threshold = 12
+       and opened_reason = 'cancel_daily_ceiling'
+  ),
+  'daily hard ceiling must open the DB circuit'
+);
+select pg_temp.db_breaker_assert(
+  (
+    select count(*)::integer
+      from app.crm_visit_write_locks
+     where cliniccards_visit_id like 't9x3-daily-%'
+  ) = 12,
+  'daily hard ceiling must halt the thirteenth CRM write lock'
+);
+
+select pg_temp.db_breaker_seed('safe', '2026-08-04'::date, 5);
+select set_config('app.test_now', '2026-08-03 09:00:00+00', false);
+select api.lookup_reminder_by_token(pg_temp.db_breaker_token('safe', 1));
+select api.prepare_reminder_action(
+  pg_temp.db_breaker_token('safe', 2),
+  'cancel'
+);
+select api.record_reminder_action(
+  pg_temp.db_breaker_token('safe', 3),
+  'opt_out',
+  pg_temp.db_breaker_nonce('safe', 3)
+);
+update app.reminder_messages
+   set token_expires_at = app.now() - interval '1 hour'
+ where cliniccards_visit_id = 't9x3-safe-4';
+select api.record_reminder_action(
+  pg_temp.db_breaker_token('safe', 4),
+  'cancel',
+  pg_temp.db_breaker_nonce('safe', 4)
+);
+select pg_temp.db_breaker_record('safe', 5, '2026-08-03 09:01:00+00');
+
+select pg_temp.db_breaker_assert(
+  not exists (
+    select 1
+      from app.cancellation_circuits
+     where target_date = '2026-08-04'
+       and status = 'open'
+  ),
+  'safe read/prepare/opt-out/expired actions must not open the DB circuit'
+);
+select pg_temp.db_breaker_assert(
+  (
+    select count(*)::integer
+      from app.reminder_messages
+     where target_date = '2026-08-04'
+       and response = 'cancel'
+       and action_locked_at is not null
+  ) = 1,
+  'safe scenario must count only the one valid nonce-backed cancel'
+);
+select pg_temp.db_breaker_assert(
+  (
+    select count(*)::integer
+      from app.crm_visit_write_locks
+     where cliniccards_visit_id like 't9x3-safe-%'
+  ) = 1,
+  'safe scenario must write only the one valid nonce-backed cancel'
+);
+
+rollback;
+`;
 }
