@@ -133,7 +133,7 @@ test.describe("authenticated dashboard", () => {
     await expect(page.getByTestId("call-list")).not.toContainText("Олена К.");
   });
 
-  test("E2E-DASHBOARD-03 manual button and template editor use existing paths", async ({ page }) => {
+  test("E2E-DASHBOARD-03 manual button and template editor use dashboard proxy paths", async ({ page }) => {
     await page.route("**/run-reminders", async (route) => {
       expect(route.request().method()).toBe("POST");
       await route.fulfill({
@@ -144,6 +144,10 @@ test.describe("authenticated dashboard", () => {
     });
 
     await page.goto("/");
+    await expect(page.getByTestId("manual-run-form")).toHaveAttribute(
+      "action",
+      "/run-reminders",
+    );
     const requestPromise = page.waitForRequest((request) =>
       request.method() === "POST" && request.url().endsWith("/run-reminders")
     );
@@ -152,6 +156,7 @@ test.describe("authenticated dashboard", () => {
 
     await page.goto("/templates");
     const templateForm = page.getByTestId("template-form");
+    await expect(templateForm).toHaveAttribute("action", "/templates/1");
     await expect(templateForm).toHaveAttribute(
       "data-rpc",
       "update_message_template",
@@ -211,7 +216,7 @@ test.describe("authenticated dashboard", () => {
   );
 });
 
-async function authenticateDashboard(context: BrowserContext) {
+const authenticateDashboard = async (context: BrowserContext) => {
   const expiresAt = Date.now() + 60 * 60 * 1000;
   await context.addCookies([
     {
@@ -223,9 +228,12 @@ async function authenticateDashboard(context: BrowserContext) {
       sameSite: "Lax",
     },
   ]);
-}
+};
 
-function signDashboardTestSession(email: string, expiresAt: number): string {
+const signDashboardTestSession = (
+  email: string,
+  expiresAt: number,
+): string => {
   if (!testAuthSecret) {
     throw new Error("DASHBOARD_TEST_AUTH_SECRET is required for dashboard e2e");
   }
@@ -237,4 +245,4 @@ function signDashboardTestSession(email: string, expiresAt: number): string {
     .update(payload)
     .digest("base64url");
   return `${payload}.${signature}`;
-}
+};

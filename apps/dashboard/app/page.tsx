@@ -10,14 +10,9 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import {
-  boardRows,
   countRows,
-  lastRunRecap,
-  modeBanner,
-  operationalReadiness,
-  staleTrustPanel,
-  trustPanel,
-  valueMetrics,
+  type DashboardPageData,
+  loadDashboardData,
 } from "../lib/dashboard-data";
 import { formatPercent } from "../lib/rollups";
 
@@ -57,25 +52,25 @@ type DashboardPageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
-export default async function DashboardPage(
+const DashboardPage = async (
   { searchParams }: DashboardPageProps,
-) {
+) => {
   const params = await searchParams;
   const fixture = Array.isArray(params?.fixture)
     ? params?.fixture[0]
     : params?.fixture;
-  const activeTrustPanel = fixture === "stale-current"
-    ? staleTrustPanel
-    : trustPanel;
+  const data = await loadDashboardData({
+    fixture: fixture === "stale-current" ? "stale-current" : undefined,
+  });
   const staffMinutesValue =
-    typeof valueMetrics.estimatedStaffMinutes === "number"
-      ? `${valueMetrics.estimatedStaffMinutes} хв`
+    typeof data.valueMetrics.estimatedStaffMinutes === "number"
+      ? `${data.valueMetrics.estimatedStaffMinutes} хв`
       : "missing";
 
   return (
     <main className="shell">
       <Topbar key="topbar" />
-      <ModeBanner key="mode-banner" />
+      <ModeBanner key="mode-banner" modeBanner={data.modeBanner} />
 
       <header className="pageHeader">
         <div>
@@ -107,42 +102,40 @@ export default async function DashboardPage(
           <div className="recapLead">
             <strong>
               <Clock3 key="recap-clock" size={20} aria-hidden="true" />
-              {lastRunRecap.targetDateLabel}
+              {data.lastRunRecap.targetDateLabel}
             </strong>
             <small>
-              {lastRunRecap.passKind} · {lastRunRecap.kyivTimestamp} · health:
+              {data.lastRunRecap.passKind} · {data.lastRunRecap.kyivTimestamp}
               {" "}
-              {lastRunRecap.health}
+              · health: {data.lastRunRecap.health}
             </small>
             <small>
               Heartbeat success:{" "}
-              {lastRunRecap.successHeartbeatSent ? "sent" : "not sent"}
+              {data.lastRunRecap.successHeartbeatSent ? "sent" : "not sent"}
             </small>
           </div>
           <div className="recapStat">
             <small>Опрацьовано</small>
-            <strong>{lastRunRecap.handled}</strong>
+            <strong>{data.lastRunRecap.handled}</strong>
           </div>
           <div className="recapStat problem">
             <small>Проблеми</small>
-            <strong>{lastRunRecap.problems}</strong>
+            <strong>{data.lastRunRecap.problems}</strong>
           </div>
           <div className="recapStat">
             <small>Відповіді</small>
-            <strong>{lastRunRecap.responses}</strong>
+            <strong>{data.lastRunRecap.responses}</strong>
           </div>
           <div className="recapStat">
             <small>Потрібна увага</small>
-            <strong>
-              {boardRows.filter((row) => row.needsAttention).length}
-            </strong>
+            <strong>{data.needsAttentionRows.length}</strong>
           </div>
         </div>
       </section>
 
       <section
         aria-labelledby="trust-title"
-        className={`panelBand trust-${activeTrustPanel.health}`}
+        className={`panelBand trust-${data.trustPanel.health}`}
         data-testid="trust-panel"
       >
         <div className="panelHeader">
@@ -150,34 +143,34 @@ export default async function DashboardPage(
             <p className="eyebrow">Операційна довіра</p>
             <h2 id="trust-title">4-числова перевірка запуску</h2>
           </div>
-          <span className={`statusBadge ${activeTrustPanel.health}`}>
+          <span className={`statusBadge ${data.trustPanel.health}`}>
             <ShieldCheck key="trust-state" size={18} aria-hidden="true" />
-            {activeTrustPanel.health.toUpperCase()}
+            {data.trustPanel.health.toUpperCase()}
           </span>
         </div>
         <p className="panelLead">
-          {trustReasonLabel.get(activeTrustPanel.reason)}
+          {trustReasonLabel.get(data.trustPanel.reason)}
         </p>
         <div className="metricGrid">
           <MetricTile
             key="crm-remindable"
             label="CRM remindable"
-            value={activeTrustPanel.numbers.clinicRemindable}
+            value={data.trustPanel.numbers.clinicRemindable}
           />
           <MetricTile
             key="sms-handled"
             label="SMS handled"
-            value={activeTrustPanel.numbers.smsHandled}
+            value={data.trustPanel.numbers.smsHandled}
           />
           <MetricTile
             key="problems"
             label="Problems"
-            value={activeTrustPanel.numbers.problems}
+            value={data.trustPanel.numbers.problems}
           />
           <MetricTile
             key="responses"
             label="Responses"
-            value={activeTrustPanel.numbers.responses}
+            value={data.trustPanel.numbers.responses}
           />
         </div>
       </section>
@@ -192,30 +185,30 @@ export default async function DashboardPage(
             <p className="eyebrow">Метрики власника</p>
             <h2 id="value-title">Економія часу без змішування з trust</h2>
           </div>
-          <span className={`statusBadge ${valueMetrics.valueSignal}`}>
+          <span className={`statusBadge ${data.valueMetrics.valueSignal}`}>
             <TrendingUp key="value-state" size={18} aria-hidden="true" />
-            {valueMetrics.valueSignal}
+            {data.valueMetrics.valueSignal}
           </span>
         </div>
         <div className="valueGrid">
           <MetricTile
             key="action-rate"
             label="Action rate"
-            value={formatPercent(valueMetrics.actionRate)}
+            value={formatPercent(data.valueMetrics.actionRate)}
             note="nonce-backed actions ÷ delivered/resolved"
           />
           <MetricTile
             key="staff-minutes"
             label="Staff minutes"
             value={staffMinutesValue}
-            note={valueMetrics.staffMinutesTargetMet
+            note={data.valueMetrics.staffMinutesTargetMet
               ? "≤30 хв target met"
               : "watch daily load"}
           />
           <div className="metricTile wide">
             <span>Template / send-hour segments</span>
             <strong>
-              {valueMetrics.segments.map((segment) =>
+              {data.valueMetrics.segments.map((segment) =>
                 `${segment.templateKey} ${segment.sendHour}:00 ${
                   formatPercent(segment.actionRate)
                 }`
@@ -225,7 +218,7 @@ export default async function DashboardPage(
           <div className="metricTile wide">
             <span>Missing owner baselines</span>
             <strong>
-              {valueMetrics.missingBaselines.map((key) =>
+              {data.valueMetrics.missingBaselines.map((key) =>
                 baselineLabel.get(key) ?? key
               ).join(" · ")}
             </strong>
@@ -243,14 +236,18 @@ export default async function DashboardPage(
             <p className="eyebrow">Готовність до go-live</p>
             <h2 id="ops-title">Runbooks та баланс</h2>
           </div>
-          <span className={`statusBadge ${operationalReadiness.balanceStatus}`}>
+          <span
+            className={`statusBadge ${data.operationalReadiness.balanceStatus}`}
+          >
             <AlertTriangle key="ops-state" size={18} aria-hidden="true" />
-            {operationalReadiness.balanceStatus}
+            {data.operationalReadiness.balanceStatus}
           </span>
         </div>
-        <p className="panelLead">{operationalReadiness.balanceEvidence}</p>
+        <p className="panelLead">
+          {data.operationalReadiness.balanceEvidence}
+        </p>
         <div className="opsGrid">
-          {operationalReadiness.items.map((item) => (
+          {data.operationalReadiness.items.map((item) => (
             <article className="opsItem" key={item.key}>
               <h3>
                 {item.status === "ready"
@@ -268,13 +265,18 @@ export default async function DashboardPage(
       <section aria-labelledby="board-title">
         <h2 id="board-title">Статус-борд</h2>
         <div className="chips" aria-label="Фільтри статусу">
-          <span className="chip active">Усі {boardRows.length}</span>
-          <span className="chip">Підтверджено {countRows("confirmed")}</span>
-          <span className="chip">Скасовано {countRows("cancelled")}</span>
-          <span className="chip">Немає відповіді {countRows("no_reply")}</span>
+          <span className="chip active">Усі {data.boardRows.length}</span>
           <span className="chip">
-            Потрібна увага{" "}
-            {boardRows.filter((row) => row.needsAttention).length}
+            Підтверджено {countRows(data.boardRows, "confirmed")}
+          </span>
+          <span className="chip">
+            Скасовано {countRows(data.boardRows, "cancelled")}
+          </span>
+          <span className="chip">
+            Немає відповіді {countRows(data.boardRows, "no_reply")}
+          </span>
+          <span className="chip">
+            Потрібна увага {data.needsAttentionRows.length}
           </span>
         </div>
 
@@ -291,7 +293,7 @@ export default async function DashboardPage(
               </tr>
             </thead>
             <tbody>
-              {boardRows.map((row) => (
+              {data.boardRows.map((row) => (
                 <tr key={row.id}>
                   <td className="time">{row.time}</td>
                   <td>
@@ -331,9 +333,7 @@ export default async function DashboardPage(
         <div>
           <h2 id="work-title">Потребує уваги</h2>
           <div className="workList">
-            {boardRows.filter((row) => row.needsAttention).slice(0, 4).map((
-              row,
-            ) => (
+            {data.needsAttentionRows.slice(0, 4).map((row) => (
               <div className="workItem" key={row.id}>
                 <span
                   className={`workIcon ${
@@ -366,9 +366,7 @@ export default async function DashboardPage(
         <aside className="sidePanel" aria-labelledby="call-title">
           <h2 id="call-title">Черга дзвінків</h2>
           <p>Після денного догону · підтверджені за посиланням виключені</p>
-          {boardRows.filter((row) => row.responseState === "no_reply").map((
-            row,
-          ) => (
+          {data.callListRows.map((row) => (
             <div className="callRow" key={row.id}>
               <span>
                 {row.time} · {row.patient} · ···{row.phoneLast4}
@@ -395,9 +393,11 @@ export default async function DashboardPage(
       </section>
     </main>
   );
-}
+};
 
-function MetricTile({
+export default DashboardPage;
+
+const MetricTile = ({
   label,
   value,
   note,
@@ -405,7 +405,7 @@ function MetricTile({
   label: string;
   value: number | string;
   note?: string;
-}) {
+}) => {
   return (
     <div className="metricTile">
       <span>{label}</span>
@@ -413,9 +413,9 @@ function MetricTile({
       {note ? <small>{note}</small> : null}
     </div>
   );
-}
+};
 
-function Topbar() {
+const Topbar = () => {
   return (
     <nav className="topbar" aria-label="Dentino dashboard">
       <Link className="brandLockup" href="/">
@@ -435,9 +435,13 @@ function Topbar() {
       </div>
     </nav>
   );
-}
+};
 
-function ModeBanner() {
+const ModeBanner = ({
+  modeBanner,
+}: {
+  modeBanner: DashboardPageData["modeBanner"];
+}) => {
   const modeClass = modeBanner.mode === "INVALID"
     ? "invalid"
     : modeBanner.live
@@ -457,4 +461,4 @@ function ModeBanner() {
       <span>{modeBanner.text}</span>
     </section>
   );
-}
+};

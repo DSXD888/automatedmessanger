@@ -6,7 +6,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import Link from "next/link";
-import { callListRows, needsAttentionRows } from "../../lib/dashboard-data";
+import { loadPatientsData } from "../../lib/dashboard-data";
 
 const queueTitles: Record<string, string> = {
   held_cancel: "Утримано запобіжником",
@@ -16,7 +16,9 @@ const queueTitles: Record<string, string> = {
   writeback_attention: "Скасування: помилка запису в CRM",
 };
 
-export default function PatientsPage() {
+const PatientsPage = async () => {
+  const { callListRows, needsAttentionRows } = await loadPatientsData();
+
   return (
     <main className="shell">
       <nav className="topbar" aria-label="Dentino dashboard">
@@ -168,8 +170,10 @@ export default function PatientsPage() {
       </section>
     </main>
   );
-}
+};
 
-function queueTitle(staffState: string): string {
+export default PatientsPage;
+
+const queueTitle = (staffState: string): string => {
   return queueTitles[staffState] ?? "Потрібна дія";
-}
+};

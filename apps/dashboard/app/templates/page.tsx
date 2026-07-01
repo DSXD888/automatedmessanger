@@ -1,13 +1,10 @@
 import { Save, ShieldCheck } from "lucide-react";
 import Link from "next/link";
-import {
-  defaultDashboardTemplate,
-  validateDashboardTemplateBody,
-} from "../../lib/template-validation";
+import { loadTemplateEditorData } from "../../lib/dashboard-data";
 
-const validation = validateDashboardTemplateBody(defaultDashboardTemplate);
+const TemplatesPage = async () => {
+  const template = await loadTemplateEditorData();
 
-export default function TemplatesPage() {
   return (
     <main className="shell">
       <nav className="topbar" aria-label="Dentino dashboard">
@@ -36,35 +33,46 @@ export default function TemplatesPage() {
       <section className="workGrid" aria-labelledby="template-title">
         <form
           className="editorPanel formStack"
-          action="/templates/1"
+          action={`/templates/${template.id}`}
           method="post"
           data-method="put"
           data-rpc="update_message_template"
           data-testid="template-form"
         >
-          <h2 id="template-title">Версія 1 · Dentino · uk</h2>
-          <input key="template-id" type="hidden" name="template_id" value="1" />
+          <h2 id="template-title">
+            Версія {template.version} · Dentino · {template.language}
+          </h2>
+          <input
+            key="template-id"
+            type="hidden"
+            name="template_id"
+            value={template.id}
+          />
           <label>
             Текст SMS
             <textarea
               key="template-body"
               name="body"
-              defaultValue={defaultDashboardTemplate}
+              defaultValue={template.body}
             />
           </label>
           <div
-            className={`validation ${validation.ok ? "" : "invalid"}`}
+            className={`validation ${template.validation.ok ? "" : "invalid"}`}
             data-testid="template-validation"
           >
             <strong>
               <ShieldCheck key="template-valid" size={18} aria-hidden="true" />
-              {validation.ok ? "Шаблон проходить перевірку" : "Потрібні зміни"}
+              {template.validation.ok
+                ? "Шаблон проходить перевірку"
+                : "Потрібні зміни"}
             </strong>
             <span>
-              {validation.ucs2Length} символів · {validation.segments}{" "}
-              SMS-сегменти
+              {template.validation.ucs2Length} символів ·{" "}
+              {template.validation.segments} SMS-сегменти
             </span>
-            {validation.errors.map((error) => <span key={error}>{error}</span>)}
+            {template.validation.errors.map((error) => (
+              <span key={error}>{error}</span>
+            ))}
           </div>
           <button className="button" type="submit">
             <Save key="template-save" size={18} aria-hidden="true" />
@@ -74,9 +82,11 @@ export default function TemplatesPage() {
 
         <aside className="sidePanel" aria-labelledby="preview-title">
           <h2 id="preview-title">Попередній перегляд</h2>
-          <p className="preview">{validation.renderedSample}</p>
+          <p className="preview">{template.validation.renderedSample}</p>
         </aside>
       </section>
     </main>
   );
-}
+};
+
+export default TemplatesPage;
