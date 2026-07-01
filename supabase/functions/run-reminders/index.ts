@@ -1701,7 +1701,10 @@ export function reconcileMessagesAndFacts(input: {
   facts: readonly CrmVisitFact[];
   messages: readonly ReminderMessageRecord[];
 }): ReminderDayReconciliation {
-  const dayFacts = latestFactsForTargetDate(input.facts, input.targetDate);
+  const dayFacts = currentFetchFactsForTargetDate(
+    input.facts,
+    input.targetDate,
+  );
   const dayMessages = input.messages.filter((message) =>
     message.targetDate === input.targetDate
   );
@@ -1709,17 +1712,28 @@ export function reconcileMessagesAndFacts(input: {
     !messageStatusIn(message, supersededMessageStatuses)
   );
   const currentRemindableFacts = dayFacts.filter((fact) => fact.remindable);
+  const currentVisitIds = new Set(
+    dayFacts.map((fact) => fact.cliniccards_visit_id),
+  );
   const accountedKeys = new Set(
     activeMessages.map((message) =>
       `${message.cliniccardsVisitId}:${message.appointmentFingerprint}`
     ),
   );
-  const unaccountedTotal =
+  const currentUnaccountedTotal =
     currentRemindableFacts.filter((fact) =>
       !accountedKeys.has(
         `${fact.cliniccards_visit_id}:${fact.appointment_fingerprint}`,
       )
     ).length;
+  const vanishedUnaccountedTotal =
+    activeMessages.filter((message) =>
+      messageStatusIn(message, sentOrDeliveredMessageStatuses) &&
+      !currentVisitIds.has(message.cliniccardsVisitId) &&
+      !messageHasCompletedCrmWriteBack(message) &&
+      !messageHasCrossDayMoveFact(input.facts, message)
+    ).length;
+  const unaccountedTotal = currentUnaccountedTotal + vanishedUnaccountedTotal;
   const pendingTotal =
     activeMessages.filter((message) =>
       messageStatusIn(message, pendingMessageStatuses) ||
@@ -2460,23 +2474,70 @@ function crmActionForMessageAction(
   return action;
 }
 
-function latestFactsForTargetDate(
+function currentFetchFactsForTargetDate(
   facts: readonly CrmVisitFact[],
   targetDate: LocalDate,
 ): CrmVisitFact[] {
-  const byVisit = new Map<string, CrmVisitFact>();
-  for (const fact of facts) {
-    if (fact.target_date !== targetDate) {
-      continue;
-    }
-
-    const previous = byVisit.get(fact.cliniccards_visit_id);
-    if (!previous || compareFactFreshness(fact, previous) >= 0) {
-      byVisit.set(fact.cliniccards_visit_id, fact);
-    }
+  const targetFacts = facts.filter((fact) => fact.target_date === targetDate);
+  if (targetFacts.length === 0) {
+    return [];
   }
 
-  return [...byVisit.values()];
+  const runScopedFacts = targetFacts.filter((fact) =>
+    fact.run_id !== undefined
+  );
+  if (runScopedFacts.length > 0) {
+    const latestRunId = Math.max(
+      ...runScopedFacts.map((fact) => fact.run_id ?? 0),
+    );
+    return targetFacts.filter((fact) => fact.run_id === latestRunId);
+  }
+
+  const latestFact = targetFacts.reduce((latest, fact) =>
+    compareFactFreshness(fact, latest) > 0 ? fact : latest
+  );
+  const latestFetchedAt = Date.parse(latestFact.fetched_at);
+  return targetFacts.filter((fact) =>
+    Date.parse(fact.fetched_at) === latestFetchedAt
+  );
+}
+
+function messageHasCompletedCrmWriteBack(
+  message: ReminderMessageRecord,
+): boolean {
+  return writeBackActionRows.has(message.actionTaken) &&
+    message.crmWritebackOk === true;
+}
+
+function messageHasCrossDayMoveFact(
+  facts: readonly CrmVisitFact[],
+  message: ReminderMessageRecord,
+): boolean {
+  for (const fact of facts) {
+    if (
+      fact.cliniccards_visit_id !== message.cliniccardsVisitId ||
+      fact.target_date === message.targetDate ||
+      !factIsNotOlderThanMessage(fact, message)
+    ) {
+      continue;
+    }
+    return true;
+  }
+
+  return false;
+}
+
+function factIsNotOlderThanMessage(
+  fact: CrmVisitFact,
+  message: ReminderMessageRecord,
+): boolean {
+  if (fact.run_id !== undefined) {
+    return fact.run_id >= message.runId;
+  }
+  if (message.lastAttemptAt) {
+    return Date.parse(fact.fetched_at) >= Date.parse(message.lastAttemptAt);
+  }
+  return true;
 }
 
 function compareFactFreshness(left: CrmVisitFact, right: CrmVisitFact): number {

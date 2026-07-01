@@ -11,7 +11,7 @@ begin
 end;
 $$;
 
-select plan(40);
+select plan(43);
 
 create or replace function pg_temp.claim_day(
   p_target_date date,
@@ -919,6 +919,227 @@ select is(
   ),
   'completed:green:1',
   'run_reconcile_day records a green completed day'
+);
+
+select lives_ok(
+  $$
+    do $setup$
+    declare
+      old_run_id bigint;
+      current_run_id bigint;
+    begin
+      insert into app.reminder_runs(run_date, target_date, trigger, pass_kind, status, started_at)
+      values
+        ('2026-06-30', '2026-07-09', 'manual', 'initial', 'completed', '2026-06-30 08:00:00+00')
+      returning id into old_run_id;
+
+      insert into app.reminder_runs(run_date, target_date, trigger, pass_kind, status, started_at)
+      values
+        ('2026-06-30', '2026-07-09', 'manual', 'catchup', 'running', '2026-06-30 09:00:00+00')
+      returning id into current_run_id;
+
+      insert into app.crm_fetch_log(
+        run_id,
+        purpose,
+        method,
+        path,
+        request_params,
+        response_status,
+        raw_redacted,
+        raw_sha256,
+        fetched_at
+      )
+      values
+        (
+          old_run_id,
+          'visits_initial',
+          'GET',
+          '/visits',
+          jsonb_build_object('date', '2026-07-09'),
+          200,
+          jsonb_build_object('appointments', 3),
+          decode(repeat('1', 64), 'hex'),
+          '2026-06-30 08:00:00+00'
+        ),
+        (
+          current_run_id,
+          'catchup',
+          'GET',
+          '/visits',
+          jsonb_build_object('date', '2026-07-09'),
+          200,
+          jsonb_build_object('appointments', 1),
+          decode(repeat('2', 64), 'hex'),
+          '2026-06-30 09:00:00+00'
+        );
+
+      insert into app.crm_visit_facts(
+        run_id,
+        purpose,
+        target_date,
+        cliniccards_visit_id,
+        cliniccards_patient_id,
+        source_status,
+        remindable,
+        target_at,
+        appointment_fingerprint,
+        fetched_at
+      )
+      values
+        (
+          old_run_id,
+          'visits_initial',
+          '2026-07-09',
+          'visit-vanished-rpc',
+          'patient-vanished-rpc',
+          'PLANNED',
+          true,
+          '2026-07-09 10:00:00+00',
+          'fingerprint-vanished-rpc',
+          '2026-06-30 08:00:00+00'
+        ),
+        (
+          current_run_id,
+          'catchup',
+          '2026-07-09',
+          'visit-current-rpc',
+          'patient-current-rpc',
+          'PLANNED',
+          true,
+          '2026-07-09 11:00:00+00',
+          'fingerprint-current-rpc',
+          '2026-06-30 09:00:00+00'
+        ),
+        (
+          current_run_id,
+          'catchup',
+          '2026-07-10',
+          'visit-moved-rpc',
+          'patient-moved-rpc',
+          'PLANNED',
+          true,
+          '2026-07-10 12:00:00+00',
+          'fingerprint-moved-rpc',
+          '2026-06-30 09:00:00+00'
+        );
+
+      insert into app.reminder_messages(
+        run_id,
+        cliniccards_visit_id,
+        target_date,
+        target_at,
+        message_kind,
+        appointment_fingerprint,
+        source_status,
+        status,
+        send_attempt_count,
+        tracking_token_digest,
+        token_expires_at,
+        action_taken,
+        crm_writeback_ok,
+        response,
+        responded_at,
+        action_locked_at
+      )
+      values
+        (
+          current_run_id,
+          'visit-current-rpc',
+          '2026-07-09',
+          '2026-07-09 11:00:00+00',
+          'initial_reminder',
+          'fingerprint-current-rpc',
+          'PLANNED',
+          'sent',
+          1,
+          decode(repeat('3', 64), 'hex'),
+          '2026-07-10 11:00:00+00',
+          'none',
+          null,
+          null,
+          null,
+          null
+        ),
+        (
+          old_run_id,
+          'visit-vanished-rpc',
+          '2026-07-09',
+          '2026-07-09 10:00:00+00',
+          'initial_reminder',
+          'fingerprint-vanished-rpc',
+          'PLANNED',
+          'sent',
+          1,
+          decode(repeat('4', 64), 'hex'),
+          '2026-07-10 10:00:00+00',
+          'none',
+          null,
+          null,
+          null,
+          null
+        ),
+        (
+          old_run_id,
+          'visit-write-backed-rpc',
+          '2026-07-09',
+          '2026-07-09 12:00:00+00',
+          'initial_reminder',
+          'fingerprint-write-backed-rpc',
+          'PLANNED',
+          'sent',
+          1,
+          decode(repeat('5', 64), 'hex'),
+          '2026-07-10 12:00:00+00',
+          'cancelled',
+          true,
+          'cancel',
+          '2026-06-30 08:05:00+00',
+          '2026-06-30 08:05:00+00'
+        ),
+        (
+          old_run_id,
+          'visit-moved-rpc',
+          '2026-07-09',
+          '2026-07-09 12:00:00+00',
+          'initial_reminder',
+          'fingerprint-old-moved-rpc',
+          'PLANNED',
+          'sent',
+          1,
+          decode(repeat('6', 64), 'hex'),
+          '2026-07-10 12:00:00+00',
+          'none',
+          null,
+          null,
+          null,
+          null
+        );
+    end
+    $setup$;
+  $$,
+  'setup vanished-visit reconciliation fixtures'
+);
+
+select lives_ok(
+  $$
+    set local role dentino_run_api;
+    select api.run_reconcile_day(
+      '2026-07-09'::date,
+      '2026-06-30 09:00:07+00'::timestamptz
+    );
+    reset role;
+  $$,
+  'run_reconcile_day handles vanished sent rows through the DB store RPC'
+);
+
+select is(
+  (
+    select health || ':' || unaccounted_total::text || ':' || cliniccards_total::text
+      from app.reminder_days
+     where target_date = '2026-07-09'
+  ),
+  'red:1:1',
+  'run_reconcile_day flags exactly the unresolved vanished sent visit red'
 );
 
 select lives_ok(

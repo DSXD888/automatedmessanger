@@ -11,7 +11,7 @@ const pgTapScripts = [
   { name: "grants", sql: grantsSql, plan: "43" },
   { name: "rls", sql: rlsSql, plan: "8" },
   { name: "definer", sql: definerSql, plan: "14" },
-  { name: "concurrency", sql: concurrencySql, plan: "40" },
+  { name: "concurrency", sql: concurrencySql, plan: "43" },
   { name: "maintenance", sql: maintenanceSql, plan: "31" },
   { name: "go_live", sql: goLiveSql, plan: "11" },
 ];

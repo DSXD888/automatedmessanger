@@ -702,14 +702,26 @@ Deno.test("IT-RECON-01 reconciliation reports unaccounted and pending current ap
   const currentFingerprint = await clinicCardsAppointmentFingerprint(
     currentVisit,
   );
+  const vanishedVisit = visit("visit-vanished", "PLANNED");
+  const movedVisit = visit("visit-moved", "PLANNED", {
+    targetAt: "2026-07-03T09:00:00+03:00",
+  });
   const reconciliation = reconcileMessagesAndFacts({
     targetDate,
     facts: [
       fact(currentVisit, "visits_initial", currentFingerprint, {
-        runId: 1,
+        runId: 2,
       }),
       fact(visit("visit-stale", "PLANNED"), "catchup", "fresh-fingerprint", {
         runId: 2,
+      }),
+      fact(vanishedVisit, "visits_initial", "vanished-fingerprint", {
+        fetchedAt: "2026-06-30T09:00:00+03:00",
+        runId: 1,
+      }),
+      fact(movedVisit, "catchup", "moved-fingerprint", {
+        runId: 2,
+        targetDate: "2026-07-03",
       }),
     ],
     messages: [
@@ -720,15 +732,35 @@ Deno.test("IT-RECON-01 reconciliation reports unaccounted and pending current ap
       }),
       messageRecord({
         id: 2,
+        cliniccardsVisitId: "visit-vanished",
+        appointmentFingerprint: "vanished-fingerprint",
+        status: "sent",
+      }),
+      messageRecord({
+        id: 3,
         cliniccardsVisitId: "visit-pending",
         appointmentFingerprint: "pending-fingerprint",
         status: "pending",
+      }),
+      messageRecord({
+        id: 4,
+        cliniccardsVisitId: "visit-write-backed",
+        appointmentFingerprint: "write-backed-fingerprint",
+        status: "sent",
+        actionTaken: "cancelled",
+        crmWritebackOk: true,
+      }),
+      messageRecord({
+        id: 5,
+        cliniccardsVisitId: "visit-moved",
+        appointmentFingerprint: "old-moved-fingerprint",
+        status: "sent",
       }),
     ],
   });
 
   assertEquals(reconciliation.health, "red");
-  assertEquals(reconciliation.unaccountedTotal, 2);
+  assertEquals(reconciliation.unaccountedTotal, 3);
   assertEquals(reconciliation.pendingTotal, 1);
 });
 
