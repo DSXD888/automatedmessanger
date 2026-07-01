@@ -676,7 +676,11 @@ async function handleConfirmRequestWithStore(
     if (!getReadMethods.has(method)) {
       return methodNotAllowedResponse("GET, HEAD");
     }
-    if (url.searchParams.has("action") || url.searchParams.has("_method")) {
+    if (
+      url.searchParams.has("action") ||
+      url.searchParams.has("_method") ||
+      hasMethodOverrideSignal(normalizedRequest.headers)
+    ) {
       return await neutralPageResponse(runtime, parsedPath.token);
     }
     return await renderTokenPage(runtime, parsedPath.token, tokenDigestHex);
@@ -685,7 +689,11 @@ async function handleConfirmRequestWithStore(
   if (!supportedPostMethods.has(method)) {
     return methodNotAllowedResponse("POST");
   }
-  if (url.searchParams.has("action") || url.searchParams.has("_method")) {
+  if (
+    url.searchParams.has("action") ||
+    url.searchParams.has("_method") ||
+    hasMethodOverrideSignal(normalizedRequest.headers)
+  ) {
     return await neutralPageResponse(runtime, parsedPath.token);
   }
   if (hasCrossSiteSignal(normalizedRequest)) {
@@ -718,6 +726,11 @@ async function handleConfirmRequestWithStore(
   }
 
   return confirmResponse("Not Found", { status: 404 });
+}
+
+function hasMethodOverrideSignal(headers: HeadersInit): boolean {
+  const value = new Headers(headers).get("x-http-method-override");
+  return typeof value === "string" && value.trim().length > 0;
 }
 
 async function handleNativeConfirmRequest(
@@ -1738,10 +1751,7 @@ export function evaluateCancellationBreakerSnapshot(input: {
       Object.is(candidate.targetDate, input.targetDate) &&
       actionableReminderStatuses.has(candidate.status)
     ).length;
-  const amberThreshold = Math.max(
-    1,
-    Math.ceil(sentTotal * breakerDailyAmberRatio),
-  );
+  const amberThreshold = Math.ceil(sentTotal * breakerDailyAmberRatio);
   const hardDailyCeiling = Math.max(
     8,
     Math.ceil(sentTotal * breakerDailyHardRatio),
@@ -1757,7 +1767,8 @@ export function evaluateCancellationBreakerSnapshot(input: {
     sentTotal,
     amberThreshold,
     hardDailyCeiling,
-    amberWarning: cancelEvents.length >= amberThreshold,
+    amberWarning: cancelEvents.length > 0 &&
+      cancelEvents.length >= amberThreshold,
     hardOpen: velocityHardOpen || dailyHardOpen,
     hardOpenReason: velocityHardOpen
       ? "cancel_velocity"

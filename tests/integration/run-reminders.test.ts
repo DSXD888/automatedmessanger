@@ -734,6 +734,42 @@ Deno.test("IT-TOKEN-CLAIM-01 raw capability token is rendered only into SMS and 
   assertFalse(JSON.stringify(store.messages).includes(token));
 });
 
+Deno.test("IT-TOKEN-CLAIM-01 crash before send claim leaves no stored token or SMS", async () => {
+  const sender = captureSender();
+  const store = createInMemoryReminderRunStore();
+  const crashingStore = new Proxy(store, {
+    get(target, property, receiver) {
+      if (property === "claimMessageForSend") {
+        return () => Promise.reject(new Error("crash before send claim"));
+      }
+      return Reflect.get(target, property, receiver);
+    },
+  });
+
+  const result = await runReminders({
+    config,
+    clock: fixedClock(),
+    clinicCardsClient:
+      mutableClinicCardsClient([visit("visit-pre-claim-crash")])
+        .client,
+    sender: sender.sender,
+    store: crashingStore,
+    writeBack: noopWriteBack,
+    rng: createSeededByteStreamRng(byteRange(0, 32)),
+    sendClaimTokenFactory: () => syntheticFenceValue("pre-claim-crash"),
+    trigger: "cron",
+  });
+
+  assertEquals(result.status, "failed");
+  assertEquals(sender.requests.length, 0);
+  assertEquals(store.messages.length, 1);
+  assertEquals(store.messages[0].status, "pending");
+  assertEquals(store.messages[0].trackingTokenDigestHex, undefined);
+  assertEquals(store.messages[0].tokenExpiresAt, undefined);
+  assertEquals(store.messages[0].sendClaimToken, undefined);
+  assertEquals(store.messages[0].sendClaimExpiresAt, undefined);
+});
+
 Deno.test("IT-SUPERSEDE-01 changed appointment fingerprint kills the old token before sending replacement", async () => {
   const sender = captureSender();
   const store = createInMemoryReminderRunStore();
@@ -778,6 +814,60 @@ Deno.test("IT-SUPERSEDE-01 changed appointment fingerprint kills the old token b
   assertEquals(replacement.status, "sent");
   assertEquals(catchup.reconciliation?.supersededTotal, 1);
   assertEquals(sender.requests.length, 2);
+});
+
+Deno.test("IT-SUPERSEDE-PARTIAL-01 crash before supersede leaves the old token active and no replacement", async () => {
+  const sender = captureSender();
+  const store = createInMemoryReminderRunStore();
+  const crm = mutableClinicCardsClient([visit("visit-before-supersede-crash")]);
+
+  await runReminders({
+    config,
+    clock: fixedClock(),
+    clinicCardsClient: crm.client,
+    sender: sender.sender,
+    store,
+    writeBack: noopWriteBack,
+    rng: createSeededByteStreamRng(byteRange(0, 32)),
+    sendClaimTokenFactory: () => syntheticFenceValue("before-super-1"),
+    trigger: "cron",
+  });
+  const originalDigest = store.messages[0].trackingTokenDigestHex;
+  const originalExpiry = store.messages[0].tokenExpiresAt;
+
+  crm.setVisits([
+    visit("visit-before-supersede-crash", "PLANNED", {
+      targetAt: "2026-07-01T10:00:00+03:00",
+    }),
+  ]);
+  const failingCatchupClient: ClinicCardsClient = {
+    ...crm.client,
+    getPatientsByIds() {
+      return Promise.reject(new Error("patient batch crash before supersede"));
+    },
+  };
+
+  const catchup = await runReminders({
+    config,
+    clock: fixedClock(),
+    clinicCardsClient: failingCatchupClient,
+    sender: sender.sender,
+    store,
+    writeBack: noopWriteBack,
+    rng: createSeededByteStreamRng(byteRange(32, 32)),
+    sendClaimTokenFactory: () => syntheticFenceValue("before-super-2"),
+    trigger: "manual",
+    passKind: "catchup",
+  });
+
+  assertEquals(catchup.status, "failed");
+  assertEquals(store.messages.length, 1);
+  assertEquals(store.messages[0].status, "sent");
+  assertEquals(store.messages[0].supersededAt, undefined);
+  assertEquals(store.messages[0].supersededByMessageId, undefined);
+  assertEquals(store.messages[0].trackingTokenDigestHex, originalDigest);
+  assertEquals(store.messages[0].tokenExpiresAt, originalExpiry);
+  assertEquals(sender.requests.length, 1);
 });
 
 Deno.test("IT-SUPERSEDE-PARTIAL-01 partial supersede leaves old token dead and replacement pending red", async () => {
@@ -1035,6 +1125,44 @@ Deno.test("REL-OPS-READINESS-01 low-balance pre-send check surfaces counts-only 
   assertFalse(serialized.includes("/r/"));
 });
 
+Deno.test("IT-RUN-02 allowlist-blocked dry-run sends reconcile as skipped staff work", async () => {
+  let providerCalls = 0;
+  const blockedConfig = Object.freeze({
+    ...config,
+    sendMode: "seed" as const,
+    sendAllowlist: Object.freeze([]),
+  });
+  const sender = createSmsSender({
+    config: blockedConfig,
+    httpClient: (() => {
+      providerCalls += 1;
+      return Promise.resolve(new Response("{}", { status: 200 }));
+    }) as HttpClient,
+  });
+
+  const result = await runReminders({
+    config: blockedConfig,
+    clock: fixedClock(),
+    clinicCardsClient:
+      mutableClinicCardsClient([visit("visit-allowlist-block")])
+        .client,
+    sender,
+    store: createInMemoryReminderRunStore(),
+    writeBack: noopWriteBack,
+    rng: createSeededByteStreamRng(byteRange(0, 32)),
+    sendClaimTokenFactory: () => syntheticFenceValue("allowlist-block"),
+    trigger: "cron",
+  });
+
+  assertEquals(providerCalls, 0);
+  assertEquals(result.status, "completed");
+  assertEquals(result.reconciliation?.health, "amber");
+  assertEquals(result.reconciliation?.skippedTotal, 1);
+  assertEquals(result.reconciliation?.failedTotal, 0);
+  assertEquals(result.messages[0].status, "skipped");
+  assertEquals(result.messages[0].skipReason, "blocked_by_allowlist");
+});
+
 Deno.test("IT-FAILURE-CRM-01 CRM fetch and pre-send failures fail the run and ping fail heartbeat", async () => {
   const initialHeartbeat = captureHeartbeat();
   const initialSender = captureSender();
@@ -1239,6 +1367,48 @@ Deno.test("IT-BUDGET-01 high sendable volume marks queue migration recommended",
 
   assertEquals(result.budget?.queueMigrationRecommended, true);
   assert(result.budget?.triggers.includes("sendable_total_over_100"));
+});
+
+Deno.test("IT-BUDGET-01 duration over 180 seconds marks queue migration recommended", async () => {
+  const clock = mutableClock(fixedNowIso);
+  const sender = advancingSender(clock, 181_000);
+  const result = await runReminders({
+    config,
+    clock,
+    clinicCardsClient: mutableClinicCardsClient([visit("visit-slow-run")])
+      .client,
+    sender: sender.sender,
+    store: createInMemoryReminderRunStore(),
+    writeBack: noopWriteBack,
+    rng: createSeededByteStreamRng(byteRange(0, 32)),
+    sendClaimTokenFactory: () => syntheticFenceValue("slow-run"),
+    trigger: "cron",
+  });
+
+  assertEquals(sender.requests.length, 1);
+  assertEquals(result.status, "completed");
+  assertEquals(result.budget?.queueMigrationRecommended, true);
+  assert(result.budget?.triggers.includes("run_duration_over_180s"));
+});
+
+Deno.test("IT-BUDGET-01 pending after 12:30 Kyiv marks queue migration recommended", async () => {
+  const result = await runReminders({
+    config,
+    clock: new FixedClock("2026-06-30T09:35:00.000Z"),
+    clinicCardsClient:
+      mutableClinicCardsClient([visit("visit-pending-after-1230")])
+        .client,
+    sender: captureSender().sender,
+    store: createInMemoryReminderRunStore(),
+    writeBack: noopWriteBack,
+    trigger: "cron",
+    stopAfterMaterialize: true,
+  });
+
+  assertEquals(result.status, "failed");
+  assertEquals(result.reconciliation?.pendingTotal, 1);
+  assertEquals(result.budget?.queueMigrationRecommended, true);
+  assert(result.budget?.triggers.includes("pending_past_1230_kyiv"));
 });
 
 Deno.test("IT-WRITEBACK-REAPER-02 run-owned reaper redrives unfinished CRM writes before reconciliation", async () => {

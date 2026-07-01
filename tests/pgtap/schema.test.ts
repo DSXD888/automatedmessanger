@@ -7,10 +7,10 @@ import rlsSql from "./rls.sql" with { type: "text" };
 import schemaSql from "./schema.sql" with { type: "text" };
 
 const pgTapScripts = [
-  { name: "schema", sql: schemaSql, plan: "52" },
-  { name: "grants", sql: grantsSql, plan: "46" },
+  { name: "schema", sql: schemaSql, plan: "54" },
+  { name: "grants", sql: grantsSql, plan: "48" },
   { name: "rls", sql: rlsSql, plan: "8" },
-  { name: "definer", sql: definerSql, plan: "15" },
+  { name: "definer", sql: definerSql, plan: "16" },
   { name: "concurrency", sql: concurrencySql, plan: "44" },
   { name: "maintenance", sql: maintenanceSql, plan: "31" },
   { name: "go_live", sql: goLiveSql, plan: "11" },

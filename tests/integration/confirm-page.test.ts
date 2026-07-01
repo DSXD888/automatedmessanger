@@ -68,6 +68,15 @@ Deno.test("E2E-AUTOFETCH-01..08 safe methods, previews, query actions, overrides
   const options = await call(fixture, "OPTIONS", `/r/${rawToken}`);
   const query = await call(fixture, "GET", `/r/${rawToken}?action=cancel`);
   const override = await call(fixture, "GET", `/r/${rawToken}?_method=POST`);
+  const headerOverride = await call(
+    fixture,
+    "GET",
+    `/r/${rawToken}`,
+    undefined,
+    {
+      "x-http-method-override": "POST",
+    },
+  );
   const crawledPost = await call(
     fixture,
     "POST",
@@ -81,6 +90,7 @@ Deno.test("E2E-AUTOFETCH-01..08 safe methods, previews, query actions, overrides
   assertEquals(options.status, 200);
   assertEquals(query.status, 200);
   assertEquals(override.status, 200);
+  assertEquals(headerOverride.status, 200);
   assertEquals(crawledPost.status, 200);
   assertNoBusinessWrites(fixture);
 });
@@ -984,6 +994,31 @@ Deno.test("E2E-BREAKER-02 slow valid cancel drip ambers while CRM writes continu
   assertEquals(circuitFor(fixture, targetDate), undefined);
   assertEquals(actionTakenAt(fixture, 7), "cancelled");
   assertEquals(fixture.writeCalls.length, 8);
+});
+
+Deno.test("E2E-BREAKER-02 daily amber threshold follows the exact ceil ratio without a floor", async () => {
+  const emptySnapshot = evaluateCancellationBreakerSnapshot({
+    reminders: [],
+    targetDate,
+    sentBaselineByTargetDate: { [targetDate]: 0 },
+    now: new Date(nowIso),
+  });
+  assertEquals(emptySnapshot.amberThreshold, 0);
+  assertEquals(emptySnapshot.amberWarning, false);
+
+  const oneCancelSnapshot = evaluateCancellationBreakerSnapshot({
+    reminders: [
+      await reminder({
+        response: "cancel",
+        actionLockedAt: nowIso,
+      }),
+    ],
+    targetDate,
+    sentBaselineByTargetDate: { [targetDate]: 1 },
+    now: new Date(nowIso),
+  });
+  assertEquals(oneCancelSnapshot.amberThreshold, 1);
+  assertEquals(oneCancelSnapshot.amberWarning, true);
 });
 
 Deno.test("E2E-BREAKER-03 safe reads, prepare, expired tokens, and unsubscribe do not count toward breaker", async () => {

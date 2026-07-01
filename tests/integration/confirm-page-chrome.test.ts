@@ -35,6 +35,10 @@ const config = loadRuntimeConfig({
   [tokenPepperKey]: ["test", "confirm", "capability", "pepper"].join("-"),
   [phonePepperKey]: ["test", "confirm", "phone", "pepper"].join("-"),
 });
+const crmTargetStatusByAction = {
+  confirm: "CONFIRMED",
+  cancel: "CANCELLED",
+} as const;
 
 Deno.test("E2E-A11Y-CONFIRM-01 confirm page chrome is inline, small, readable, and trusted", async () => {
   const html = renderConfirmPageChrome({
@@ -80,6 +84,16 @@ Deno.test("E2E-A11Y-CONFIRM-01 confirm page chrome is inline, small, readable, a
   assertFalse(html.includes(":hover"));
   assertFalse(html.toLocaleLowerCase("uk-UA").includes("modal"));
   assertFalse(html.toLocaleLowerCase("uk-UA").includes("countdown"));
+
+  const routedPages = await routeRenderedConfirmPages();
+  for (const page of routedPages) {
+    assertEquals(
+      await gzipByteLength(page.html) <= CONFIRM_PAGE_MAX_GZIP_BYTES,
+      true,
+      `${page.name} must stay within the 50KB gzip budget`,
+    );
+    assertNoThirdPartyAssets(page.html);
+  }
 });
 
 Deno.test("E2E-A11Y-CONFIRM-01 confirm page escapes patient-controlled text", () => {
@@ -156,10 +170,24 @@ function assertNoThirdPartyAssets(html: string): void {
   assertFalse(/@font-face/iu.test(html));
 }
 
-function requestFor(method: string, path: string): ConfirmHttpRequest {
+function requestFor(
+  method: string,
+  path: string,
+  form?: Record<string, string>,
+): ConfirmHttpRequest {
+  const headers = new Headers();
+  let body: string | undefined;
+  if (form) {
+    headers.set("content-type", "application/x-www-form-urlencoded");
+    headers.set("origin", "https://local.test");
+    body = new URLSearchParams(form).toString();
+  }
+
   return {
     method,
     url: new URL(path, "https://local.test").toString(),
+    headers,
+    body,
   };
 }
 
@@ -170,7 +198,111 @@ async function confirmHandlerOptions(): Promise<ConfirmHandlerOptions> {
     store: createInMemoryConfirmActionStore({
       reminders: [await confirmReminder()],
     }),
+    writeBack: {
+      write(request) {
+        return Promise.resolve({
+          status: "would_write",
+          action: request.action,
+          cliniccardsVisitId: request.cliniccardsVisitId,
+          crmTargetStatus: crmTargetStatusByAction[request.action],
+          crmWritebackOk: true,
+          dryRun: true,
+          staffAttention: false,
+          attempts: 1,
+        });
+      },
+      redrivePending() {
+        return Promise.resolve([]);
+      },
+    },
   };
+}
+
+async function routeRenderedConfirmPages(): Promise<
+  readonly { name: string; html: string }[]
+> {
+  const mainOptions = await confirmHandlerOptions();
+  const mainHtml = await responseText(
+    await handleConfirmRequest(requestFor("GET", `/r/${token}`), mainOptions),
+  );
+
+  const cancelOptions = await confirmHandlerOptions();
+  const cancelInterstitialHtml = await responseText(
+    await handleConfirmRequest(
+      requestFor("POST", `/r/${token}/prepare`, { action: "cancel" }),
+      cancelOptions,
+    ),
+  );
+  const cancelNonce = nonceForAction(cancelInterstitialHtml, "cancel");
+  const cancelOutcomeHtml = await responseText(
+    await handleConfirmRequest(
+      requestFor("POST", `/r/${token}/action`, {
+        action: "cancel",
+        nonce: cancelNonce,
+      }),
+      cancelOptions,
+    ),
+  );
+
+  const confirmOptions = await confirmHandlerOptions();
+  const confirmPageHtml = await responseText(
+    await handleConfirmRequest(
+      requestFor("GET", `/r/${token}`),
+      confirmOptions,
+    ),
+  );
+  const confirmNonce = nonceForAction(confirmPageHtml, "confirm");
+  const confirmOutcomeHtml = await responseText(
+    await handleConfirmRequest(
+      requestFor("POST", `/r/${token}/action`, {
+        action: "confirm",
+        nonce: confirmNonce,
+      }),
+      confirmOptions,
+    ),
+  );
+
+  const optOutOptions = await confirmHandlerOptions();
+  const optOutPageHtml = await responseText(
+    await handleConfirmRequest(
+      requestFor("GET", `/r/${token}`),
+      optOutOptions,
+    ),
+  );
+  const optOutNonce = nonceForAction(optOutPageHtml, "opt_out");
+  const optOutOutcomeHtml = await responseText(
+    await handleConfirmRequest(
+      requestFor("POST", `/r/${token}/action`, {
+        action: "opt_out",
+        nonce: optOutNonce,
+      }),
+      optOutOptions,
+    ),
+  );
+
+  return Object.freeze([
+    { name: "main confirm route", html: mainHtml },
+    { name: "cancel interstitial route", html: cancelInterstitialHtml },
+    { name: "cancel outcome route", html: cancelOutcomeHtml },
+    { name: "confirm outcome route", html: confirmOutcomeHtml },
+    { name: "opt-out closure route", html: optOutOutcomeHtml },
+  ]);
+}
+
+async function responseText(response: Response): Promise<string> {
+  return await response.text();
+}
+
+function nonceForAction(
+  html: string,
+  action: "confirm" | "cancel" | "opt_out",
+): string {
+  const match = new RegExp(
+    `<input type="hidden" name="action" value="${action}">[\\s\\S]*?<input type="hidden" name="nonce" value="([^"]+)"`,
+    "u",
+  ).exec(html);
+  assert(match?.[1], `nonce for ${action} is present`);
+  return match[1].replaceAll("&quot;", '"');
 }
 
 async function confirmReminder(): Promise<ConfirmReminderRecord> {

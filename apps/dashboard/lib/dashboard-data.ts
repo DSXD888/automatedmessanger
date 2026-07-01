@@ -39,6 +39,8 @@ export interface BoardRow {
   sendState: string;
   responseState: BoardState;
   staffState: string;
+  staffReasonTag?: string;
+  staffReasonTaggedAt?: string;
   actionLabel: string;
   needsAttention: boolean;
 }
@@ -149,6 +151,9 @@ const fixtureStaleReminderDayRollup: ReminderDayRollup = {
 const fixtureValueMetrics = computeValueMetrics({
   deliveredOrResolvedByAction: 20,
   recordedActions: 12,
+  cancelledSlots: 1,
+  refilledCancelledSlots: 1,
+  averageAppointmentMinutes: 60,
   fixedDailyOpsMinutes: 10,
   noReplyCallMinutes: 2.25,
   recentClinicDayActionRates: [0.59, 0.61, 0.57, 0.62, 0.6],
@@ -247,6 +252,7 @@ const fixtureBoardRows: readonly BoardRow[] = [
     sendState: "delivered",
     responseState: "confirmed",
     staffState: "normal",
+    staffReasonTag: undefined,
     actionLabel: "Відкрити в CRM",
     needsAttention: false,
   },
@@ -260,6 +266,7 @@ const fixtureBoardRows: readonly BoardRow[] = [
     sendState: "sent",
     responseState: "confirmed",
     staffState: "normal",
+    staffReasonTag: undefined,
     actionLabel: "Відкрити в CRM",
     needsAttention: false,
   },
@@ -273,6 +280,7 @@ const fixtureBoardRows: readonly BoardRow[] = [
     sendState: "delivered",
     responseState: "cancelled",
     staffState: "cancelled_ok",
+    staffReasonTag: undefined,
     actionLabel: "Передзвонити",
     needsAttention: false,
   },
@@ -286,6 +294,7 @@ const fixtureBoardRows: readonly BoardRow[] = [
     sendState: "sent",
     responseState: "no_reply",
     staffState: "call_after_catchup",
+    staffReasonTag: undefined,
     actionLabel: "У чергу дзвінків",
     needsAttention: false,
   },
@@ -299,6 +308,7 @@ const fixtureBoardRows: readonly BoardRow[] = [
     sendState: "delivered",
     responseState: "failed",
     staffState: "writeback_attention",
+    staffReasonTag: undefined,
     actionLabel: "Записати вручну",
     needsAttention: true,
   },
@@ -312,6 +322,7 @@ const fixtureBoardRows: readonly BoardRow[] = [
     sendState: "skipped",
     responseState: "skipped",
     staffState: "no_phone",
+    staffReasonTag: undefined,
     actionLabel: "Відкрити в CRM",
     needsAttention: true,
   },
@@ -325,6 +336,7 @@ const fixtureBoardRows: readonly BoardRow[] = [
     sendState: "superseded",
     responseState: "superseded",
     staffState: "stale_or_moved",
+    staffReasonTag: undefined,
     actionLabel: "Переглянути",
     needsAttention: true,
   },
@@ -338,6 +350,7 @@ const fixtureBoardRows: readonly BoardRow[] = [
     sendState: "send_unknown",
     responseState: "send_unknown",
     staffState: "send_unknown",
+    staffReasonTag: undefined,
     actionLabel: "Перевірити",
     needsAttention: true,
   },
@@ -351,6 +364,7 @@ const fixtureBoardRows: readonly BoardRow[] = [
     sendState: "delivered",
     responseState: "held_cancel",
     staffState: "held_cancel",
+    staffReasonTag: undefined,
     actionLabel: "Розглянути",
     needsAttention: true,
   },
@@ -364,6 +378,7 @@ const fixtureBoardRows: readonly BoardRow[] = [
     sendState: "failed",
     responseState: "failed",
     staffState: "blocked_allowlist",
+    staffReasonTag: undefined,
     actionLabel: "Перевірити allowlist",
     needsAttention: true,
   },
@@ -583,6 +598,8 @@ function mapBoardViewRow(row: BoardViewRow): BoardRow {
     sendState: row.send_state ?? "unknown",
     responseState,
     staffState,
+    staffReasonTag: row.staff_reason_tag ?? undefined,
+    staffReasonTaggedAt: row.staff_reason_tagged_at ?? undefined,
     actionLabel: actionLabelFor(responseState, staffState),
     needsAttention: row.needs_attention ?? false,
   };
@@ -673,10 +690,21 @@ function valueMetricsFromRows(rows: readonly BoardRow[]) {
       row.responseState === "cancelled" ||
       row.responseState === "held_cancel"
     ).length;
+  const cancelledSlots =
+    rows.filter((row) =>
+      row.responseState === "cancelled" || row.responseState === "held_cancel"
+    ).length;
+  const refilledCancelledSlots =
+    rows.filter((row) =>
+      row.responseState === "cancelled" && row.staffState === "cancelled_ok"
+    ).length;
 
   return computeValueMetrics({
     deliveredOrResolvedByAction,
     recordedActions,
+    cancelledSlots,
+    refilledCancelledSlots,
+    averageAppointmentMinutes: 60,
     fixedDailyOpsMinutes: 10,
     noReplyCallMinutes: 2.25,
     recentClinicDayActionRates: [

@@ -38,6 +38,11 @@ test.describe("dashboard auth gate", () => {
       form: { target_date: "2026-06-19" },
     });
     expect(heldCancelResponse.status()).toBe(401);
+
+    const noReplyReasonResponse = await request.post("/no-reply-reasons", {
+      form: { message_id: "704", reason: "did_not_see_sms" },
+    });
+    expect(noReplyReasonResponse.status()).toBe(401);
   });
 });
 
@@ -134,6 +139,43 @@ test.describe("authenticated dashboard", () => {
 
     await expect(page.getByTestId("call-list")).toContainText("Володимир Т.");
     await expect(page.getByTestId("call-list")).not.toContainText("Олена К.");
+  });
+
+  test("E2E-DASHBOARD-02 no-reply reason tags post through the audited RPC path", async ({ page }) => {
+    await page.route("**/no-reply-reasons", async (route) => {
+      expect(route.request().method()).toBe("POST");
+      const body = route.request().postData() ?? "";
+      expect(body).toContain("message_id=704");
+      expect(body).toContain("reason=did_not_see_sms");
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          reason: {
+            message_id: 704,
+            staff_reason_tag: "did_not_see_sms",
+          },
+        }),
+      });
+    });
+
+    await page.goto("/patients?needs_attention=1");
+
+    const reasonForm = page.getByTestId("no-reply-reason-form-704");
+    await expect(reasonForm).toHaveAttribute(
+      "data-rpc",
+      "record_no_reply_reason_tag",
+    );
+    await reasonForm.locator("select[name='reason']").selectOption(
+      "did_not_see_sms",
+    );
+
+    const requestPromise = page.waitForRequest((request) =>
+      request.method() === "POST" &&
+      request.url().endsWith("/no-reply-reasons")
+    );
+    await reasonForm.getByRole("button", { name: /Зберегти/u }).click();
+    await requestPromise;
   });
 
   test("E2E-DASHBOARD-03 manual button and template editor use dashboard proxy paths", async ({ page }) => {

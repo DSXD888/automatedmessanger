@@ -37,6 +37,8 @@ export type Database = {
           skip_reason: string | null;
           skipped_total: number | null;
           source_status: string | null;
+          staff_reason_tag: string | null;
+          staff_reason_tagged_at: string | null;
           staff_state: string | null;
           success_heartbeat_sent: boolean | null;
           target_at: string | null;
@@ -71,6 +73,8 @@ export type Database = {
           skip_reason: string | null;
           skipped_total: number | null;
           source_status: string | null;
+          staff_reason_tag: string | null;
+          staff_reason_tagged_at: string | null;
           staff_state: string | null;
           success_heartbeat_sent: boolean | null;
           target_at: string | null;
@@ -116,6 +120,8 @@ export type Database = {
           skip_reason: string;
           skipped_total: number;
           source_status: string;
+          staff_reason_tag: string;
+          staff_reason_tagged_at: string;
           staff_state: string;
           success_heartbeat_sent: boolean;
           target_at: string;
@@ -150,6 +156,8 @@ export type Database = {
           skip_reason: string;
           skipped_total: number;
           source_status: string;
+          staff_reason_tag: string;
+          staff_reason_tagged_at: string;
           staff_state: string;
           success_heartbeat_sent: boolean;
           target_at: string;
@@ -206,6 +214,14 @@ export type Database = {
           p_typed_confirmation?: string;
         };
         Returns: Json;
+      };
+      record_no_reply_reason_tag: {
+        Args: { p_actor?: string; p_message_id: number; p_reason: string };
+        Returns: {
+          message_id: number;
+          staff_reason_tag: string;
+          staff_reason_tagged_at: string;
+        }[];
       };
       record_reminder_action: {
         Args: { p_action: string; p_nonce: string; p_raw_token: string };
@@ -1011,6 +1027,9 @@ export type Database = {
           send_claim_token: string | null;
           skip_reason: string | null;
           source_status: string | null;
+          staff_reason_tag: string | null;
+          staff_reason_tagged_at: string | null;
+          staff_reason_tagged_by: string | null;
           status: string;
           superseded_at: string | null;
           superseded_by_message_id: number | null;
@@ -1044,6 +1063,9 @@ export type Database = {
           send_claim_token?: string | null;
           skip_reason?: string | null;
           source_status?: string | null;
+          staff_reason_tag?: string | null;
+          staff_reason_tagged_at?: string | null;
+          staff_reason_tagged_by?: string | null;
           status?: string;
           superseded_at?: string | null;
           superseded_by_message_id?: number | null;
@@ -1077,6 +1099,9 @@ export type Database = {
           send_claim_token?: string | null;
           skip_reason?: string | null;
           source_status?: string | null;
+          staff_reason_tag?: string | null;
+          staff_reason_tagged_at?: string | null;
+          staff_reason_tagged_by?: string | null;
           status?: string;
           superseded_at?: string | null;
           superseded_by_message_id?: number | null;

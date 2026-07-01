@@ -112,6 +112,9 @@ Deno.test("UT-VALUE-METRICS-01 computes action rate, staff minutes, segmentation
   const result = computeValueMetrics({
     deliveredOrResolvedByAction: 20,
     recordedActions: 12,
+    cancelledSlots: 2,
+    refilledCancelledSlots: 1,
+    averageAppointmentMinutes: 45,
     fixedDailyOpsMinutes: 10,
     noReplyCallMinutes: 2.25,
     recentClinicDayActionRates: [0.58, 0.62, 0.61, 0.57, 0.6],
@@ -138,8 +141,11 @@ Deno.test("UT-VALUE-METRICS-01 computes action rate, staff minutes, segmentation
   });
 
   assertEquals(result.actionRate, 0.6);
+  assertEquals(result.healthyActionRateBandMet, true);
   assertEquals(result.estimatedStaffMinutes, 28);
   assertEquals(result.staffMinutesTargetMet, true);
+  assertEquals(result.cancelledSlotRefillRate, 0.5);
+  assertEquals(result.recoveredChairMinutes, 45);
   assertEquals(result.valueSignal, "healthy");
   assertEquals(result.missingBaselines, [
     "noShowRate",
@@ -157,6 +163,9 @@ Deno.test("UT-VALUE-METRICS-01 marks value red below 35 percent for five clinic 
   const result = computeValueMetrics({
     deliveredOrResolvedByAction: 20,
     recordedActions: 6,
+    cancelledSlots: 0,
+    refilledCancelledSlots: 0,
+    averageAppointmentMinutes: 45,
     fixedDailyOpsMinutes: 10,
     noReplyCallMinutes: 2.25,
     recentClinicDayActionRates: [0.34, 0.31, 0.32, 0.33, 0.3],
@@ -172,4 +181,31 @@ Deno.test("UT-VALUE-METRICS-01 marks value red below 35 percent for five clinic 
   assertEquals(result.actionRate, 0.3);
   assertEquals(result.valueSignal, "red");
   assertEquals(result.missingBaselines, []);
+});
+
+Deno.test("UT-VALUE-METRICS-01 treats action rates above the 65 percent value band as watch", () => {
+  const result = computeValueMetrics({
+    deliveredOrResolvedByAction: 20,
+    recordedActions: 16,
+    cancelledSlots: 1,
+    refilledCancelledSlots: 1,
+    averageAppointmentMinutes: 60,
+    fixedDailyOpsMinutes: 5,
+    noReplyCallMinutes: 2,
+    recentClinicDayActionRates: [0.8],
+    baselines: {
+      noShowRate: 0.08,
+      emptySlotRate: 0.04,
+      manualCallMinutes: 45,
+      slotContributionUah: 2500,
+    },
+    segments: [],
+  });
+
+  assertEquals(result.actionRate, 0.8);
+  assertEquals(result.healthyActionRateBandMet, false);
+  assertEquals(result.staffMinutesTargetMet, false);
+  assertEquals(result.cancelledSlotRefillRate, 1);
+  assertEquals(result.recoveredChairMinutes, 60);
+  assertEquals(result.valueSignal, "watch");
 });

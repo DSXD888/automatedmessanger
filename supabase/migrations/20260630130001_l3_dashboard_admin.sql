@@ -58,6 +58,25 @@ drop policy if exists audit_log_dashboard_definer_insert on app.audit_log;
 create policy audit_log_dashboard_definer_insert on app.audit_log
   for insert to dentino_dashboard_definer with check (true);
 
+alter table app.reminder_messages
+  add column if not exists staff_reason_tag text,
+  add column if not exists staff_reason_tagged_at timestamptz,
+  add column if not exists staff_reason_tagged_by text;
+
+alter table app.reminder_messages
+  drop constraint if exists reminder_messages_staff_reason_tag_check;
+
+alter table app.reminder_messages
+  add constraint reminder_messages_staff_reason_tag_check
+  check (
+    staff_reason_tag is null or staff_reason_tag in (
+      'did_not_see_sms',
+      'distrusts_link',
+      'prefers_call',
+      'could_not_reach'
+    )
+  );
+
 create or replace function private.assert_sms_template_body(p_body text)
 returns void
 language plpgsql
@@ -116,6 +135,11 @@ $$;
 revoke all on function private.assert_sms_template_body(text) from public, anon, authenticated, dentino_confirm_api;
 grant execute on function private.assert_sms_template_body(text) to dentino_dashboard_definer;
 
+drop view if exists api.v_needs_attention;
+drop view if exists api.v_board;
+drop function if exists api.dashboard_needs_attention_rows();
+drop function if exists api.dashboard_board_rows();
+
 create or replace function api.dashboard_board_rows()
 returns table (
   message_id bigint,
@@ -129,6 +153,8 @@ returns table (
   send_state text,
   response_state text,
   staff_state text,
+  staff_reason_tag text,
+  staff_reason_tagged_at timestamptz,
   skip_reason text,
   action_taken text,
   crm_writeback_ok boolean,
@@ -182,6 +208,7 @@ as $$
     case
       when lower(coalesce(m.error, '')) like '%not allowed under the current send_mode%'
         or lower(coalesce(m.error, '')) like '%not allowed under the current crm_write_mode%' then 'blocked_allowlist'
+      when m.skip_reason = 'blocked_by_allowlist' then 'blocked_allowlist'
       when m.action_taken = 'pending_staff_review' then 'held_cancel'
       when m.action_taken = 'error'
         or (m.action_taken in ('confirmed', 'cancelled') and m.crm_writeback_ok is not true) then 'writeback_attention'
@@ -191,6 +218,8 @@ as $$
       when m.status = 'superseded' then 'stale_or_moved'
       else 'normal'
     end as staff_state,
+    m.staff_reason_tag,
+    m.staff_reason_tagged_at,
     m.skip_reason,
     m.action_taken,
     m.crm_writeback_ok,
@@ -241,6 +270,8 @@ returns table (
   send_state text,
   response_state text,
   staff_state text,
+  staff_reason_tag text,
+  staff_reason_tagged_at timestamptz,
   skip_reason text,
   action_taken text,
   crm_writeback_ok boolean,
@@ -451,6 +482,63 @@ begin
 end;
 $$;
 
+create or replace function api.record_no_reply_reason_tag(
+  p_message_id bigint,
+  p_reason text,
+  p_actor text default null
+)
+returns table (
+  message_id bigint,
+  staff_reason_tag text,
+  staff_reason_tagged_at timestamptz
+)
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  actor text := coalesce(nullif(p_actor, ''), nullif(current_setting('request.jwt.claim.sub', true), ''), 'staff_dashboard');
+  normalized_reason text := nullif(btrim(coalesce(p_reason, '')), '');
+  updated_message app.reminder_messages%rowtype;
+begin
+  if normalized_reason is null or normalized_reason not in ('did_not_see_sms', 'distrusts_link', 'prefers_call', 'could_not_reach') then
+    raise exception 'Unsupported no-reply reason tag' using errcode = '22023';
+  end if;
+
+  update app.reminder_messages
+     set staff_reason_tag = normalized_reason,
+         staff_reason_tagged_at = app.now(),
+         staff_reason_tagged_by = actor
+   where app.reminder_messages.id = p_message_id
+     and app.reminder_messages.response is null
+     and app.reminder_messages.action_taken = 'none'
+     and app.reminder_messages.status in ('sent', 'delivered')
+  returning *
+    into updated_message;
+
+  if not found then
+    raise exception 'No active no-reply reminder message found' using errcode = '22023';
+  end if;
+
+  insert into app.audit_log(actor, action, detail)
+  values (
+    actor,
+    'record_no_reply_reason_tag',
+    jsonb_build_object(
+      'message_id', updated_message.id,
+      'reason', normalized_reason,
+      'target_date', updated_message.target_date,
+      'cliniccards_visit_id', updated_message.cliniccards_visit_id
+    )
+  );
+
+  return query select
+    updated_message.id,
+    updated_message.staff_reason_tag,
+    updated_message.staff_reason_tagged_at;
+end;
+$$;
+
 create or replace function api.reenable_sms_reminders(
   p_patient_id bigint,
   p_actor text default null,
@@ -525,6 +613,7 @@ alter function api.dashboard_board_rows() owner to dentino_dashboard_definer;
 alter function api.dashboard_needs_attention_rows() owner to dentino_dashboard_definer;
 alter function api.update_message_template(bigint, text, text) owner to dentino_dashboard_definer;
 alter function api.resolve_held_cancels(date, bigint[], text, text, jsonb) owner to dentino_dashboard_definer;
+alter function api.record_no_reply_reason_tag(bigint, text, text) owner to dentino_dashboard_definer;
 alter function api.reenable_sms_reminders(bigint, text, text) owner to dentino_dashboard_definer;
 alter view api.v_board owner to dentino_dashboard_definer;
 alter view api.v_needs_attention owner to dentino_dashboard_definer;
@@ -538,9 +627,11 @@ revoke execute on function api.dashboard_board_rows() from public, anon, dentino
 revoke execute on function api.dashboard_needs_attention_rows() from public, anon, dentino_confirm_api, dentino_run_api, dentino_maintenance_runner;
 revoke execute on function api.update_message_template(bigint, text, text) from public, anon, dentino_confirm_api, dentino_run_api, dentino_maintenance_runner;
 revoke execute on function api.resolve_held_cancels(date, bigint[], text, text, jsonb) from public, anon, dentino_confirm_api, dentino_run_api, dentino_maintenance_runner;
+revoke execute on function api.record_no_reply_reason_tag(bigint, text, text) from public, anon, dentino_confirm_api, dentino_run_api, dentino_maintenance_runner;
 revoke execute on function api.reenable_sms_reminders(bigint, text, text) from public, anon, dentino_confirm_api, dentino_run_api, dentino_maintenance_runner;
 grant execute on function api.dashboard_board_rows() to authenticated;
 grant execute on function api.dashboard_needs_attention_rows() to authenticated;
 grant execute on function api.update_message_template(bigint, text, text) to authenticated;
 grant execute on function api.resolve_held_cancels(date, bigint[], text, text, jsonb) to authenticated;
+grant execute on function api.record_no_reply_reason_tag(bigint, text, text) to authenticated;
 grant execute on function api.reenable_sms_reminders(bigint, text, text) to authenticated;

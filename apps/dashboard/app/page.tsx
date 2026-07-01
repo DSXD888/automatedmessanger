@@ -62,15 +62,30 @@ const DashboardPage = async (
   const data = await loadDashboardData({
     fixture: fixture === "stale-current" ? "stale-current" : undefined,
   });
+  const {
+    boardRows,
+    callListRows,
+    lastRunRecap,
+    modeBanner,
+    needsAttentionRows,
+    operationalReadiness,
+    trustPanel,
+    valueMetrics,
+  } = data;
+  const trustNumbers = trustPanel.numbers;
   const staffMinutesValue =
-    typeof data.valueMetrics.estimatedStaffMinutes === "number"
-      ? `${data.valueMetrics.estimatedStaffMinutes} хв`
+    typeof valueMetrics.estimatedStaffMinutes === "number"
+      ? `${valueMetrics.estimatedStaffMinutes} хв`
+      : "missing";
+  const recoveredChairValue =
+    typeof valueMetrics.recoveredChairMinutes === "number"
+      ? `${valueMetrics.recoveredChairMinutes} хв`
       : "missing";
 
   return (
     <main className="shell">
       <Topbar key="topbar" />
-      <ModeBanner key="mode-banner" modeBanner={data.modeBanner} />
+      <ModeBanner key="mode-banner" modeBanner={modeBanner} />
 
       <header className="pageHeader">
         <div>
@@ -102,40 +117,40 @@ const DashboardPage = async (
           <div className="recapLead">
             <strong>
               <Clock3 key="recap-clock" size={20} aria-hidden="true" />
-              {data.lastRunRecap.targetDateLabel}
+              {lastRunRecap.targetDateLabel}
             </strong>
             <small>
-              {data.lastRunRecap.passKind} · {data.lastRunRecap.kyivTimestamp}
+              {lastRunRecap.passKind} · {lastRunRecap.kyivTimestamp} · health:
               {" "}
-              · health: {data.lastRunRecap.health}
+              {lastRunRecap.health}
             </small>
             <small>
               Heartbeat success:{" "}
-              {data.lastRunRecap.successHeartbeatSent ? "sent" : "not sent"}
+              {lastRunRecap.successHeartbeatSent ? "sent" : "not sent"}
             </small>
           </div>
           <div className="recapStat">
             <small>Опрацьовано</small>
-            <strong>{data.lastRunRecap.handled}</strong>
+            <strong>{lastRunRecap.handled}</strong>
           </div>
           <div className="recapStat problem">
             <small>Проблеми</small>
-            <strong>{data.lastRunRecap.problems}</strong>
+            <strong>{lastRunRecap.problems}</strong>
           </div>
           <div className="recapStat">
             <small>Відповіді</small>
-            <strong>{data.lastRunRecap.responses}</strong>
+            <strong>{lastRunRecap.responses}</strong>
           </div>
           <div className="recapStat">
             <small>Потрібна увага</small>
-            <strong>{data.needsAttentionRows.length}</strong>
+            <strong>{needsAttentionRows.length}</strong>
           </div>
         </div>
       </section>
 
       <section
         aria-labelledby="trust-title"
-        className={`panelBand trust-${data.trustPanel.health}`}
+        className={`panelBand trust-${trustPanel.health}`}
         data-testid="trust-panel"
       >
         <div className="panelHeader">
@@ -143,34 +158,34 @@ const DashboardPage = async (
             <p className="eyebrow">Операційна довіра</p>
             <h2 id="trust-title">4-числова перевірка запуску</h2>
           </div>
-          <span className={`statusBadge ${data.trustPanel.health}`}>
+          <span className={`statusBadge ${trustPanel.health}`}>
             <ShieldCheck key="trust-state" size={18} aria-hidden="true" />
-            {data.trustPanel.health.toUpperCase()}
+            {trustPanel.health.toUpperCase()}
           </span>
         </div>
         <p className="panelLead">
-          {trustReasonLabel.get(data.trustPanel.reason)}
+          {trustReasonLabel.get(trustPanel.reason)}
         </p>
         <div className="metricGrid">
           <MetricTile
             key="crm-remindable"
             label="CRM remindable"
-            value={data.trustPanel.numbers.clinicRemindable}
+            value={trustNumbers.clinicRemindable}
           />
           <MetricTile
             key="sms-handled"
             label="SMS handled"
-            value={data.trustPanel.numbers.smsHandled}
+            value={trustNumbers.smsHandled}
           />
           <MetricTile
             key="problems"
             label="Problems"
-            value={data.trustPanel.numbers.problems}
+            value={trustNumbers.problems}
           />
           <MetricTile
             key="responses"
             label="Responses"
-            value={data.trustPanel.numbers.responses}
+            value={trustNumbers.responses}
           />
         </div>
       </section>
@@ -185,30 +200,42 @@ const DashboardPage = async (
             <p className="eyebrow">Метрики власника</p>
             <h2 id="value-title">Економія часу без змішування з trust</h2>
           </div>
-          <span className={`statusBadge ${data.valueMetrics.valueSignal}`}>
+          <span className={`statusBadge ${valueMetrics.valueSignal}`}>
             <TrendingUp key="value-state" size={18} aria-hidden="true" />
-            {data.valueMetrics.valueSignal}
+            {valueMetrics.valueSignal}
           </span>
         </div>
         <div className="valueGrid">
           <MetricTile
             key="action-rate"
             label="Action rate"
-            value={formatPercent(data.valueMetrics.actionRate)}
+            value={formatPercent(valueMetrics.actionRate)}
             note="nonce-backed actions ÷ delivered/resolved"
           />
           <MetricTile
             key="staff-minutes"
             label="Staff minutes"
             value={staffMinutesValue}
-            note={data.valueMetrics.staffMinutesTargetMet
+            note={valueMetrics.staffMinutesTargetMet
               ? "≤30 хв target met"
               : "watch daily load"}
+          />
+          <MetricTile
+            key="refill-rate"
+            label="Slot refill"
+            value={formatPercent(valueMetrics.cancelledSlotRefillRate)}
+            note="cancelled slots refilled"
+          />
+          <MetricTile
+            key="recovered-chair"
+            label="Recovered chair time"
+            value={recoveredChairValue}
+            note="from refilled cancelled slots"
           />
           <div className="metricTile wide">
             <span>Template / send-hour segments</span>
             <strong>
-              {data.valueMetrics.segments.map((segment) =>
+              {valueMetrics.segments.map((segment) =>
                 `${segment.templateKey} ${segment.sendHour}:00 ${
                   formatPercent(segment.actionRate)
                 }`
@@ -218,7 +245,7 @@ const DashboardPage = async (
           <div className="metricTile wide">
             <span>Missing owner baselines</span>
             <strong>
-              {data.valueMetrics.missingBaselines.map((key) =>
+              {valueMetrics.missingBaselines.map((key) =>
                 baselineLabel.get(key) ?? key
               ).join(" · ")}
             </strong>
@@ -237,17 +264,17 @@ const DashboardPage = async (
             <h2 id="ops-title">Runbooks та баланс</h2>
           </div>
           <span
-            className={`statusBadge ${data.operationalReadiness.balanceStatus}`}
+            className={`statusBadge ${operationalReadiness.balanceStatus}`}
           >
             <AlertTriangle key="ops-state" size={18} aria-hidden="true" />
-            {data.operationalReadiness.balanceStatus}
+            {operationalReadiness.balanceStatus}
           </span>
         </div>
         <p className="panelLead">
-          {data.operationalReadiness.balanceEvidence}
+          {operationalReadiness.balanceEvidence}
         </p>
         <div className="opsGrid">
-          {data.operationalReadiness.items.map((item) => (
+          {operationalReadiness.items.map((item) => (
             <article className="opsItem" key={item.key}>
               <h3>
                 {item.status === "ready"
@@ -265,18 +292,18 @@ const DashboardPage = async (
       <section aria-labelledby="board-title">
         <h2 id="board-title">Статус-борд</h2>
         <div className="chips" aria-label="Фільтри статусу">
-          <span className="chip active">Усі {data.boardRows.length}</span>
+          <span className="chip active">Усі {boardRows.length}</span>
           <span className="chip">
-            Підтверджено {countRows(data.boardRows, "confirmed")}
+            Підтверджено {countRows(boardRows, "confirmed")}
           </span>
           <span className="chip">
-            Скасовано {countRows(data.boardRows, "cancelled")}
+            Скасовано {countRows(boardRows, "cancelled")}
           </span>
           <span className="chip">
-            Немає відповіді {countRows(data.boardRows, "no_reply")}
+            Немає відповіді {countRows(boardRows, "no_reply")}
           </span>
           <span className="chip">
-            Потрібна увага {data.needsAttentionRows.length}
+            Потрібна увага {needsAttentionRows.length}
           </span>
         </div>
 
@@ -293,7 +320,7 @@ const DashboardPage = async (
               </tr>
             </thead>
             <tbody>
-              {data.boardRows.map((row) => (
+              {boardRows.map((row) => (
                 <tr key={row.id}>
                   <td className="time">{row.time}</td>
                   <td>
@@ -333,7 +360,7 @@ const DashboardPage = async (
         <div>
           <h2 id="work-title">Потребує уваги</h2>
           <div className="workList">
-            {data.needsAttentionRows.slice(0, 4).map((row) => (
+            {needsAttentionRows.slice(0, 4).map((row) => (
               <div className="workItem" key={row.id}>
                 <span
                   className={`workIcon ${
@@ -366,7 +393,7 @@ const DashboardPage = async (
         <aside className="sidePanel" aria-labelledby="call-title">
           <h2 id="call-title">Черга дзвінків</h2>
           <p>Після денного догону · підтверджені за посиланням виключені</p>
-          {data.callListRows.map((row) => (
+          {callListRows.map((row) => (
             <div className="callRow" key={row.id}>
               <span>
                 {row.time} · {row.patient} · ···{row.phoneLast4}

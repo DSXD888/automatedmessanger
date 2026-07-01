@@ -74,6 +74,9 @@ export type ValueSignal = "healthy" | "watch" | "red";
 export interface ValueMetricsInput {
   deliveredOrResolvedByAction: number;
   recordedActions: number;
+  cancelledSlots: number;
+  refilledCancelledSlots: number;
+  averageAppointmentMinutes: number;
   fixedDailyOpsMinutes: number;
   noReplyCallMinutes: number;
   recentClinicDayActionRates: readonly number[];
@@ -83,14 +86,19 @@ export interface ValueMetricsInput {
 
 export interface ValueMetricsSnapshot {
   actionRate: number | null;
+  healthyActionRateBandMet: boolean;
   estimatedStaffMinutes: number | null;
   staffMinutesTargetMet: boolean;
+  cancelledSlotRefillRate: number | null;
+  recoveredChairMinutes: number | null;
   valueSignal: ValueSignal;
   missingBaselines: readonly (keyof OwnerBaselines)[];
   segments: readonly (ValueMetricBucket & { actionRate: number | null })[];
 }
 
 const defaultStaleCutoffMinute = (12 * 60) + 30;
+const healthyActionRateLowerBound = 0.55;
+const healthyActionRateUpperBound = 0.65;
 
 export function computeModeBanner(input: {
   sendMode?: string;
@@ -176,12 +184,21 @@ export function computeValueMetrics(
     input.fixedDailyOpsMinutes +
       (noReplyCount * input.noReplyCallMinutes),
   );
+  const healthyActionRateBandMet = actionRate !== null &&
+    actionRate >= healthyActionRateLowerBound &&
+    actionRate <= healthyActionRateUpperBound;
+  const cancelledSlotRefillRate = ratio(
+    input.refilledCancelledSlots,
+    input.cancelledSlots,
+  );
+  const recoveredChairMinutes = input.refilledCancelledSlots > 0
+    ? roundOne(input.refilledCancelledSlots * input.averageAppointmentMinutes)
+    : 0;
   const fiveDayValueRed = input.recentClinicDayActionRates.slice(-5).length ===
       5 &&
     input.recentClinicDayActionRates.slice(-5).every((rate) => rate < 0.35);
   const staffMinutesTargetMet = estimatedStaffMinutes !== null &&
-    actionRate !== null &&
-    actionRate >= 0.55 &&
+    healthyActionRateBandMet &&
     estimatedStaffMinutes <= 30;
   const valueSignal: ValueSignal = fiveDayValueRed
     ? "red"
@@ -194,8 +211,11 @@ export function computeValueMetrics(
 
   return Object.freeze({
     actionRate,
+    healthyActionRateBandMet,
     estimatedStaffMinutes,
     staffMinutesTargetMet,
+    cancelledSlotRefillRate,
+    recoveredChairMinutes,
     valueSignal,
     missingBaselines: Object.freeze(missingBaselines),
     segments: Object.freeze(input.segments.map((segment) =>

@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set search_path = extensions, public;
 
-select plan(15);
+select plan(16);
 
 select is(
   (
@@ -19,6 +19,7 @@ select is(
         ('api.dashboard_needs_attention_rows()'::regprocedure),
         ('api.update_message_template(bigint,text,text)'::regprocedure),
         ('api.resolve_held_cancels(date,bigint[],text,text,jsonb)'::regprocedure),
+        ('api.record_no_reply_reason_tag(bigint,text,text)'::regprocedure),
         ('api.reenable_sms_reminders(bigint,text,text)'::regprocedure),
         ('api.record_go_live_mode_flip(text,text,text,text,text,date,text,jsonb)'::regprocedure),
         ('maintenance.record_guard_liveness(text,text,integer,integer,text,text,jsonb)'::regprocedure),
@@ -138,6 +139,12 @@ select is(
   (select r.rolname from pg_proc p join pg_roles r on r.oid = p.proowner where p.oid = 'api.record_go_live_mode_flip(text,text,text,text,text,date,text,jsonb)'::regprocedure),
   'dentino_dashboard_definer',
   'record_go_live_mode_flip is owned by dashboard definer'
+);
+
+select is(
+  (select r.rolname from pg_proc p join pg_roles r on r.oid = p.proowner where p.oid = 'api.record_no_reply_reason_tag(bigint,text,text)'::regprocedure),
+  'dentino_dashboard_definer',
+  'record_no_reply_reason_tag is owned by dashboard definer'
 );
 
 select is(

@@ -141,6 +141,7 @@ create table app.reminder_messages (
       'cancelled_before_send',
       'reopened_same_id',
       'send_ambiguous',
+      'blocked_by_allowlist',
       'provider_pre_submit_failure'
     )
   ),

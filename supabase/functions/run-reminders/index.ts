@@ -89,6 +89,7 @@ export type ReminderSkipReason =
   | "cancelled_before_send"
   | "reopened_same_id"
   | "send_ambiguous"
+  | "blocked_by_allowlist"
   | "provider_pre_submit_failure";
 
 const sendModesWithProviderBalanceChecks: readonly RuntimeConfig["sendMode"][] =
@@ -514,7 +515,7 @@ const sendResultOutcomes = new Map<
   ["send_unknown", { status: "send_unknown", skipReason: "send_ambiguous" }],
   [
     "blocked_by_allowlist",
-    { status: "failed", skipReason: "provider_pre_submit_failure" },
+    { status: "skipped", skipReason: "blocked_by_allowlist" },
   ],
   ["failed", { status: "failed", skipReason: "provider_pre_submit_failure" }],
 ]);

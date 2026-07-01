@@ -80,7 +80,8 @@ pnpm install
 supabase start
 supabase migration up
 supabase db lint
-supabase gen types typescript --local > supabase/functions/_shared/database.types.ts
+supabase gen types --db-url 'postgresql://postgres:postgres@127.0.0.1:54322/postgres' --lang typescript --schema api,app,maintenance,private > supabase/functions/_shared/database.types.ts
+deno fmt supabase/functions/_shared/database.types.ts
 git diff --exit-code supabase/functions/_shared/database.types.ts
 deno test tests/unit
 deno test tests/pgtap
@@ -268,7 +269,8 @@ deno test tests/integration
 deno test tests/integration/no-egress.test.ts
 pnpm --filter dashboard typecheck
 supabase db lint
-supabase gen types typescript --local > supabase/functions/_shared/database.types.ts
+supabase gen types --db-url 'postgresql://postgres:postgres@127.0.0.1:54322/postgres' --lang typescript --schema api,app,maintenance,private > supabase/functions/_shared/database.types.ts
+deno fmt supabase/functions/_shared/database.types.ts
 git diff --exit-code supabase/functions/_shared/database.types.ts
 ```
 

@@ -148,16 +148,39 @@ const PatientsPage = async () => {
                     ···{row.phoneLast4} · ID {row.visitId}
                   </p>
                 </div>
-                <select
-                  aria-label={`Причина для ${row.patient}`}
-                  defaultValue=""
+                <form
+                  className="formStack"
+                  action="/no-reply-reasons"
+                  method="post"
+                  data-rpc="record_no_reply_reason_tag"
+                  data-testid={`no-reply-reason-form-${row.id}`}
                 >
-                  <option value="" disabled>Причина</option>
-                  <option value="did_not_see_sms">Не бачив SMS</option>
-                  <option value="distrusts_link">Не довіряє посиланню</option>
-                  <option value="prefers_call">Хоче дзвінок</option>
-                  <option value="could_not_reach">Не додзвонились</option>
-                </select>
+                  <input
+                    key={`message-id-${row.id}`}
+                    type="hidden"
+                    name="message_id"
+                    value={row.id}
+                  />
+                  <select
+                    aria-label={`Причина для ${row.patient}`}
+                    name="reason"
+                    defaultValue={row.staffReasonTag ?? ""}
+                  >
+                    <option value="" disabled>Причина</option>
+                    <option value="did_not_see_sms">Не бачив SMS</option>
+                    <option value="distrusts_link">Не довіряє посиланню</option>
+                    <option value="prefers_call">Хоче дзвінок</option>
+                    <option value="could_not_reach">Не додзвонились</option>
+                  </select>
+                  <button className="button secondary" type="submit">
+                    <CheckCircle2
+                      key={`save-reason-${row.id}`}
+                      size={18}
+                      aria-hidden="true"
+                    />
+                    Зберегти
+                  </button>
+                </form>
               </article>
             ))}
           </div>

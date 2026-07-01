@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set search_path = extensions, public;
 
-select plan(52);
+select plan(54);
 
 select ok(exists (select 1 from information_schema.schemata where schema_name = 'app'), 'app schema exists');
 select ok(exists (select 1 from information_schema.schemata where schema_name = 'maintenance'), 'maintenance schema exists');
@@ -42,6 +42,18 @@ select ok(exists (
   select 1 from information_schema.columns
   where table_schema = 'app' and table_name = 'reminder_messages' and column_name = 'appointment_fingerprint'
 ), 'reminder_messages.appointment_fingerprint exists');
+
+select is(
+  (
+    select count(*)::int
+    from information_schema.columns
+    where table_schema = 'app'
+      and table_name = 'reminder_messages'
+      and column_name in ('staff_reason_tag', 'staff_reason_tagged_at', 'staff_reason_tagged_by')
+  ),
+  3,
+  'reminder_messages stores staff no-reply reason tags'
+);
 
 select ok(exists (
   select 1 from information_schema.columns
@@ -390,6 +402,62 @@ end;
 $$;
 
 select ok(pg_temp.rejects_short_digest(), 'tracking token digest must be 32 bytes');
+
+create or replace function pg_temp.records_no_reply_reason_tag()
+returns boolean
+language plpgsql
+as $$
+declare
+  run_id bigint;
+  message_id bigint;
+begin
+  insert into app.reminder_runs(run_date, target_date, trigger)
+  values ('2026-06-30', '2026-07-01', 'manual')
+  returning id into run_id;
+
+  insert into app.reminder_messages(
+    run_id,
+    cliniccards_visit_id,
+    target_date,
+    target_at,
+    status,
+    tracking_token_digest,
+    token_expires_at
+  )
+  values (
+    run_id,
+    'visit-no-reply-reason-' || extensions.gen_random_uuid()::text,
+    '2026-07-01',
+    '2026-07-01 09:00+00',
+    'sent',
+    extensions.gen_random_bytes(32),
+    '2026-07-01 09:00+00'
+  )
+  returning id into message_id;
+
+  perform *
+    from api.record_no_reply_reason_tag(message_id, 'did_not_see_sms', 'staff-pgtap');
+
+  return exists (
+    select 1
+      from app.reminder_messages
+     where id = message_id
+       and staff_reason_tag = 'did_not_see_sms'
+       and staff_reason_tagged_by = 'staff-pgtap'
+       and staff_reason_tagged_at is not null
+  )
+  and exists (
+    select 1
+      from app.audit_log
+     where actor = 'staff-pgtap'
+       and action = 'record_no_reply_reason_tag'
+       and detail ->> 'message_id' = message_id::text
+       and detail ->> 'reason' = 'did_not_see_sms'
+  );
+end;
+$$;
+
+select ok(pg_temp.records_no_reply_reason_tag(), 'record_no_reply_reason_tag persists tag and audit evidence');
 
 select ok(exists (
   select 1
