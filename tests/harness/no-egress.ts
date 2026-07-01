@@ -2,6 +2,10 @@ import type {
   HttpClient,
   OutboundRequest,
 } from "../../supabase/functions/_shared/http.ts";
+import type {
+  SmsSendRecorder,
+  WouldSendIntent,
+} from "../../supabase/functions/_shared/smsSender.ts";
 
 export interface StaticFetchFinding {
   path: string;
@@ -10,13 +14,7 @@ export interface StaticFetchFinding {
   pattern: string;
 }
 
-export interface WouldSendIntent {
-  channel: "sms";
-  recipientRef: string;
-  messageRef: string;
-}
-
-export interface SideEffectRecorder {
+export interface SideEffectRecorder extends SmsSendRecorder {
   readonly wouldSendIntents: readonly WouldSendIntent[];
   readonly providerCallCount: number;
   readonly clinicCardsWriteCount: number;
@@ -110,22 +108,77 @@ export function createDeniedNetworkHttpClient(): HttpClient {
   };
 }
 
+export interface CountingNoEgressHttpClientOptions {
+  clinicCardsVisit: Record<string, unknown>;
+}
+
+export function createCountingNoEgressHttpClient(
+  sideEffects: SideEffectRecorder,
+  options: CountingNoEgressHttpClientOptions,
+): HttpClient {
+  const recorder = asMutableSideEffectRecorder(sideEffects);
+  return (request: OutboundRequest): Promise<Response> => {
+    const url = request.url.toString();
+    const method = (request.method ?? "GET").toUpperCase();
+    const parsedUrl = safeUrl(url);
+
+    if (isSmsProviderSend(parsedUrl, method)) {
+      recorder.recordProviderCall();
+      return Promise.reject(new NetworkEgressDeniedError(url));
+    }
+
+    if (isClinicCardsWrite(parsedUrl, method)) {
+      recorder.recordClinicCardsWrite();
+      return Promise.reject(new NetworkEgressDeniedError(url));
+    }
+
+    if (isClinicCardsVisitRead(parsedUrl, method)) {
+      return Promise.resolve(jsonResponse({ visit: options.clinicCardsVisit }));
+    }
+
+    if (isLocalUrl(url)) {
+      return Promise.resolve(
+        new Response("", {
+          status: 599,
+          statusText: "No egress harness local placeholder",
+        }),
+      );
+    }
+
+    return Promise.reject(new NetworkEgressDeniedError(url));
+  };
+}
+
 export function createSideEffectRecorder(): SideEffectRecorder {
   const intents: WouldSendIntent[] = [];
-  return {
+  let providerCallCount = 0;
+  let clinicCardsWriteCount = 0;
+  const recorder: MutableSideEffectRecorder = {
     get wouldSendIntents(): readonly WouldSendIntent[] {
       return intents;
     },
     get providerCallCount(): number {
-      return 0;
+      return providerCallCount;
     },
     get clinicCardsWriteCount(): number {
-      return 0;
+      return clinicCardsWriteCount;
     },
     recordWouldSend(intent: WouldSendIntent): void {
-      intents.push(intent);
+      intents.push(Object.freeze({ ...intent }));
+    },
+    recordProviderCall(): void {
+      providerCallCount += 1;
+    },
+    recordClinicCardsWrite(): void {
+      clinicCardsWriteCount += 1;
     },
   };
+  return recorder;
+}
+
+interface MutableSideEffectRecorder extends SideEffectRecorder {
+  recordProviderCall(): void;
+  recordClinicCardsWrite(): void;
 }
 
 async function* walkTypeScriptFiles(root: string): AsyncGenerator<string> {
@@ -178,6 +231,49 @@ function isLocalUrl(value: string): boolean {
     host === "127.0.0.1" ||
     host === "::1" ||
     host.endsWith(".local");
+}
+
+function asMutableSideEffectRecorder(
+  sideEffects: SideEffectRecorder,
+): MutableSideEffectRecorder {
+  const candidate = sideEffects as Partial<MutableSideEffectRecorder>;
+  if (
+    typeof candidate.recordProviderCall !== "function" ||
+    typeof candidate.recordClinicCardsWrite !== "function"
+  ) {
+    throw new TypeError(
+      "Counting no-egress HTTP client requires createSideEffectRecorder()",
+    );
+  }
+  return candidate as MutableSideEffectRecorder;
+}
+
+function safeUrl(value: string): URL | null {
+  try {
+    return new URL(value);
+  } catch {
+    return null;
+  }
+}
+
+function isSmsProviderSend(url: URL | null, method: string): boolean {
+  return method === "POST" && url?.pathname.endsWith("/message/send.json") ===
+      true;
+}
+
+function isClinicCardsWrite(url: URL | null, method: string): boolean {
+  return method === "PUT" && url?.pathname === "/visits";
+}
+
+function isClinicCardsVisitRead(url: URL | null, method: string): boolean {
+  return method === "GET" && url?.pathname.startsWith("/visits/") === true;
+}
+
+function jsonResponse(body: unknown): Response {
+  return new Response(JSON.stringify(body), {
+    status: 200,
+    headers: { "content-type": "application/json" },
+  });
 }
 
 function joinPath(left: string, right: string): string {

@@ -1,10 +1,18 @@
 import { assert, assertEquals, assertRejects, assertThrows } from "@std/assert";
+import type { RuntimeConfig } from "../../supabase/functions/_shared/config.ts";
+import {
+  clinicCardsAppointmentFingerprint,
+  createClinicCardsClient,
+} from "../../supabase/functions/_shared/clinicCardsClient.ts";
+import { createSmsSender } from "../../supabase/functions/_shared/smsSender.ts";
+import { createGuardedCrmWriteBack } from "../../supabase/functions/_shared/writeBack.ts";
 import type { CassetteFile } from "../harness/cassette-player.ts";
 import {
   createCassetteHttpClient,
   UnrecordedRequestError,
 } from "../harness/cassette-player.ts";
 import {
+  createCountingNoEgressHttpClient,
   createDeniedNetworkHttpClient,
   createSideEffectRecorder,
   NetworkEgressDeniedError,
@@ -57,18 +65,63 @@ Deno.test("IT-NOEGRESS-01 records would-send intent without provider or CRM writ
   const cassette = demoCassette as CassetteFile;
   const { client, metrics } = createCassetteHttpClient([cassette]);
   const sideEffects = createSideEffectRecorder();
-
-  sideEffects.recordWouldSend({
-    channel: "sms",
-    recipientRef: "synthetic-recipient-1",
-    messageRef: "synthetic-message-1",
+  const config = noEgressRuntimeConfig();
+  const httpClient = createCountingNoEgressHttpClient(sideEffects, {
+    clinicCardsVisit: syntheticClinicCardsVisit(),
   });
-  sideEffects.recordWouldSend({
-    channel: "sms",
-    recipientRef: "synthetic-recipient-2",
-    messageRef: "synthetic-message-2",
+  const now = () => new Date("2026-07-01T09:00:00.000Z");
+  const smsSender = createSmsSender({
+    config,
+    httpClient,
+    recorder: sideEffects,
+    now,
   });
 
+  const firstSend = await smsSender.send({
+    channel: "sms",
+    to: "+380670000001",
+    body:
+      "Dentino: тестове нагадування https://r.dentino.com.ua/r/abcdefghijklmnopqrstuv",
+    senderId: "Dentino",
+    idempotencyKey: "synthetic-message-1",
+  });
+  const secondSend = await smsSender.send({
+    channel: "sms",
+    to: "+380670000002",
+    body:
+      "Dentino: тестове нагадування https://r.dentino.com.ua/r/abcdefghijklmnopqrstuv",
+    senderId: "Dentino",
+    idempotencyKey: "synthetic-message-2",
+  });
+
+  const clinicCardsClient = createClinicCardsClient({
+    config,
+    httpClient,
+    statusPolicy: [{
+      status: "PLANNED",
+      remindable: true,
+      allowConfirmAction: true,
+      allowCancelAction: true,
+    }],
+    now,
+  });
+  const visit = await clinicCardsClient.getVisitById(
+    "visit-no-egress",
+    "writeback_pre",
+  );
+  const writeBack = createGuardedCrmWriteBack({
+    config,
+    clinicCardsClient,
+    now,
+  });
+  const writeBackResult = await writeBack.write({
+    messageId: 42,
+    cliniccardsVisitId: "visit-no-egress",
+    action: "confirm",
+    expectedAppointmentFingerprint: await clinicCardsAppointmentFingerprint(
+      visit.visit,
+    ),
+  });
   const response = await client({
     url: "http://cassette.invalid/no-egress?case=normal",
     method: "GET",
@@ -76,6 +129,9 @@ Deno.test("IT-NOEGRESS-01 records would-send intent without provider or CRM writ
   assertEquals(response.status, 200);
   assertEquals(await response.json(), { ok: true, source: "synthetic" });
 
+  assertEquals(firstSend.status, "would_send");
+  assertEquals(secondSend.status, "would_send");
+  assertEquals(writeBackResult.status, "would_write");
   assertEquals(sideEffects.wouldSendIntents.length, 2);
   assertEquals(sideEffects.providerCallCount, 0);
   assertEquals(sideEffects.clinicCardsWriteCount, 0);
@@ -116,3 +172,31 @@ Deno.test("CONTRACT-CASSETTE-01 keeps synthetic all-zero phone fixtures allowed"
   assertEquals(auditCassetteText("380000000000"), []);
   assert(true);
 });
+
+function noEgressRuntimeConfig(): RuntimeConfig {
+  return Object.freeze({
+    appEnv: "test",
+    sendMode: "off",
+    crmWriteMode: "off",
+    sendAllowlist: Object.freeze(["+380670000001", "+380670000002"]),
+    crmWriteAllowlist: Object.freeze(["visit-no-egress"]),
+    clinicCardsBaseUrl: "https://cliniccards.invalid",
+    smsProviderBaseUrl: "https://sms-provider.invalid",
+    appBaseUrl: "https://app.invalid",
+    smsSenderId: "Dentino",
+    clinicPhone: "+380679876111",
+    smsIdempotencyMode: "none",
+  });
+}
+
+function syntheticClinicCardsVisit(): Record<string, unknown> {
+  return Object.freeze({
+    id: "visit-no-egress",
+    patient_id: "patient-no-egress",
+    status: "PLANNED",
+    start_at: "2026-07-02T12:00:00+03:00",
+    end_at: "2026-07-02T12:30:00+03:00",
+    doctor_name: "Synthetic Doctor",
+    cabinet_name: "Synthetic Room",
+  });
+}
