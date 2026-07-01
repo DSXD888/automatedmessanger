@@ -3,7 +3,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set search_path = extensions, public;
 
-select plan(50);
+select plan(52);
 
 select ok(exists (select 1 from information_schema.schemata where schema_name = 'app'), 'app schema exists');
 select ok(exists (select 1 from information_schema.schemata where schema_name = 'maintenance'), 'maintenance schema exists');
@@ -104,6 +104,33 @@ select ok(to_regclass('app.message_templates_one_active') is not null, 'one-acti
 select ok(to_regclass('app.reminder_messages_provider_message_id_uq') is not null, 'provider message id partial unique index exists');
 select ok(to_regclass('app.reminder_messages_by_target_date') is not null, 'target-date runtime index exists');
 select ok(to_regclass('app.reminder_messages_needs_attention') is not null, 'needs-attention runtime index exists');
+
+select is(
+  (
+    select count(*)::int
+      from app.message_templates
+     where key = 'appointment_reminder'
+       and channel = 'sms'
+       and language = 'uk'
+       and active is true
+  ),
+  1,
+  'fresh DB seeds exactly one active appointment reminder SMS template'
+);
+
+select is(
+  (
+    select body
+      from app.message_templates
+     where key = 'appointment_reminder'
+       and channel = 'sms'
+       and language = 'uk'
+       and active is true
+  ),
+  $body${{name}}, ваш візит: завтра {{date}} о {{time}}.
+Підтвердити/змінити: {{confirm_url}}. Тел: {{clinic_phone}}$body$,
+  'seeded appointment reminder body matches the canonical Ukrainian copy'
+);
 
 select ok(to_regprocedure('app.now()') is not null, 'app.now() exists');
 select ok(to_regprocedure('app.appointment_fingerprint(timestamptz,timestamptz,text,text,text,text)') is not null, 'app.appointment_fingerprint() exists');

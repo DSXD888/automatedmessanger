@@ -243,6 +243,24 @@ create unique index message_templates_one_active
   on app.message_templates (key, channel, language)
   where active;
 
+insert into app.message_templates(key, channel, language, body, buttons, version, active)
+values (
+  'appointment_reminder',
+  'sms',
+  'uk',
+  $body${{name}}, ваш візит: завтра {{date}} о {{time}}.
+Підтвердити/змінити: {{confirm_url}}. Тел: {{clinic_phone}}$body$,
+  null,
+  1,
+  true
+)
+on conflict (key, channel, language) where active do update
+   set body = excluded.body,
+       buttons = excluded.buttons,
+       version = excluded.version,
+       active = excluded.active,
+       updated_at = app.now();
+
 create table app.inbound_events (
   id bigint generated always as identity primary key,
   provider text not null,
