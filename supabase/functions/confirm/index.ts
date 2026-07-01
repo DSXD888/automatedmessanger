@@ -1,6 +1,10 @@
 import { DEFAULT_CLINIC_PHONE } from "../_shared/templates.ts";
 import type { RuntimeConfig } from "../_shared/config.ts";
 import { ConfigError, loadRuntimeConfig } from "../_shared/config.ts";
+import {
+  createDentinoDbRpcClient,
+  type DentinoDbRpcClient,
+} from "../_shared/db.ts";
 import type {
   CrmWriteBackAction,
   GuardedCrmWriteBack,
@@ -62,6 +66,7 @@ export type ConfirmRecordedAction =
   | "pending_staff_review"
   | "staff_closed_no_write"
   | "error";
+type MaybePromise<T> = T | Promise<T>;
 
 export interface ConfirmReminderRecord {
   id: number;
@@ -81,6 +86,7 @@ export interface ConfirmReminderRecord {
   supersededAt?: string;
   patientId?: number;
   smsRemindersEnabled?: boolean;
+  crmWriteLockToken?: string;
 }
 
 export interface ConsentEventRecord {
@@ -129,10 +135,62 @@ export interface ConfirmActionStore {
   lookupByTokenDigest(
     tokenDigestHex: string,
     now: Date,
+    input?: { rawToken?: string },
+  ): MaybePromise<ConfirmLookupResult>;
+  prepareAppointmentAction?(input: {
+    rawToken: string;
+    tokenDigestHex: string;
+    action: ConfirmAppointmentAction;
+    now: Date;
+  }): MaybePromise<ConfirmPreparedActionResult>;
+  recordAppointmentAction(input: {
+    messageId: number;
+    tokenDigestHex: string;
+    rawToken?: string;
+    actionNonce?: string;
+    action: ConfirmAppointmentAction;
+    renderFingerprint: string;
+    now: Date;
+  }): MaybePromise<ConfirmActionResult>;
+  recordOptOut(input: {
+    messageId: number;
+    tokenDigestHex: string;
+    rawToken?: string;
+    actionNonce?: string;
+    renderFingerprint: string;
+    now: Date;
+  }): MaybePromise<ConfirmActionResult>;
+  finishAppointmentAction(input: {
+    messageId: number;
+    ok: boolean;
+    error?: string;
+    writeBackResult?: GuardedCrmWriteBackResult;
+    now: Date;
+  }): MaybePromise<void>;
+}
+
+export interface ConfirmPreparedActionResult {
+  ok: boolean;
+  neutralReason?: string;
+  reminder?: ConfirmReminderRecord;
+  actionNonce?: string;
+  nonceExpiresAt?: string;
+}
+
+export interface InMemoryConfirmActionStore extends ConfirmActionStore {
+  readonly reminders: readonly ConfirmReminderRecord[];
+  readonly consentEvents: readonly ConsentEventRecord[];
+  readonly cancellationCircuits: ReadonlyMap<string, CancellationCircuitRecord>;
+  lookupByTokenDigest(
+    tokenDigestHex: string,
+    now: Date,
+    input?: { rawToken?: string },
   ): ConfirmLookupResult;
   recordAppointmentAction(input: {
     messageId: number;
     tokenDigestHex: string;
+    rawToken?: string;
+    actionNonce?: string;
     action: ConfirmAppointmentAction;
     renderFingerprint: string;
     now: Date;
@@ -140,6 +198,8 @@ export interface ConfirmActionStore {
   recordOptOut(input: {
     messageId: number;
     tokenDigestHex: string;
+    rawToken?: string;
+    actionNonce?: string;
     renderFingerprint: string;
     now: Date;
   }): ConfirmActionResult;
@@ -150,12 +210,6 @@ export interface ConfirmActionStore {
     writeBackResult?: GuardedCrmWriteBackResult;
     now: Date;
   }): void;
-}
-
-export interface InMemoryConfirmActionStore extends ConfirmActionStore {
-  readonly reminders: readonly ConfirmReminderRecord[];
-  readonly consentEvents: readonly ConsentEventRecord[];
-  readonly cancellationCircuits: ReadonlyMap<string, CancellationCircuitRecord>;
 }
 
 export interface ConfirmHandlerOptions {
@@ -184,17 +238,6 @@ const confirmPageHeaders: HeadersInit = {
   ].join("; "),
 };
 
-const readMethodHandlers: Partial<Record<string, (token: string) => Response>> =
-  {
-    GET: (token: string) =>
-      confirmPageResponse({
-        token,
-        patientDisplayName: "Олена К.",
-        appointmentDateLabel: "18 червня",
-        appointmentTimeLabel: "14:30",
-      }),
-    HEAD: () => emptyReadResponse(),
-  };
 const actionNonceTtlMs = 10 * 60 * 1000;
 const maxActionBodyBytes = 4096;
 const supportedReadMethods = new Set(["GET", "HEAD", "OPTIONS"]);
@@ -254,6 +297,13 @@ const breakerTenMinuteThreshold = 4;
 const breakerThirtyMinuteThreshold = 6;
 const breakerDailyAmberRatio = 0.4;
 const breakerDailyHardRatio = 0.6;
+const dbLookupAppointmentFingerprint = "db-rpc-lookup";
+const dbPreparedRenderFingerprint = "db-rpc-prepared";
+const supabaseUrlEnvKey = "SUPABASE_URL";
+const confirmApiKeyEnvKeys = [
+  "DENTINO_CONFIRM_API_KEY",
+  "SUPABASE_ANON_KEY",
+] as const;
 
 export function renderConfirmPageChrome(model: ConfirmPageViewModel): string {
   const page = confirmPageModel(model);
@@ -571,7 +621,7 @@ export function confirmPageResponse(
 
 export function handleConfirmRequest(
   request: Request | ConfirmHttpRequest,
-): Response;
+): Response | Promise<Response>;
 export function handleConfirmRequest(
   request: Request | ConfirmHttpRequest,
   options: ConfirmHandlerOptions,
@@ -580,32 +630,11 @@ export function handleConfirmRequest(
   request: Request | ConfirmHttpRequest,
   options: ConfirmHandlerOptions = {},
 ): Response | Promise<Response> {
-  if (!options.store) {
-    return handleStaticConfirmRequest(request);
-  }
-
   if (request instanceof Request) {
-    return handleNativeConfirmRequest(request, options);
+    return handleNativeConfirmRequest(request, withDefaultStore(options));
   }
 
-  return handleConfirmRequestWithStore(request, options);
-}
-
-function handleStaticConfirmRequest(
-  request: Request | ConfirmHttpRequest,
-): Response {
-  const normalizedRequest = normalizeConfirmRequest(request);
-  const handler = readMethodHandlers[normalizedRequest.method.toUpperCase()];
-  if (!handler) {
-    return methodNotAllowedResponse();
-  }
-
-  const token = tokenFromPath(new URL(normalizedRequest.url).pathname);
-  if (Object.is(token, null)) {
-    return confirmResponse("Not Found", { status: 404 });
-  }
-
-  return handler(token as string);
+  return handleConfirmRequestWithStore(request, withDefaultStore(options));
 }
 
 async function handleConfirmRequestWithStore(
@@ -712,9 +741,10 @@ async function renderTokenPage(
   rawToken: string,
   tokenDigestHex: string,
 ): Promise<Response> {
-  const lookup = runtime.store.lookupByTokenDigest(
+  const lookup = await runtime.store.lookupByTokenDigest(
     tokenDigestHex,
     runtime.now(),
+    { rawToken },
   );
   if (!lookup.ok || !lookup.reminder) {
     return await neutralPageResponse(runtime, rawToken);
@@ -754,9 +784,48 @@ async function handlePrepareAction(
     return await neutralPageResponse(runtime, rawToken);
   }
 
-  const lookup = runtime.store.lookupByTokenDigest(
+  const prepared = await runtime.store.prepareAppointmentAction?.({
+    rawToken,
+    tokenDigestHex,
+    action,
+    now: runtime.now(),
+  });
+  if (prepared) {
+    if (!prepared.ok || !prepared.reminder || !prepared.actionNonce) {
+      return await neutralPageResponse(runtime, rawToken);
+    }
+    const nonce = await signedActionNonceFromRaw(runtime, {
+      action,
+      rawNonce: prepared.actionNonce,
+      messageId: String(prepared.reminder.id),
+      renderFingerprint: dbPreparedRenderFingerprint,
+      expiresAt: prepared.nonceExpiresAt ??
+        new Date(runtime.now().getTime() + actionNonceTtlMs).toISOString(),
+    });
+    if (cancelActions.has(action)) {
+      return cancelInterstitialResponse(
+        rawToken,
+        prepared.reminder,
+        nonce,
+        runtime.config,
+      );
+    }
+
+    return confirmPageResponse({
+      token: rawToken,
+      patientDisplayName: prepared.reminder.patientDisplaySnapshot,
+      appointmentDateLabel: formatDateLabel(prepared.reminder.targetAt),
+      appointmentTimeLabel: formatTimeLabel(prepared.reminder.targetAt),
+      clinicPhone: runtime.config.clinicPhone,
+      clinicPhoneLabel: formatPhoneLabel(runtime.config.clinicPhone),
+      actionNonce: nonce,
+    });
+  }
+
+  const lookup = await runtime.store.lookupByTokenDigest(
     tokenDigestHex,
     runtime.now(),
+    { rawToken },
   );
   if (!lookup.ok || !lookup.reminder) {
     return await neutralPageResponse(runtime, rawToken);
@@ -812,9 +881,11 @@ async function handlePostAction(
   }
 
   if (optOutActions.has(action)) {
-    const outcome = runtime.store.recordOptOut({
+    const outcome = await runtime.store.recordOptOut({
       messageId,
       tokenDigestHex,
+      rawToken,
+      actionNonce: nonceClaims.nonce,
       renderFingerprint: nonceClaims.renderFingerprint,
       now: runtime.now(),
     });
@@ -827,9 +898,11 @@ async function handlePostAction(
     );
   }
 
-  const outcome = runtime.store.recordAppointmentAction({
+  const outcome = await runtime.store.recordAppointmentAction({
     messageId,
     tokenDigestHex,
+    rawToken,
+    actionNonce: nonceClaims.nonce,
     action: action as ConfirmAppointmentAction,
     renderFingerprint: nonceClaims.renderFingerprint,
     now: runtime.now(),
@@ -857,7 +930,7 @@ async function handlePostAction(
       action: action as CrmWriteBackAction,
       expectedAppointmentFingerprint: outcome.reminder.appointmentFingerprint,
     });
-    runtime.store.finishAppointmentAction({
+    await runtime.store.finishAppointmentAction({
       messageId: outcome.reminder.id,
       ok: writeBack.crmWritebackOk,
       error: writeBack.errorMessage,
@@ -865,7 +938,7 @@ async function handlePostAction(
       now: runtime.now(),
     });
   } catch (error) {
-    runtime.store.finishAppointmentAction({
+    await runtime.store.finishAppointmentAction({
       messageId: outcome.reminder.id,
       ok: false,
       error: error instanceof Error ? error.message : "write-back error",
@@ -1037,6 +1110,181 @@ export function createInMemoryConfirmActionStore(seed: {
   return Object.freeze(store);
 }
 
+export function createDbBackedConfirmActionStore(options: {
+  rpcClient: DentinoDbRpcClient;
+}): ConfirmActionStore {
+  const lockTokensByMessageId = new Map<number, string>();
+
+  const store: ConfirmActionStore = {
+    async lookupByTokenDigest(
+      tokenDigestHex,
+      now,
+      input,
+    ): Promise<ConfirmLookupResult> {
+      if (!input?.rawToken) {
+        return { ok: false, neutralReason: "invalid_or_expired" };
+      }
+      const row = await lookupReminderRow(options.rpcClient, input.rawToken);
+      if (!row?.ok || !row.target_at || !row.display_snapshot) {
+        return {
+          ok: false,
+          neutralReason: row?.neutral_reason ?? "invalid_or_expired",
+        };
+      }
+      return {
+        ok: true,
+        reminder: dbReminderFromLookupRow({
+          row,
+          tokenDigestHex,
+          now,
+        }),
+      };
+    },
+
+    async prepareAppointmentAction(
+      input,
+    ): Promise<ConfirmPreparedActionResult> {
+      const rows = await options.rpcClient.rpc("prepare_reminder_action", {
+        p_raw_token: input.rawToken,
+        p_action: input.action,
+      });
+      const row = firstRpcRow(rows);
+      if (
+        !row?.ok || !row.action_nonce || !row.target_at ||
+        !row.display_snapshot
+      ) {
+        return {
+          ok: false,
+          neutralReason: row?.neutral_reason ?? "invalid_or_expired",
+        };
+      }
+      return {
+        ok: true,
+        actionNonce: row.action_nonce,
+        nonceExpiresAt: row.nonce_expires_at,
+        reminder: dbReminderFromPreparedRow({
+          row,
+          tokenDigestHex: input.tokenDigestHex,
+          now: input.now,
+        }),
+      };
+    },
+
+    async recordAppointmentAction(input): Promise<ConfirmActionResult> {
+      if (!input.rawToken || !input.actionNonce) {
+        return { status: "invalid_or_expired" };
+      }
+
+      let row = await recordReminderActionRow(
+        options.rpcClient,
+        input.rawToken,
+        input.action,
+        input.actionNonce,
+      );
+      if (
+        (!row?.ok || !row.message_id) &&
+        !constantTimeEqual(input.renderFingerprint, dbPreparedRenderFingerprint)
+      ) {
+        const preparedRows = await options.rpcClient.rpc(
+          "prepare_reminder_action",
+          {
+            p_raw_token: input.rawToken,
+            p_action: input.action,
+          },
+        );
+        const prepared = firstRpcRow(preparedRows);
+        if (prepared?.ok && prepared.action_nonce) {
+          row = await recordReminderActionRow(
+            options.rpcClient,
+            input.rawToken,
+            input.action,
+            prepared.action_nonce,
+          );
+        }
+      }
+
+      if (!row?.ok || !row.message_id) {
+        const lookup = await lookupReminderRow(
+          options.rpcClient,
+          input.rawToken,
+        );
+        if (lookup?.already_responded) {
+          return {
+            status: "already_used",
+            reminder: dbReminderFromLookupRow({
+              row: lookup,
+              tokenDigestHex: input.tokenDigestHex,
+              now: input.now,
+            }),
+          };
+        }
+        return { status: "invalid_or_expired" };
+      }
+
+      if (row.lock_token) {
+        lockTokensByMessageId.set(row.message_id, row.lock_token);
+      }
+
+      const reminder = dbReminderFromRecordRow({
+        row,
+        tokenDigestHex: input.tokenDigestHex,
+        action: input.action,
+        now: input.now,
+      });
+      if (Object.is(row.action_taken, "pending_staff_review")) {
+        return { status: "pending_staff_review", reminder };
+      }
+
+      return {
+        status: "recorded",
+        reminder,
+        writeBackAction: input.action,
+      };
+    },
+
+    async recordOptOut(input): Promise<ConfirmActionResult> {
+      if (!input.rawToken || !input.actionNonce) {
+        return { status: "invalid_or_expired" };
+      }
+
+      const row = await recordReminderActionRow(
+        options.rpcClient,
+        input.rawToken,
+        "opt_out",
+        input.actionNonce,
+      );
+      if (!row?.ok || !row.message_id) {
+        return { status: "invalid_or_expired" };
+      }
+
+      return {
+        status: "recorded",
+        reminder: dbReminderFromOptOutRow({
+          row,
+          tokenDigestHex: input.tokenDigestHex,
+          now: input.now,
+        }),
+      };
+    },
+
+    async finishAppointmentAction(input): Promise<void> {
+      const lockToken = lockTokensByMessageId.get(input.messageId);
+      const rows = await options.rpcClient.rpc("finish_reminder_action", {
+        p_message_id: input.messageId,
+        p_ok: input.ok,
+        p_error: input.error,
+        p_meta: dbFinishMeta(lockToken, input.writeBackResult),
+      });
+      const row = firstRpcRow(rows);
+      if (row?.ok) {
+        lockTokensByMessageId.delete(input.messageId);
+      }
+    },
+  };
+
+  return Object.freeze(store);
+}
+
 function confirmPageModel(
   model: ConfirmPageViewModel,
 ): Required<ConfirmPageViewModel> {
@@ -1084,6 +1332,51 @@ function confirmRuntime(
   };
 }
 
+function withDefaultStore(
+  options: ConfirmHandlerOptions,
+): ConfirmHandlerOptions {
+  if (options.store) {
+    return options;
+  }
+
+  const config = options.config ?? loadRuntimeConfig();
+  return {
+    ...options,
+    config,
+    store: createDefaultDbBackedConfirmActionStore(),
+  };
+}
+
+function createDefaultDbBackedConfirmActionStore(): ConfirmActionStore {
+  return createDbBackedConfirmActionStore({
+    rpcClient: createDentinoDbRpcClient({
+      supabaseUrl: requiredEnv(supabaseUrlEnvKey),
+      apiKey: firstRequiredEnv(confirmApiKeyEnvKeys),
+      role: "dentino_confirm_api",
+    }),
+  });
+}
+
+function requiredEnv(key: string): string {
+  const value = Deno.env.get(key)?.trim();
+  if (!value) {
+    throw new ConfigError(`${key} is required for the confirm DB store`);
+  }
+  return value;
+}
+
+function firstRequiredEnv(keys: readonly string[]): string {
+  for (const key of keys) {
+    const value = Deno.env.get(key)?.trim();
+    if (value) {
+      return value;
+    }
+  }
+  throw new ConfigError(
+    `${keys.join(" or ")} is required for the confirm DB store`,
+  );
+}
+
 function requiredStore(
   store: ConfirmActionStore | undefined,
 ): ConfirmActionStore {
@@ -1109,6 +1402,228 @@ async function signedActionNonce(
     },
     runtime.config.tokenPepper,
   );
+}
+
+async function signedActionNonceFromRaw(
+  runtime: RequiredConfirmRuntime,
+  input: {
+    action: ConfirmPostedAction;
+    rawNonce: string;
+    messageId: string;
+    renderFingerprint: string;
+    expiresAt: string;
+  },
+): Promise<string> {
+  return await signActionNonce(
+    {
+      nonce: input.rawNonce,
+      action: input.action,
+      messageId: input.messageId,
+      renderFingerprint: input.renderFingerprint,
+      expiresAt: input.expiresAt,
+    },
+    runtime.config.tokenPepper,
+  );
+}
+
+function firstRpcRow<T>(rows: readonly T[] | null | undefined): T | undefined {
+  return rows?.[0];
+}
+
+async function lookupReminderRow(
+  rpcClient: DentinoDbRpcClient,
+  rawToken: string,
+) {
+  return firstRpcRow(
+    await rpcClient.rpc("lookup_reminder_by_token", {
+      p_raw_token: rawToken,
+    }),
+  );
+}
+
+async function recordReminderActionRow(
+  rpcClient: DentinoDbRpcClient,
+  rawToken: string,
+  action: ConfirmPostedAction,
+  actionNonce: string,
+) {
+  return firstRpcRow(
+    await rpcClient.rpc("record_reminder_action", {
+      p_raw_token: rawToken,
+      p_action: action,
+      p_nonce: actionNonce,
+    }),
+  );
+}
+
+function dbReminderFromLookupRow(input: {
+  row: {
+    already_responded?: boolean | null;
+    response?: string | null;
+    target_at: string;
+    display_snapshot: string;
+  };
+  tokenDigestHex: string;
+  now: Date;
+}): ConfirmReminderRecord {
+  const response = dbAppointmentAction(input.row.response);
+  return {
+    id: 0,
+    targetDate: kyivDate(input.row.target_at),
+    targetAt: input.row.target_at,
+    tokenDigestHex: input.tokenDigestHex,
+    tokenExpiresAt: input.row.target_at,
+    cliniccardsVisitId: "db-rpc",
+    appointmentFingerprint: dbLookupAppointmentFingerprint,
+    patientDisplaySnapshot: input.row.display_snapshot,
+    status: "sent",
+    response,
+    actionTaken: input.row.already_responded
+      ? actionTakenForResponse(response)
+      : "none",
+    smsRemindersEnabled: true,
+    patientId: 0,
+    actionLockedAt: input.row.already_responded
+      ? input.now.toISOString()
+      : undefined,
+  };
+}
+
+function dbReminderFromPreparedRow(input: {
+  row: {
+    target_at: string;
+    display_snapshot: string;
+  };
+  tokenDigestHex: string;
+  now: Date;
+}): ConfirmReminderRecord {
+  return {
+    ...dbReminderFromLookupRow({
+      row: {
+        already_responded: false,
+        response: null,
+        target_at: input.row.target_at,
+        display_snapshot: input.row.display_snapshot,
+      },
+      tokenDigestHex: input.tokenDigestHex,
+      now: input.now,
+    }),
+    appointmentFingerprint: dbPreparedRenderFingerprint,
+  };
+}
+
+function dbReminderFromRecordRow(input: {
+  row: {
+    message_id: number;
+    cliniccards_visit_id: string;
+    lock_token?: string | null;
+    action_taken?: string | null;
+    target_at: string;
+    display_snapshot: string;
+  };
+  tokenDigestHex: string;
+  action: ConfirmAppointmentAction;
+  now: Date;
+}): ConfirmReminderRecord {
+  return {
+    id: input.row.message_id,
+    targetDate: kyivDate(input.row.target_at),
+    targetAt: input.row.target_at,
+    tokenDigestHex: input.tokenDigestHex,
+    tokenExpiresAt: input.row.target_at,
+    cliniccardsVisitId: input.row.cliniccards_visit_id,
+    appointmentFingerprint: dbPreparedRenderFingerprint,
+    patientDisplaySnapshot: input.row.display_snapshot,
+    status: "sent",
+    response: input.action,
+    respondedAt: input.now.toISOString(),
+    actionLockedAt: input.now.toISOString(),
+    actionTaken: dbRecordedAction(input.row.action_taken),
+    smsRemindersEnabled: true,
+    patientId: 0,
+    crmWriteLockToken: input.row.lock_token ?? undefined,
+  };
+}
+
+function dbReminderFromOptOutRow(input: {
+  row: {
+    message_id: number;
+    cliniccards_visit_id?: string | null;
+    target_at: string;
+    display_snapshot: string;
+  };
+  tokenDigestHex: string;
+  now: Date;
+}): ConfirmReminderRecord {
+  return {
+    id: input.row.message_id,
+    targetDate: kyivDate(input.row.target_at),
+    targetAt: input.row.target_at,
+    tokenDigestHex: input.tokenDigestHex,
+    tokenExpiresAt: input.row.target_at,
+    cliniccardsVisitId: input.row.cliniccards_visit_id ?? "db-rpc",
+    appointmentFingerprint: dbPreparedRenderFingerprint,
+    patientDisplaySnapshot: input.row.display_snapshot,
+    status: "sent",
+    actionTaken: "none",
+    smsRemindersEnabled: false,
+    patientId: 0,
+  };
+}
+
+function dbAppointmentAction(
+  value: string | null | undefined,
+): ConfirmAppointmentAction | undefined {
+  return value === "confirm" || value === "cancel" ? value : undefined;
+}
+
+function actionTakenForResponse(
+  response: ConfirmAppointmentAction | undefined,
+): ConfirmRecordedAction {
+  if (response === "confirm") {
+    return "confirmed";
+  }
+  if (response === "cancel") {
+    return "cancelled";
+  }
+  return "none";
+}
+
+function dbRecordedAction(
+  value: string | null | undefined,
+): ConfirmRecordedAction {
+  if (
+    value === "confirmed" || value === "cancelled" || value === "none" ||
+    value === "pending_staff_review" ||
+    value === "staff_closed_no_write" || value === "error"
+  ) {
+    return value;
+  }
+  return "none";
+}
+
+function kyivDate(instant: string): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Kyiv",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date(instant));
+}
+
+function dbFinishMeta(
+  lockToken: string | undefined,
+  writeBackResult: GuardedCrmWriteBackResult | undefined,
+): Record<string, string | number | boolean | null> {
+  return {
+    lock_token: lockToken ?? null,
+    status: writeBackResult?.status ?? null,
+    crm_target_status: writeBackResult?.crmTargetStatus ?? null,
+    dry_run: writeBackResult?.dryRun ?? null,
+    staff_attention: writeBackResult?.staffAttention ?? null,
+    attempts: writeBackResult?.attempts ?? null,
+    error_code: writeBackResult?.errorCode ?? null,
+  };
 }
 
 function findUsableReminder(
@@ -1273,16 +1788,6 @@ function shouldHaltCancelWrites(input: {
   }
 
   return snapshot.hardOpen;
-}
-
-function tokenFromPath(pathname: string): string | null {
-  const parts = pathname.split("/").filter(Boolean);
-  if (!Object.is(parts.length, 2) || !Object.is(parts[0], "r")) {
-    return null;
-  }
-
-  const token = parts[1];
-  return isCapabilityToken(token) ? token : null;
 }
 
 function parseConfirmPath(

@@ -1,10 +1,12 @@
 import { assertEquals, assertFalse, assertMatch } from "@std/assert";
 import type { RuntimeConfig } from "../../supabase/functions/_shared/config.ts";
 import { loadRuntimeConfig } from "../../supabase/functions/_shared/config.ts";
+import type { DentinoDbRpcClient } from "../../supabase/functions/_shared/db.ts";
 import type { GuardedCrmWriteBack } from "../../supabase/functions/_shared/writeBack.ts";
 import {
   type ConfirmHttpRequest,
   type ConfirmReminderRecord,
+  createDbBackedConfirmActionStore,
   createInMemoryConfirmActionStore,
   evaluateCancellationBreakerSnapshot,
   handleConfirmRequest,
@@ -294,6 +296,373 @@ Deno.test("E2E-NOJS-01 server-rendered forms complete Confirm, Cancel interstiti
     nonce: nonceForAction(optOutHtml, "opt_out"),
   });
   assertEquals(consentEventCount(optOut), 1);
+});
+
+Deno.test("DB-backed confirm store calls lookup, prepare, record, and finish RPCs", async () => {
+  const calls: { name: string; args: unknown }[] = [];
+  const lockToken = ["123e4567", "e89b", "12d3", "a456", "426614174000"]
+    .join("-");
+  const dbNonce = base64UrlEncode(
+    new Uint8Array([
+      31,
+      30,
+      29,
+      28,
+      27,
+      26,
+      25,
+      24,
+      23,
+      22,
+      21,
+      20,
+      19,
+      18,
+      17,
+      16,
+    ]),
+  );
+  const rpcClient: DentinoDbRpcClient = {
+    rpc: ((name: string, args: unknown) => {
+      calls.push({ name, args });
+      if (name === "lookup_reminder_by_token") {
+        return Promise.resolve([{
+          ok: true,
+          neutral_reason: null,
+          target_at: targetAt,
+          display_snapshot: "Олена К.",
+          already_responded: false,
+          response: null,
+          clinic_phone: "+380679876111",
+        }]);
+      }
+      if (name === "prepare_reminder_action") {
+        return Promise.resolve([{
+          ok: true,
+          neutral_reason: null,
+          action_nonce: dbNonce,
+          nonce_expires_at: "2026-06-30T09:10:00.000Z",
+          target_at: targetAt,
+          display_snapshot: "Олена К.",
+          clinic_phone: "+380679876111",
+        }]);
+      }
+      if (name === "record_reminder_action") {
+        return Promise.resolve([{
+          ok: true,
+          neutral_reason: null,
+          message_id: 42,
+          cliniccards_visit_id: "visit-cancel-ok",
+          crm_target_status: "CANCELLED",
+          lock_token: lockToken,
+          action_taken: "cancelled",
+          target_at: targetAt,
+          display_snapshot: "Олена К.",
+        }]);
+      }
+      if (name === "finish_reminder_action") {
+        return Promise.resolve([{ ok: true, neutral_reason: null }]);
+      }
+      throw new Error(`Unexpected RPC ${name}`);
+    }) as DentinoDbRpcClient["rpc"],
+  };
+  const writeCalls: unknown[] = [];
+  const store = createDbBackedConfirmActionStore({ rpcClient });
+
+  const get = await handleConfirmRequest(
+    request("GET", `/r/${rawToken}`, null, new Headers()),
+    {
+      config,
+      store,
+      writeBack: fakeWriteBack(writeCalls),
+      now: () => new Date(nowIso),
+    },
+  ) as Response;
+  assertEquals(get.status, 200);
+
+  const interstitial = await responseText(
+    handleConfirmRequest(
+      request(
+        "POST",
+        `/r/${rawToken}/prepare`,
+        new URLSearchParams({ action: "cancel" }).toString(),
+        new Headers({
+          "content-type": "application/x-www-form-urlencoded",
+          origin: "https://local.test",
+        }),
+      ),
+      {
+        config,
+        store,
+        writeBack: fakeWriteBack(writeCalls),
+        now: () => new Date(nowIso),
+      },
+    ) as Promise<Response>,
+  );
+  const nonce = nonceForAction(interstitial, "cancel");
+
+  const action = await handleConfirmRequest(
+    request(
+      "POST",
+      `/r/${rawToken}/action`,
+      new URLSearchParams({ action: "cancel", nonce }).toString(),
+      new Headers({
+        "content-type": "application/x-www-form-urlencoded",
+        origin: "https://local.test",
+      }),
+    ),
+    {
+      config,
+      store,
+      writeBack: fakeWriteBack(writeCalls),
+      now: () => new Date(nowIso),
+    },
+  ) as Response;
+
+  assertEquals(action.status, 200);
+  assertEquals(writeCalls.length, 1);
+  assertEquals(
+    (writeCalls[0] as {
+      messageId: number;
+      cliniccardsVisitId: string;
+      action: string;
+    }).messageId,
+    42,
+  );
+  assertEquals(
+    (writeCalls[0] as {
+      messageId: number;
+      cliniccardsVisitId: string;
+      action: string;
+    }).cliniccardsVisitId,
+    "visit-cancel-ok",
+  );
+  assertEquals(
+    (writeCalls[0] as {
+      messageId: number;
+      cliniccardsVisitId: string;
+      action: string;
+    }).action,
+    "cancel",
+  );
+  assertEquals(calls.map((call) => call.name), [
+    "lookup_reminder_by_token",
+    "prepare_reminder_action",
+    "record_reminder_action",
+    "finish_reminder_action",
+  ]);
+  assertEquals(
+    (calls[2].args as { p_nonce: string }).p_nonce,
+    dbNonce,
+  );
+  assertEquals(
+    (calls[3].args as { p_message_id: number }).p_message_id,
+    42,
+  );
+  assertEquals(
+    (calls[3].args as { p_meta: { lock_token: string } }).p_meta.lock_token,
+    lockToken,
+  );
+});
+
+Deno.test("DB-backed confirm store records GET-rendered one-tap confirm via a DB nonce", async () => {
+  const calls: { name: string; args: unknown }[] = [];
+  const lockToken = ["223e4567", "e89b", "12d3", "a456", "426614174000"]
+    .join("-");
+  const dbNonce = base64UrlEncode(
+    new Uint8Array([
+      41,
+      42,
+      43,
+      44,
+      45,
+      46,
+      47,
+      48,
+      49,
+      50,
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+    ]),
+  );
+  const rpcClient: DentinoDbRpcClient = {
+    rpc: ((name: string, args: unknown) => {
+      calls.push({ name, args });
+      if (name === "lookup_reminder_by_token") {
+        return Promise.resolve([{
+          ok: true,
+          neutral_reason: null,
+          target_at: targetAt,
+          display_snapshot: "Олена К.",
+          already_responded: false,
+          response: null,
+          clinic_phone: "+380679876111",
+        }]);
+      }
+      if (name === "record_reminder_action") {
+        if (!Object.is((args as { p_nonce: string }).p_nonce, dbNonce)) {
+          return Promise.resolve([{
+            ok: false,
+            neutral_reason: "invalid_or_expired",
+            message_id: null,
+            cliniccards_visit_id: null,
+            crm_target_status: null,
+            lock_token: null,
+            action_taken: null,
+            target_at: null,
+            display_snapshot: null,
+          }]);
+        }
+        return Promise.resolve([{
+          ok: true,
+          neutral_reason: null,
+          message_id: 43,
+          cliniccards_visit_id: "visit-confirm-ok",
+          crm_target_status: "CONFIRMED",
+          lock_token: lockToken,
+          action_taken: "confirmed",
+          target_at: targetAt,
+          display_snapshot: "Олена К.",
+        }]);
+      }
+      if (name === "prepare_reminder_action") {
+        return Promise.resolve([{
+          ok: true,
+          neutral_reason: null,
+          action_nonce: dbNonce,
+          nonce_expires_at: "2026-06-30T09:10:00.000Z",
+          target_at: targetAt,
+          display_snapshot: "Олена К.",
+          clinic_phone: "+380679876111",
+        }]);
+      }
+      if (name === "finish_reminder_action") {
+        return Promise.resolve([{ ok: true, neutral_reason: null }]);
+      }
+      throw new Error(`Unexpected RPC ${name}`);
+    }) as DentinoDbRpcClient["rpc"],
+  };
+  const writeCalls: unknown[] = [];
+  const store = createDbBackedConfirmActionStore({ rpcClient });
+  const handlerOptions = {
+    config,
+    store,
+    writeBack: fakeWriteBack(writeCalls),
+    now: () => new Date(nowIso),
+    rng: createSeededByteStreamRng(byteRange(0, 64)),
+  };
+
+  const get = await handleConfirmRequest(
+    request("GET", `/r/${rawToken}`, null, new Headers()),
+    handlerOptions,
+  ) as Response;
+  const nonce = nonceForAction(await get.text(), "confirm");
+  const action = await handleConfirmRequest(
+    request(
+      "POST",
+      `/r/${rawToken}/action`,
+      new URLSearchParams({ action: "confirm", nonce }).toString(),
+      new Headers({
+        "content-type": "application/x-www-form-urlencoded",
+        origin: "https://local.test",
+      }),
+    ),
+    handlerOptions,
+  ) as Response;
+
+  assertEquals(action.status, 200);
+  assertEquals(writeCalls.length, 1);
+  assertEquals(calls.map((call) => call.name), [
+    "lookup_reminder_by_token",
+    "record_reminder_action",
+    "prepare_reminder_action",
+    "record_reminder_action",
+    "finish_reminder_action",
+  ]);
+  assertEquals(
+    Object.is((calls[1].args as { p_nonce: string }).p_nonce, dbNonce),
+    false,
+  );
+  assertEquals(
+    (calls[3].args as { p_nonce: string }).p_nonce,
+    dbNonce,
+  );
+});
+
+Deno.test("DB-backed confirm store records footer opt-out through record RPC without CRM write-back", async () => {
+  const calls: { name: string; args: unknown }[] = [];
+  const rpcClient: DentinoDbRpcClient = {
+    rpc: ((name: string, args: unknown) => {
+      calls.push({ name, args });
+      if (name === "lookup_reminder_by_token") {
+        return Promise.resolve([{
+          ok: true,
+          neutral_reason: null,
+          target_at: targetAt,
+          display_snapshot: "Олена К.",
+          already_responded: false,
+          response: null,
+          clinic_phone: "+380679876111",
+        }]);
+      }
+      if (name === "record_reminder_action") {
+        return Promise.resolve([{
+          ok: true,
+          neutral_reason: null,
+          message_id: 44,
+          cliniccards_visit_id: "visit-opt-out",
+          crm_target_status: null,
+          lock_token: null,
+          action_taken: "none",
+          target_at: targetAt,
+          display_snapshot: "Олена К.",
+        }]);
+      }
+      throw new Error(`Unexpected RPC ${name}`);
+    }) as DentinoDbRpcClient["rpc"],
+  };
+  const writeCalls: unknown[] = [];
+  const store = createDbBackedConfirmActionStore({ rpcClient });
+  const handlerOptions = {
+    config,
+    store,
+    writeBack: fakeWriteBack(writeCalls),
+    now: () => new Date(nowIso),
+  };
+
+  const get = await handleConfirmRequest(
+    request("GET", `/r/${rawToken}`, null, new Headers()),
+    handlerOptions,
+  ) as Response;
+  const nonce = nonceForAction(await get.text(), "opt_out");
+  const action = await handleConfirmRequest(
+    request(
+      "POST",
+      `/r/${rawToken}/action`,
+      new URLSearchParams({ action: "opt_out", nonce }).toString(),
+      new Headers({
+        "content-type": "application/x-www-form-urlencoded",
+        origin: "https://local.test",
+      }),
+    ),
+    handlerOptions,
+  ) as Response;
+
+  assertEquals(action.status, 200);
+  assertMatch(await action.text(), /SMS-нагадування вимкнено/u);
+  assertEquals(writeCalls.length, 0);
+  assertEquals(calls.map((call) => call.name), [
+    "lookup_reminder_by_token",
+    "record_reminder_action",
+  ]);
+  assertEquals(
+    (calls[1].args as { p_action: string }).p_action,
+    "opt_out",
+  );
 });
 
 Deno.test("E2E-BREAKER-01 four valid cancels in ten minutes hard-open the breaker and halt CRM writes", async () => {

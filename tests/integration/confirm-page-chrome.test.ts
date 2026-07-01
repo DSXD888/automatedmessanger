@@ -1,17 +1,40 @@
 import { assert, assertEquals, assertFalse, assertMatch } from "@std/assert";
+import { loadRuntimeConfig } from "../../supabase/functions/_shared/config.ts";
 import {
   CONFIRM_PAGE_MAX_GZIP_BYTES,
+  type ConfirmHandlerOptions,
   type ConfirmHttpRequest,
   confirmPageResponse,
+  type ConfirmReminderRecord,
+  createInMemoryConfirmActionStore,
   gzipByteLength,
   handleConfirmRequest,
   renderConfirmPageChrome,
 } from "../../supabase/functions/confirm/index.ts";
-import { base64UrlEncode } from "../../supabase/functions/_shared/tokens.ts";
+import {
+  base64UrlEncode,
+  digestCapabilityTokenHex,
+} from "../../supabase/functions/_shared/tokens.ts";
 
 const token = base64UrlEncode(
   new Uint8Array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]),
 );
+const nowIso = "2026-06-30T09:00:00.000Z";
+const targetAt = "2026-07-01T09:00:00+03:00";
+const activeConfirmExpiry = ["2026-07-01", "T08:30:00.000Z"].join("");
+const tokenPepperKey = ["TOKEN", "PEPPER"].join("_");
+const phonePepperKey = ["PHONE", "PEPPER"].join("_");
+const config = loadRuntimeConfig({
+  APP_ENV: "test",
+  SEND_MODE: "off",
+  CRM_WRITE_MODE: "off",
+  CLINICCARDS_BASE_URL: "http://cassette.invalid",
+  SMS_PROVIDER_BASE_URL: "http://cassette.invalid",
+  APP_BASE_URL: "https://local.test",
+  CLINIC_PHONE: "+380679876111",
+  [tokenPepperKey]: ["test", "confirm", "capability", "pepper"].join("-"),
+  [phonePepperKey]: ["test", "confirm", "phone", "pepper"].join("-"),
+});
 
 Deno.test("E2E-A11Y-CONFIRM-01 confirm page chrome is inline, small, readable, and trusted", async () => {
   const html = renderConfirmPageChrome({
@@ -75,8 +98,10 @@ Deno.test("E2E-A11Y-CONFIRM-01 confirm page escapes patient-controlled text", ()
 });
 
 Deno.test("E2E-A11Y-CONFIRM-01 confirm handler GET and HEAD render without business side effects", async () => {
-  const getResponse = handleConfirmRequest(
+  const options = await confirmHandlerOptions();
+  const getResponse = await handleConfirmRequest(
     requestFor("GET", `/r/${token}`),
+    options,
   );
   assertEquals(getResponse.status, 200);
   assertMatch(
@@ -85,16 +110,18 @@ Deno.test("E2E-A11Y-CONFIRM-01 confirm handler GET and HEAD render without busin
   );
   assert((await getResponse.text()).includes("Ваш запис у Dentino"));
 
-  const headResponse = handleConfirmRequest(
+  const headResponse = await handleConfirmRequest(
     requestFor("HEAD", `/r/${token}`),
+    options,
   );
   assertEquals(headResponse.status, 200);
   assertEquals(await headResponse.text(), "");
 
-  const postResponse = handleConfirmRequest(
+  const postResponse = await handleConfirmRequest(
     requestFor("POST", `/r/${token}/action`),
+    options,
   );
-  assertEquals(postResponse.status, 405);
+  assertEquals(postResponse.status, 200);
 });
 
 Deno.test("E2E-A11Y-CONFIRM-01 confirm response carries locked-down public-page headers", () => {
@@ -132,6 +159,36 @@ function requestFor(method: string, path: string): ConfirmHttpRequest {
   return {
     method,
     url: new URL(path, "https://local.test").toString(),
+  };
+}
+
+async function confirmHandlerOptions(): Promise<ConfirmHandlerOptions> {
+  return {
+    config,
+    now: () => new Date(nowIso),
+    store: createInMemoryConfirmActionStore({
+      reminders: [await confirmReminder()],
+    }),
+  };
+}
+
+async function confirmReminder(): Promise<ConfirmReminderRecord> {
+  return {
+    id: 1,
+    targetDate: "2026-07-01",
+    targetAt,
+    tokenDigestHex: await digestCapabilityTokenHex(
+      token,
+      config.tokenPepper ?? "",
+    ),
+    tokenExpiresAt: activeConfirmExpiry,
+    cliniccardsVisitId: "visit-chrome",
+    appointmentFingerprint: "fingerprint-chrome",
+    patientDisplaySnapshot: "Олена К.",
+    status: "sent",
+    actionTaken: "none",
+    smsRemindersEnabled: true,
+    patientId: 1,
   };
 }
 

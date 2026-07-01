@@ -81,10 +81,11 @@ grant insert, select on app.crm_fetch_log to dentino_run_api;
 grant insert on app.audit_log to dentino_run_api;
 grant usage, select on all sequences in schema app to dentino_run_api;
 
+grant select, update on app.patients to dentino_confirm_definer;
 grant select, update on app.reminder_messages to dentino_confirm_definer;
 grant select, insert, update, delete on app.crm_visit_write_locks to dentino_confirm_definer;
 grant select, insert, update on app.cancellation_circuits to dentino_confirm_definer;
-grant insert on app.consent_events to dentino_confirm_definer;
+grant insert, select on app.consent_events to dentino_confirm_definer;
 grant insert on app.audit_log to dentino_confirm_definer;
 grant usage, select on all sequences in schema app to dentino_confirm_definer;
 
@@ -153,6 +154,9 @@ drop policy if exists audit_log_run_api_insert on app.audit_log;
 create policy audit_log_run_api_insert on app.audit_log
   for insert to dentino_run_api with check (true);
 
+drop policy if exists patients_confirm_definer_all on app.patients;
+create policy patients_confirm_definer_all on app.patients
+  for all to dentino_confirm_definer using (true) with check (true);
 drop policy if exists reminder_messages_confirm_definer_all on app.reminder_messages;
 create policy reminder_messages_confirm_definer_all on app.reminder_messages
   for all to dentino_confirm_definer using (true) with check (true);
@@ -165,6 +169,9 @@ create policy cancellation_circuits_confirm_definer_all on app.cancellation_circ
 drop policy if exists consent_events_confirm_definer_insert on app.consent_events;
 create policy consent_events_confirm_definer_insert on app.consent_events
   for insert to dentino_confirm_definer with check (true);
+drop policy if exists consent_events_confirm_definer_select on app.consent_events;
+create policy consent_events_confirm_definer_select on app.consent_events
+  for select to dentino_confirm_definer using (true);
 drop policy if exists audit_log_confirm_definer_insert on app.audit_log;
 create policy audit_log_confirm_definer_insert on app.audit_log
   for insert to dentino_confirm_definer with check (true);
@@ -204,11 +211,19 @@ begin
     return null;
   end if;
 
-  select decrypted_secret
-    into token_pepper
-    from vault.decrypted_secrets
-   where name = 'TOKEN_PEPPER_V1'
-   limit 1;
+  begin
+    select decrypted_secret
+      into token_pepper
+      from vault.decrypted_secrets
+     where name = 'TOKEN_PEPPER_V1'
+     limit 1;
+  exception
+    when insufficient_privilege or undefined_function or undefined_table then
+      if nullif(current_setting('app.env', true), '') not in ('test', 'ci', 'dev') then
+        raise;
+      end if;
+      token_pepper := null;
+  end;
 
   if token_pepper is null then
     if nullif(current_setting('app.env', true), '') in ('test', 'ci', 'dev') then
@@ -363,6 +378,7 @@ set search_path = ''
 as $$
 declare
   reminder app.reminder_messages%rowtype;
+  consent_event_id bigint;
   desired_action_taken text;
   desired_crm_target_status text;
   desired_lock_token uuid;
@@ -372,8 +388,86 @@ begin
      or p_raw_token !~ '^[A-Za-z0-9_-]{20,128}$'
      or p_nonce is null
      or p_nonce !~ '^[A-Za-z0-9_-]{20,128}$'
-     or p_action not in ('confirm', 'cancel') then
+     or p_action not in ('confirm', 'cancel', 'opt_out') then
     return query select false, 'invalid_or_expired', null::bigint, null::text, null::text, null::uuid, null::text, null::timestamptz, null::text;
+    return;
+  end if;
+
+  if p_action = 'opt_out' then
+    select *
+      into reminder
+      from app.reminder_messages
+     where tracking_token_digest = private.token_digest(p_raw_token)
+       and token_expires_at > app.now()
+       and superseded_at is null
+       and status in ('sent', 'delivered', 'send_unknown')
+     limit 1
+     for update;
+
+    if not found or reminder.patient_id is null then
+      return query select false, 'invalid_or_expired', null::bigint, null::text, null::text, null::uuid, null::text, null::timestamptz, null::text;
+      return;
+    end if;
+
+    if exists (
+      select 1
+        from app.patients patient
+       where patient.id = reminder.patient_id
+         and patient.sms_reminders_enabled is false
+         and patient.sms_reminders_status = 'opted_out'
+       for update
+    ) then
+      return query select
+        true,
+        null::text,
+        reminder.id,
+        reminder.cliniccards_visit_id,
+        null::text,
+        null::uuid,
+        reminder.action_taken,
+        reminder.target_at,
+        reminder.patient_display_snapshot;
+      return;
+    end if;
+
+    insert into app.consent_events(
+      patient_id,
+      status,
+      source,
+      legal_basis,
+      captured_at,
+      captured_by,
+      request_meta
+    )
+    values (
+      reminder.patient_id,
+      'opted_out',
+      'unsubscribe_link',
+      'contract',
+      app.now(),
+      'confirm_page',
+      jsonb_build_object('message_id', reminder.id)
+    )
+    returning id into consent_event_id;
+
+    update app.patients
+       set sms_reminders_enabled = false,
+           sms_reminders_status = 'opted_out',
+           last_consent_event_id = consent_event_id,
+           sms_reminders_set_at = app.now(),
+           updated_at = app.now()
+     where id = reminder.patient_id;
+
+    return query select
+      true,
+      null::text,
+      reminder.id,
+      reminder.cliniccards_visit_id,
+      null::text,
+      null::uuid,
+      reminder.action_taken,
+      reminder.target_at,
+      reminder.patient_display_snapshot;
     return;
   end if;
 
