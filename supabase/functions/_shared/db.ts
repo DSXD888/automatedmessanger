@@ -6,6 +6,9 @@ export type DentinoApiFunctions = DentinoDatabase["api"]["Functions"];
 export type DentinoApiRpcName = keyof DentinoApiFunctions & string;
 export type DentinoApiRpcArgs<Name extends DentinoApiRpcName> =
   DentinoApiFunctions[Name]["Args"];
+export type DentinoApiRpcInput<Name extends DentinoApiRpcName> =
+  DentinoApiRpcArgs<Name> extends never ? Record<string, never>
+    : DentinoApiRpcArgs<Name>;
 export type DentinoApiRpcReturns<Name extends DentinoApiRpcName> =
   DentinoApiFunctions[Name]["Returns"];
 
@@ -24,7 +27,7 @@ export interface DentinoDbClientOptions {
 export interface DentinoDbRpcClient {
   rpc<Name extends DentinoApiRpcName>(
     name: Name,
-    args: DentinoApiRpcArgs<Name>,
+    args: DentinoApiRpcInput<Name>,
   ): Promise<DentinoApiRpcReturns<Name>>;
 }
 
@@ -55,7 +58,7 @@ export function createDentinoDbRpcClient(
   return Object.freeze({
     async rpc<Name extends DentinoApiRpcName>(
       name: Name,
-      args: DentinoApiRpcArgs<Name>,
+      args: DentinoApiRpcInput<Name>,
     ): Promise<DentinoApiRpcReturns<Name>> {
       const response = await httpClient({
         url: `${supabaseUrl}/rest/v1/rpc/${encodeURIComponent(name)}`,

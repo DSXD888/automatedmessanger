@@ -109,8 +109,8 @@ select is(
     join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'api'
   ),
-  10,
-  'api exposes exactly the four L1 core functions plus L3/L4 dashboard functions'
+  27,
+  'api exposes confirm, run-store, and L3/L4 dashboard functions'
 );
 
 select ok(has_function_privilege('dentino_confirm_api', 'api.lookup_reminder_by_token(text)'::regprocedure, 'execute'), 'confirm role executes lookup RPC');

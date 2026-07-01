@@ -7,7 +7,10 @@ import {
 import type {
   ClinicCardsClient,
   ClinicCardsPatient,
+  ClinicCardsPatientReadResult,
+  ClinicCardsStatusPolicyEntry,
   ClinicCardsVisit,
+  CrmFetchLogRecord,
   CrmFetchPurpose,
   CrmVisitFact,
 } from "../_shared/clinicCardsClient.ts";
@@ -17,6 +20,14 @@ import {
 } from "../_shared/clinicCardsClient.ts";
 import type { RuntimeConfig } from "../_shared/config.ts";
 import { ConfigError, loadRuntimeConfig } from "../_shared/config.ts";
+import type {
+  DentinoApiRpcReturns,
+  DentinoDbRpcClient,
+} from "../_shared/db.ts";
+import {
+  createDentinoDbRpcClient,
+  DentinoDbClientError,
+} from "../_shared/db.ts";
 import { createHttpClient, type HttpClient } from "../_shared/http.ts";
 import type {
   MessageSender,
@@ -39,6 +50,7 @@ import {
   type RandomBytes,
 } from "../_shared/tokens.ts";
 import type { GuardedCrmWriteBack } from "../_shared/writeBack.ts";
+import type { GuardedCrmWriteBackResult } from "../_shared/writeBack.ts";
 import { createGuardedCrmWriteBack } from "../_shared/writeBack.ts";
 
 export type ReminderRunTrigger = "cron" | "manual";
@@ -248,6 +260,13 @@ export interface ReminderRunStore {
     lockToken: string;
     now: Date;
   }): Promise<boolean>;
+  loadClinicCardsStatusPolicy?(): Promise<
+    readonly ClinicCardsStatusPolicyEntry[]
+  >;
+  recordFetchLogs?(
+    runId: number,
+    logs: readonly CrmFetchLogRecord[],
+  ): Promise<void>;
   recordVisitFacts(
     runId: number,
     facts: readonly CrmVisitFact[],
@@ -292,6 +311,10 @@ export interface ReminderRunStore {
       supersededAt?: string | null;
     }[]
   >;
+  finishWriteBack?(input: {
+    messageId: number;
+    result: GuardedCrmWriteBackResult;
+  }): Promise<boolean>;
   reconcileDay(input: {
     targetDate: LocalDate;
     now: Date;
@@ -331,6 +354,7 @@ export interface InMemoryReminderRunStore extends ReminderRunStore {
   readonly runs: readonly ReminderRunRecord[];
   readonly messages: readonly ReminderMessageRecord[];
   readonly facts: readonly CrmVisitFact[];
+  readonly fetchLogs: readonly CrmFetchLogRecord[];
   readonly days: ReadonlyMap<LocalDate, InMemoryReminderDayRecord>;
 }
 
@@ -365,6 +389,29 @@ interface SendableWork {
   message: ReminderMessageRecord;
   patient: ClinicCardsPatient;
   patientName: string;
+}
+
+type DbReminderRunRow = DentinoApiRpcReturns<"run_start_run">[number];
+type DbReminderMessageRow = DentinoApiRpcReturns<
+  "run_messages_for_target_date"
+>[number];
+type DbReminderDayClaimRow = DentinoApiRpcReturns<"run_claim_day">[number];
+type DbReminderReconciliationRow = DentinoApiRpcReturns<
+  "run_reconcile_day"
+>[number];
+type DbPendingWriteBackRow = DentinoApiRpcReturns<
+  "run_pending_writebacks"
+>[number];
+type DbStatusPolicyRow = DentinoApiRpcReturns<
+  "run_cliniccards_status_policy"
+>[number];
+
+export interface DbBackedReminderRunStoreOptions {
+  db: DentinoDbRpcClient;
+}
+
+export interface DbBackedReminderRunStoreFromEnvOptions {
+  httpClient?: HttpClient;
 }
 
 const dayLeaseTtlMs = 15 * 60 * 1000;
@@ -465,6 +512,489 @@ const sendResultOutcomes = new Map<
 ]);
 const missingPhoneReasons = new Set(["missing_phone"]);
 
+export function createDbBackedReminderRunStore(
+  options: DbBackedReminderRunStoreOptions,
+): ReminderRunStore {
+  return new DbBackedReminderRunStore(options.db);
+}
+
+export function createDbBackedReminderRunStoreFromEnv(
+  options: DbBackedReminderRunStoreFromEnvOptions = {},
+): ReminderRunStore {
+  const supabaseUrl = requiredEnv("SUPABASE_URL");
+  const apiKey = firstEnvValue([
+    "DENTINO_RUN_API_KEY",
+    "RUN_DB_API_KEY",
+    "SUPABASE_SERVICE_ROLE_KEY",
+    "SUPABASE_ANON_KEY",
+  ]);
+  if (!apiKey) {
+    throw new DentinoDbClientError(
+      "DENTINO_RUN_API_KEY or SUPABASE_SERVICE_ROLE_KEY is required",
+    );
+  }
+
+  return createDbBackedReminderRunStore({
+    db: createDentinoDbRpcClient({
+      supabaseUrl,
+      apiKey,
+      role: "dentino_run_api",
+      httpClient: options.httpClient,
+    }),
+  });
+}
+
+class DbBackedReminderRunStore implements ReminderRunStore {
+  readonly #db: DentinoDbRpcClient;
+
+  constructor(db: DentinoDbRpcClient) {
+    this.#db = db;
+  }
+
+  async startRun(input: {
+    runDate: LocalDate;
+    targetDate: LocalDate;
+    trigger: ReminderRunTrigger;
+    passKind: ReminderRunPassKind;
+    now: Date;
+  }): Promise<ReminderRunRecord> {
+    const rows = await this.#db.rpc("run_start_run", {
+      p_run_date: input.runDate,
+      p_target_date: input.targetDate,
+      p_trigger: input.trigger,
+      p_pass_kind: input.passKind,
+      p_now: input.now.toISOString(),
+    });
+    return rowToRunRecord(singleRow(rows, "run_start_run"));
+  }
+
+  async claimDay(input: {
+    targetDate: LocalDate;
+    runId: number;
+    passKind: ReminderRunPassKind;
+    lockToken: string;
+    now: Date;
+  }): Promise<
+    | { claimed: true; stoleExistingLease: boolean }
+    | { claimed: false; reason: ReminderDayClaimReason }
+  > {
+    const rows = await this.#db.rpc("run_claim_day", {
+      p_target_date: input.targetDate,
+      p_run_id: input.runId,
+      p_pass_kind: input.passKind,
+      p_lock_token: input.lockToken,
+      p_now: input.now.toISOString(),
+    });
+    const row = singleRow(rows, "run_claim_day");
+    if (row.claimed) {
+      return {
+        claimed: true,
+        stoleExistingLease: Boolean(row.stole_existing_lease),
+      };
+    }
+    return {
+      claimed: false,
+      reason: claimReason(row),
+    };
+  }
+
+  async renewDayHeartbeat(input: {
+    targetDate: LocalDate;
+    runId: number;
+    lockToken: string;
+    now: Date;
+  }): Promise<boolean> {
+    return await this.#db.rpc("run_renew_day_heartbeat", {
+      p_target_date: input.targetDate,
+      p_run_id: input.runId,
+      p_lock_token: input.lockToken,
+      p_now: input.now.toISOString(),
+    });
+  }
+
+  async loadClinicCardsStatusPolicy(): Promise<
+    readonly ClinicCardsStatusPolicyEntry[]
+  > {
+    const rows = await this.#db.rpc("run_cliniccards_status_policy", {});
+    return rows.map(rowToStatusPolicyEntry);
+  }
+
+  async recordFetchLogs(
+    runId: number,
+    logs: readonly CrmFetchLogRecord[],
+  ): Promise<void> {
+    if (logs.length === 0) {
+      return;
+    }
+    await this.#db.rpc("run_record_fetch_logs", {
+      p_run_id: runId,
+      p_logs: logs.map(fetchLogToRpcJson),
+    });
+  }
+
+  async recordVisitFacts(
+    runId: number,
+    facts: readonly CrmVisitFact[],
+  ): Promise<void> {
+    if (facts.length === 0) {
+      return;
+    }
+    await this.#db.rpc("run_record_visit_facts", {
+      p_run_id: runId,
+      p_facts: facts.map(visitFactToRpcJson),
+    });
+  }
+
+  async materializeMessage(
+    input: MaterializeReminderMessageInput,
+  ): Promise<ReminderMessageRecord> {
+    const rows = await this.#db.rpc("run_materialize_message", {
+      p_run_id: input.runId,
+      p_cliniccards_visit_id: input.cliniccardsVisitId,
+      p_cliniccards_patient_id: nullableRpcString(input.cliniccardsPatientId),
+      p_target_date: input.targetDate,
+      p_target_at: input.targetAt,
+      p_message_kind: input.messageKind,
+      p_appointment_fingerprint: input.appointmentFingerprint,
+      p_source_status: input.sourceStatus,
+      p_status: input.status,
+      p_skip_reason: nullableRpcString(input.skipReason),
+      p_patient_display_snapshot: nullableRpcString(
+        input.patientDisplaySnapshot,
+      ),
+      p_now: input.now.toISOString(),
+    });
+    return rowToMessageRecord(singleRow(rows, "run_materialize_message"));
+  }
+
+  async claimMessageForSend(input: {
+    messageId: number;
+    claimToken: string;
+    tokenDigestHex: string;
+    tokenExpiresAt: string;
+    claimExpiresAt: string;
+    now: Date;
+  }): Promise<ReminderMessageRecord | null> {
+    const rows = await this.#db.rpc("run_claim_message_for_send", {
+      p_message_id: input.messageId,
+      p_claim_token: input.claimToken,
+      p_token_digest_hex: input.tokenDigestHex,
+      p_token_expires_at: input.tokenExpiresAt,
+      p_claim_expires_at: input.claimExpiresAt,
+      p_now: input.now.toISOString(),
+    });
+    const row = optionalSingleRow(rows);
+    return row ? rowToMessageRecord(row) : null;
+  }
+
+  async commitSendOutcome(input: {
+    messageId: number;
+    claimToken: string;
+    result: SendMessageResult;
+    now: Date;
+  }): Promise<boolean> {
+    const outcome = messageStatusFromSendResult(input.result);
+    return await this.#db.rpc("run_commit_send_outcome", {
+      p_message_id: input.messageId,
+      p_claim_token: input.claimToken,
+      p_status: outcome.status,
+      p_skip_reason: nullableRpcString(outcome.skipReason),
+      p_provider_message_id: nullableRpcString(input.result.providerMessageId),
+      p_error: nullableRpcString(input.result.errorMessage),
+      p_now: input.now.toISOString(),
+    });
+  }
+
+  async markMessageSkipped(input: {
+    messageId: number;
+    reason: ReminderSkipReason;
+    error?: string;
+  }): Promise<void> {
+    await this.#db.rpc("run_mark_message_skipped", {
+      p_message_id: input.messageId,
+      p_reason: input.reason,
+      p_error: input.error ?? undefined,
+    });
+  }
+
+  async reapExpiredSendClaims(input: {
+    targetDate: LocalDate;
+    now: Date;
+  }): Promise<number> {
+    return await this.#db.rpc("run_reap_expired_send_claims", {
+      p_target_date: input.targetDate,
+      p_now: input.now.toISOString(),
+    });
+  }
+
+  async reapOrphanedSendClaims(input: {
+    targetDate: LocalDate;
+    now: Date;
+  }): Promise<number> {
+    return await this.#db.rpc("run_reap_orphaned_send_claims", {
+      p_target_date: input.targetDate,
+      p_now: input.now.toISOString(),
+    });
+  }
+
+  async pendingWriteBacks(): Promise<
+    {
+      messageId: number;
+      cliniccardsVisitId: string;
+      action: "confirm" | "cancel";
+      expectedAppointmentFingerprint: string;
+      crmWritebackOk?: boolean | null;
+      supersededAt?: string | null;
+    }[]
+  > {
+    const rows = await this.#db.rpc("run_pending_writebacks", {});
+    return rows.map(rowToPendingWriteBack);
+  }
+
+  async finishWriteBack(input: {
+    messageId: number;
+    result: GuardedCrmWriteBackResult;
+  }): Promise<boolean> {
+    return await this.#db.rpc("run_finish_writeback", {
+      p_message_id: input.messageId,
+      p_ok: input.result.crmWritebackOk,
+      p_error: input.result.errorMessage ?? input.result.errorCode ??
+        undefined,
+    });
+  }
+
+  async reconcileDay(input: {
+    targetDate: LocalDate;
+    now: Date;
+  }): Promise<ReminderDayReconciliation> {
+    const rows = await this.#db.rpc("run_reconcile_day", {
+      p_target_date: input.targetDate,
+      p_now: input.now.toISOString(),
+    });
+    return rowToReconciliation(singleRow(rows, "run_reconcile_day"));
+  }
+
+  async finishRun(input: {
+    runId: number;
+    status: "completed" | "failed";
+    reconciliation?: ReminderDayReconciliation;
+    now: Date;
+  }): Promise<ReminderRunRecord> {
+    const rows = await this.#db.rpc("run_finish_run", {
+      p_run_id: input.runId,
+      p_status: input.status,
+      p_reconciliation: input.reconciliation
+        ? reconciliationToRpcJson(input.reconciliation)
+        : null,
+      p_now: input.now.toISOString(),
+    });
+    return rowToRunRecord(singleRow(rows, "run_finish_run"));
+  }
+
+  async messagesForTargetDate(
+    targetDate: LocalDate,
+  ): Promise<readonly ReminderMessageRecord[]> {
+    const rows = await this.#db.rpc("run_messages_for_target_date", {
+      p_target_date: targetDate,
+    });
+    return rows.map(rowToMessageRecord);
+  }
+}
+
+function rowToRunRecord(row: DbReminderRunRow): ReminderRunRecord {
+  return Object.freeze({
+    id: Number(row.id),
+    runDate: row.run_date as LocalDate,
+    targetDate: row.target_date as LocalDate,
+    trigger: row.trigger as ReminderRunTrigger,
+    passKind: row.pass_kind as ReminderRunPassKind,
+    status: row.status as ReminderRunRecord["status"],
+    startedAt: row.started_at,
+    finishedAt: row.finished_at ?? undefined,
+  });
+}
+
+function rowToMessageRecord(row: DbReminderMessageRow): ReminderMessageRecord {
+  return Object.freeze({
+    id: Number(row.id),
+    runId: Number(row.run_id),
+    cliniccardsVisitId: row.cliniccards_visit_id,
+    cliniccardsPatientId: row.cliniccards_patient_id ?? null,
+    targetDate: row.target_date as LocalDate,
+    targetAt: row.target_at,
+    channel: "sms",
+    messageKind: row.message_kind as ReminderMessageKind,
+    appointmentFingerprint: row.appointment_fingerprint ?? "",
+    sourceStatus: row.source_status ?? "",
+    status: row.status as ReminderMessageStatus,
+    skipReason: row.skip_reason
+      ? row.skip_reason as ReminderSkipReason
+      : undefined,
+    patientId: row.patient_id === null ? undefined : Number(row.patient_id),
+    patientDisplaySnapshot: row.patient_display_snapshot ?? undefined,
+    sendClaimToken: row.send_claim_token ?? undefined,
+    sendClaimExpiresAt: row.send_claim_expires_at ?? undefined,
+    sendAttemptCount: Number(row.send_attempt_count),
+    lastAttemptAt: row.last_attempt_at ?? undefined,
+    providerMessageId: row.provider_message_id ?? undefined,
+    trackingTokenDigestHex: row.tracking_token_digest_hex ?? undefined,
+    tokenExpiresAt: row.token_expires_at ?? undefined,
+    supersededAt: row.superseded_at ?? undefined,
+    supersededByMessageId: row.superseded_by_message_id === null
+      ? undefined
+      : Number(row.superseded_by_message_id),
+    error: row.error ?? undefined,
+    actionTaken: row.action_taken as ReminderMessageRecord["actionTaken"],
+    crmWritebackOk: row.crm_writeback_ok,
+  });
+}
+
+function rowToReconciliation(
+  row: DbReminderReconciliationRow,
+): ReminderDayReconciliation {
+  return Object.freeze({
+    targetDate: row.target_date as LocalDate,
+    cliniccardsTotal: Number(row.cliniccards_total),
+    remindableTotal: Number(row.remindable_total),
+    sendableTotal: Number(row.sendable_total),
+    sentTotal: Number(row.sent_total),
+    skippedTotal: Number(row.skipped_total),
+    failedTotal: Number(row.failed_total),
+    sendUnknownTotal: Number(row.send_unknown_total),
+    pendingTotal: Number(row.pending_total),
+    writebackPendingTotal: Number(row.writeback_pending_total),
+    unaccountedTotal: Number(row.unaccounted_total),
+    health: row.health as ReminderDayReconciliation["health"],
+  });
+}
+
+function rowToPendingWriteBack(row: DbPendingWriteBackRow): {
+  messageId: number;
+  cliniccardsVisitId: string;
+  action: "confirm" | "cancel";
+  expectedAppointmentFingerprint: string;
+  crmWritebackOk?: boolean | null;
+  supersededAt?: string | null;
+} {
+  return Object.freeze({
+    messageId: Number(row.message_id),
+    cliniccardsVisitId: row.cliniccards_visit_id,
+    action: row.action as "confirm" | "cancel",
+    expectedAppointmentFingerprint: row.expected_appointment_fingerprint ?? "",
+    crmWritebackOk: row.crm_writeback_ok,
+    supersededAt: row.superseded_at,
+  });
+}
+
+function rowToStatusPolicyEntry(
+  row: DbStatusPolicyRow,
+): ClinicCardsStatusPolicyEntry {
+  return Object.freeze({
+    status: row.status,
+    remindable: row.remindable,
+    terminal: row.terminal,
+    allowConfirmAction: row.allow_confirm_action,
+    allowCancelAction: row.allow_cancel_action,
+    sendChangeNotice: row.send_change_notice,
+  });
+}
+
+function fetchLogToRpcJson(log: CrmFetchLogRecord) {
+  return {
+    purpose: log.purpose,
+    method: log.method,
+    path: log.path,
+    request_params: log.request_params,
+    response_status: log.response_status,
+    raw_redacted: log.raw_redacted,
+    raw_sha256_hex: log.raw_sha256_hex,
+    fetched_at: log.fetched_at,
+  };
+}
+
+function visitFactToRpcJson(fact: CrmVisitFact) {
+  return {
+    purpose: fact.purpose,
+    target_date: fact.target_date,
+    cliniccards_visit_id: fact.cliniccards_visit_id,
+    cliniccards_patient_id: fact.cliniccards_patient_id,
+    source_status: fact.source_status,
+    remindable: fact.remindable,
+    target_at: fact.target_at,
+    appointment_fingerprint: fact.appointment_fingerprint,
+    fetched_at: fact.fetched_at,
+  };
+}
+
+function reconciliationToRpcJson(reconciliation: ReminderDayReconciliation) {
+  return {
+    targetDate: reconciliation.targetDate,
+    cliniccardsTotal: reconciliation.cliniccardsTotal,
+    remindableTotal: reconciliation.remindableTotal,
+    sendableTotal: reconciliation.sendableTotal,
+    sentTotal: reconciliation.sentTotal,
+    skippedTotal: reconciliation.skippedTotal,
+    failedTotal: reconciliation.failedTotal,
+    sendUnknownTotal: reconciliation.sendUnknownTotal,
+    pendingTotal: reconciliation.pendingTotal,
+    writebackPendingTotal: reconciliation.writebackPendingTotal,
+    unaccountedTotal: reconciliation.unaccountedTotal,
+    health: reconciliation.health,
+  };
+}
+
+function singleRow<T>(rows: readonly T[], rpcName: string): T {
+  const row = optionalSingleRow(rows);
+  if (!row) {
+    throw new DentinoDbClientError(`Supabase RPC ${rpcName} returned no rows`);
+  }
+  return row;
+}
+
+function optionalSingleRow<T>(rows: readonly T[]): T | null {
+  if (rows.length === 0) {
+    return null;
+  }
+  if (rows.length > 1) {
+    throw new DentinoDbClientError("Supabase RPC returned multiple rows");
+  }
+  return rows[0];
+}
+
+function claimReason(row: DbReminderDayClaimRow): ReminderDayClaimReason {
+  if (
+    row.reason === "before_noon_kyiv" || row.reason === "live_lease" ||
+    row.reason === "completed_initial"
+  ) {
+    return row.reason;
+  }
+  throw new DentinoDbClientError(
+    "Supabase RPC run_claim_day returned an invalid reason",
+  );
+}
+
+function requiredEnv(name: string): string {
+  const value = Deno.env.get(name)?.trim();
+  if (!value) {
+    throw new DentinoDbClientError(`${name} is required`);
+  }
+  return value;
+}
+
+function firstEnvValue(names: readonly string[]): string | null {
+  for (const name of names) {
+    const value = Deno.env.get(name)?.trim();
+    if (value) {
+      return value;
+    }
+  }
+  return null;
+}
+
+function nullableRpcString(value: string | null | undefined): string {
+  return (value ?? null) as unknown as string;
+}
+
 export async function runReminders(
   options: RunRemindersOptions = {},
 ): Promise<ReminderRunResult> {
@@ -502,8 +1032,11 @@ export async function runReminders(
     };
   }
 
+  const statusPolicy = options.clinicCardsClient
+    ? undefined
+    : await store.loadClinicCardsStatusPolicy?.();
   const clinicCardsClient = options.clinicCardsClient ??
-    createClinicCardsClient({ config });
+    createClinicCardsClient({ config, statusPolicy });
   const sender = options.sender ?? createSmsSender({ config });
   const smsBalanceChecker = options.smsBalanceChecker ??
     (shouldCheckSmsProviderBalance(config.sendMode)
@@ -615,17 +1148,19 @@ export async function runReminders(
       crmReadPurposeByPassKind[passKind],
     );
     await renewHeartbeat();
+    await store.recordFetchLogs?.(run.id, [crmRead.fetchLog]);
     await store.recordVisitFacts(run.id, crmRead.facts);
-    const patients = await readPatientsForVisits(
+    const patientRead = await readPatientsForVisits(
       clinicCardsClient,
       crmRead.visits,
     );
+    await store.recordFetchLogs?.(run.id, patientRead.fetchLogs);
     await renewHeartbeat();
     const sendable = await materializeObservedVisits({
       runId: run.id,
       targetDate: dates.targetDateKyiv,
       visits: crmRead.visits,
-      patients,
+      patients: patientRead.patients,
       store,
       passKind,
       now,
@@ -695,7 +1230,11 @@ export async function runReminders(
     }
 
     await renewHeartbeat();
-    await writeBack.redrivePending(await store.pendingWriteBacks());
+    await redrivePendingWriteBacks({
+      store,
+      writeBack,
+      pending: await store.pendingWriteBacks(),
+    });
     await renewHeartbeat();
     const reconciliation = await store.reconcileDay({
       targetDate: dates.targetDateKyiv,
@@ -752,12 +1291,14 @@ export function createInMemoryReminderRunStore(
     runs?: readonly ReminderRunRecord[];
     messages?: readonly ReminderMessageRecord[];
     facts?: readonly CrmVisitFact[];
+    fetchLogs?: readonly CrmFetchLogRecord[];
     days?: readonly InMemoryReminderDayRecord[];
   } = {},
 ): InMemoryReminderRunStore {
   const runs = seed.runs?.map((run) => ({ ...run })) ?? [];
   const messages = seed.messages?.map((message) => ({ ...message })) ?? [];
   const facts = seed.facts?.map((fact) => ({ ...fact })) ?? [];
+  const fetchLogs = seed.fetchLogs?.map((log) => ({ ...log })) ?? [];
   const days = new Map<LocalDate, InMemoryReminderDayRecord>(
     seed.days?.map((day) => [day.targetDate, { ...day }]) ?? [],
   );
@@ -775,6 +1316,9 @@ export function createInMemoryReminderRunStore(
     },
     get facts(): readonly CrmVisitFact[] {
       return facts;
+    },
+    get fetchLogs(): readonly CrmFetchLogRecord[] {
+      return fetchLogs;
     },
     get days(): ReadonlyMap<LocalDate, InMemoryReminderDayRecord> {
       return days;
@@ -859,6 +1403,13 @@ export function createInMemoryReminderRunStore(
     recordVisitFacts(runId, inputFacts): Promise<void> {
       for (const fact of inputFacts) {
         facts.push({ ...fact, run_id: runId });
+      }
+      return Promise.resolve();
+    },
+
+    recordFetchLogs(_runId, inputFetchLogs): Promise<void> {
+      for (const fetchLog of inputFetchLogs) {
+        fetchLogs.push({ ...fetchLog });
       }
       return Promise.resolve();
     },
@@ -1031,6 +1582,25 @@ export function createInMemoryReminderRunStore(
             supersededAt: message.supersededAt,
           })),
       );
+    },
+
+    finishWriteBack(input): Promise<boolean> {
+      const message = messages.find((candidate) =>
+        candidate.id === input.messageId
+      );
+      if (!message) {
+        return Promise.resolve(false);
+      }
+      message.crmWritebackOk = input.result.crmWritebackOk;
+      if (input.result.crmWritebackOk) {
+        message.error = undefined;
+      } else if (writeBackActionRows.has(message.actionTaken)) {
+        message.actionTaken = "error";
+        message.error = input.result.errorMessage ??
+          input.result.errorCode ??
+          "crm write-back failed";
+      }
+      return Promise.resolve(true);
     },
 
     reconcileDay(input): Promise<ReminderDayReconciliation> {
@@ -1386,17 +1956,41 @@ function parseLocalDate(
 async function readPatientsForVisits(
   clinicCardsClient: ClinicCardsClient,
   visits: readonly ClinicCardsVisit[],
-): Promise<ReadonlyMap<string, ClinicCardsPatient>> {
+): Promise<ClinicCardsPatientReadResult> {
   const patientIds = [
     ...new Set(
       visits.flatMap((visit) => visit.patientId ? [visit.patientId] : []),
     ),
   ];
   if (patientIds.length === 0) {
-    return new Map();
+    return Object.freeze({
+      patients: new Map(),
+      fetchLogs: Object.freeze([]),
+    });
   }
-  const result = await clinicCardsClient.getPatientsByIds(patientIds);
-  return result.patients;
+  return await clinicCardsClient.getPatientsByIds(patientIds);
+}
+
+async function redrivePendingWriteBacks(input: {
+  store: ReminderRunStore;
+  writeBack: GuardedCrmWriteBack;
+  pending: Awaited<ReturnType<ReminderRunStore["pendingWriteBacks"]>>;
+}): Promise<void> {
+  for (const pending of input.pending) {
+    if (pending.crmWritebackOk === true || pending.supersededAt) {
+      continue;
+    }
+    const result = await input.writeBack.write({
+      messageId: pending.messageId,
+      cliniccardsVisitId: pending.cliniccardsVisitId,
+      action: pending.action,
+      expectedAppointmentFingerprint: pending.expectedAppointmentFingerprint,
+    });
+    await input.store.finishWriteBack?.({
+      messageId: pending.messageId,
+      result,
+    });
+  }
 }
 
 async function materializeObservedVisits(input: {
@@ -1473,6 +2067,9 @@ async function claimRenderAndSend(input: {
     input.work.message.cliniccardsVisitId,
     "writeback_pre",
   );
+  await input.store.recordFetchLogs?.(input.work.message.runId, [
+    liveVisit.fetchLog,
+  ]);
   const liveFingerprint = await clinicCardsAppointmentFingerprint(
     liveVisit.visit,
   );
@@ -1911,5 +2508,9 @@ function constantTimeEqual(left: string | undefined, right: string): boolean {
 }
 
 if (import.meta.main) {
-  Deno.serve((request) => handleRunRemindersRequest(request));
+  Deno.serve((request) =>
+    handleRunRemindersRequest(request, {
+      store: createDbBackedReminderRunStoreFromEnv(),
+    })
+  );
 }

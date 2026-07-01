@@ -236,6 +236,254 @@ export type Database = {
           message_id: number;
         }[];
       };
+      run_claim_day: {
+        Args: {
+          p_lock_token: string;
+          p_now: string;
+          p_pass_kind: string;
+          p_run_id: number;
+          p_target_date: string;
+        };
+        Returns: {
+          claimed: boolean;
+          reason: string;
+          stole_existing_lease: boolean;
+        }[];
+      };
+      run_claim_message_for_send: {
+        Args: {
+          p_claim_expires_at: string;
+          p_claim_token: string;
+          p_message_id: number;
+          p_now: string;
+          p_token_digest_hex: string;
+          p_token_expires_at: string;
+        };
+        Returns: {
+          action_taken: string;
+          appointment_fingerprint: string;
+          channel: string;
+          cliniccards_patient_id: string;
+          cliniccards_visit_id: string;
+          crm_writeback_ok: boolean;
+          error: string;
+          id: number;
+          last_attempt_at: string;
+          message_kind: string;
+          patient_display_snapshot: string;
+          patient_id: number;
+          provider_message_id: string;
+          run_id: number;
+          send_attempt_count: number;
+          send_claim_expires_at: string;
+          send_claim_token: string;
+          skip_reason: string;
+          source_status: string;
+          status: string;
+          superseded_at: string;
+          superseded_by_message_id: number;
+          target_at: string;
+          target_date: string;
+          token_expires_at: string;
+          tracking_token_digest_hex: string;
+        }[];
+      };
+      run_cliniccards_status_policy: {
+        Args: never;
+        Returns: {
+          allow_cancel_action: boolean;
+          allow_confirm_action: boolean;
+          remindable: boolean;
+          send_change_notice: boolean;
+          status: string;
+          terminal: boolean;
+        }[];
+      };
+      run_commit_send_outcome: {
+        Args: {
+          p_claim_token: string;
+          p_error: string;
+          p_message_id: number;
+          p_now: string;
+          p_provider_message_id: string;
+          p_skip_reason: string;
+          p_status: string;
+        };
+        Returns: boolean;
+      };
+      run_finish_run: {
+        Args: {
+          p_now: string;
+          p_reconciliation: Json;
+          p_run_id: number;
+          p_status: string;
+        };
+        Returns: {
+          finished_at: string;
+          id: number;
+          pass_kind: string;
+          run_date: string;
+          started_at: string;
+          status: string;
+          target_date: string;
+          trigger: string;
+        }[];
+      };
+      run_finish_writeback: {
+        Args: { p_error?: string; p_message_id: number; p_ok: boolean };
+        Returns: boolean;
+      };
+      run_mark_message_skipped: {
+        Args: { p_error?: string; p_message_id: number; p_reason: string };
+        Returns: undefined;
+      };
+      run_materialize_message: {
+        Args: {
+          p_appointment_fingerprint: string;
+          p_cliniccards_patient_id: string;
+          p_cliniccards_visit_id: string;
+          p_message_kind: string;
+          p_now: string;
+          p_patient_display_snapshot: string;
+          p_run_id: number;
+          p_skip_reason: string;
+          p_source_status: string;
+          p_status: string;
+          p_target_at: string;
+          p_target_date: string;
+        };
+        Returns: {
+          action_taken: string;
+          appointment_fingerprint: string;
+          channel: string;
+          cliniccards_patient_id: string;
+          cliniccards_visit_id: string;
+          crm_writeback_ok: boolean;
+          error: string;
+          id: number;
+          last_attempt_at: string;
+          message_kind: string;
+          patient_display_snapshot: string;
+          patient_id: number;
+          provider_message_id: string;
+          run_id: number;
+          send_attempt_count: number;
+          send_claim_expires_at: string;
+          send_claim_token: string;
+          skip_reason: string;
+          source_status: string;
+          status: string;
+          superseded_at: string;
+          superseded_by_message_id: number;
+          target_at: string;
+          target_date: string;
+          token_expires_at: string;
+          tracking_token_digest_hex: string;
+        }[];
+      };
+      run_messages_for_target_date: {
+        Args: { p_target_date: string };
+        Returns: {
+          action_taken: string;
+          appointment_fingerprint: string;
+          channel: string;
+          cliniccards_patient_id: string;
+          cliniccards_visit_id: string;
+          crm_writeback_ok: boolean;
+          error: string;
+          id: number;
+          last_attempt_at: string;
+          message_kind: string;
+          patient_display_snapshot: string;
+          patient_id: number;
+          provider_message_id: string;
+          run_id: number;
+          send_attempt_count: number;
+          send_claim_expires_at: string;
+          send_claim_token: string;
+          skip_reason: string;
+          source_status: string;
+          status: string;
+          superseded_at: string;
+          superseded_by_message_id: number;
+          target_at: string;
+          target_date: string;
+          token_expires_at: string;
+          tracking_token_digest_hex: string;
+        }[];
+      };
+      run_pending_writebacks: {
+        Args: never;
+        Returns: {
+          action: string;
+          cliniccards_visit_id: string;
+          crm_writeback_ok: boolean;
+          expected_appointment_fingerprint: string;
+          message_id: number;
+          superseded_at: string;
+        }[];
+      };
+      run_reap_expired_send_claims: {
+        Args: { p_now: string; p_target_date: string };
+        Returns: number;
+      };
+      run_reap_orphaned_send_claims: {
+        Args: { p_now: string; p_target_date: string };
+        Returns: number;
+      };
+      run_reconcile_day: {
+        Args: { p_now: string; p_target_date: string };
+        Returns: {
+          cliniccards_total: number;
+          failed_total: number;
+          health: string;
+          pending_total: number;
+          remindable_total: number;
+          send_unknown_total: number;
+          sendable_total: number;
+          sent_total: number;
+          skipped_total: number;
+          target_date: string;
+          unaccounted_total: number;
+          writeback_pending_total: number;
+        }[];
+      };
+      run_record_fetch_logs: {
+        Args: { p_logs: Json; p_run_id: number };
+        Returns: number;
+      };
+      run_record_visit_facts: {
+        Args: { p_facts: Json; p_run_id: number };
+        Returns: number;
+      };
+      run_renew_day_heartbeat: {
+        Args: {
+          p_lock_token: string;
+          p_now: string;
+          p_run_id: number;
+          p_target_date: string;
+        };
+        Returns: boolean;
+      };
+      run_start_run: {
+        Args: {
+          p_now: string;
+          p_pass_kind: string;
+          p_run_date: string;
+          p_target_date: string;
+          p_trigger: string;
+        };
+        Returns: {
+          finished_at: string;
+          id: number;
+          pass_kind: string;
+          run_date: string;
+          started_at: string;
+          status: string;
+          target_date: string;
+          trigger: string;
+        }[];
+      };
       update_message_template: {
         Args: { p_actor?: string; p_body: string; p_template_id: number };
         Returns: {

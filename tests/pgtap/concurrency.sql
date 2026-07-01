@@ -5,7 +5,13 @@ set search_path = extensions, public;
 select set_config('app.env', 'test', false);
 select set_config('app.test_now', '2026-06-30 09:00:00+00', false);
 
-select plan(20);
+do $$
+begin
+  execute format('grant dentino_run_api to %I', current_user);
+end;
+$$;
+
+select plan(40);
 
 create or replace function pg_temp.claim_day(
   p_target_date date,
@@ -649,6 +655,319 @@ select is(
   ),
   1,
   'current owner token releases exactly one write-lock lease'
+);
+
+select lives_ok(
+  $$
+    set local role dentino_run_api;
+    select api.run_start_run(
+      '2026-06-30'::date,
+      '2026-07-08'::date,
+      'manual',
+      'initial',
+      '2026-06-30 09:00:00+00'::timestamptz
+    );
+    reset role;
+  $$,
+  'run API role starts a reminder run through the DB store RPC'
+);
+
+select is(
+  (
+    select count(*)::int
+      from app.reminder_runs
+     where target_date = '2026-07-08'
+       and trigger = 'manual'
+       and pass_kind = 'initial'
+       and status = 'running'
+  ),
+  1,
+  'run_start_run writes a running reminder_runs row'
+);
+
+select lives_ok(
+  $$
+    set local role dentino_run_api;
+    select api.run_claim_day(
+      '2026-07-08'::date,
+      (
+        select id
+          from app.reminder_runs
+         where target_date = '2026-07-08'
+         order by id desc
+         limit 1
+      ),
+      'initial',
+      '00000000-0000-0000-0000-000000000108'::uuid,
+      '2026-06-30 09:00:01+00'::timestamptz
+    );
+    reset role;
+  $$,
+  'run API role claims the target-date lease through the DB store RPC'
+);
+
+select is(
+  (
+    select status
+      from app.reminder_days
+     where target_date = '2026-07-08'
+  ),
+  'running',
+  'run_claim_day writes a running reminder_days lease row'
+);
+
+select lives_ok(
+  $$
+    set local role dentino_run_api;
+    select api.run_record_fetch_logs(
+      (
+        select id
+          from app.reminder_runs
+         where target_date = '2026-07-08'
+         order by id desc
+         limit 1
+      ),
+      jsonb_build_array(jsonb_build_object(
+        'purpose', 'visits_initial',
+        'method', 'GET',
+        'path', '/visits',
+        'request_params', jsonb_build_object('date', '2026-07-08'),
+        'response_status', 200,
+        'raw_redacted', jsonb_build_object('appointments', 1),
+        'raw_sha256_hex', repeat('b', 64),
+        'fetched_at', '2026-06-30T09:00:02Z'
+      ))
+    );
+    reset role;
+  $$,
+  'run API role records CRM fetch logs through the DB store RPC'
+);
+
+select is(
+  (
+    select count(*)::int
+      from app.crm_fetch_log
+     where path = '/visits'
+       and request_params->>'date' = '2026-07-08'
+  ),
+  1,
+  'run_record_fetch_logs writes the redacted fetch log row'
+);
+
+select lives_ok(
+  $$
+    set local role dentino_run_api;
+    select api.run_record_visit_facts(
+      (
+        select id
+          from app.reminder_runs
+         where target_date = '2026-07-08'
+         order by id desc
+         limit 1
+      ),
+      jsonb_build_array(jsonb_build_object(
+        'purpose', 'visits_initial',
+        'target_date', '2026-07-08',
+        'cliniccards_visit_id', 'visit-rpc-store',
+        'cliniccards_patient_id', 'patient-rpc-store',
+        'source_status', 'PLANNED',
+        'remindable', true,
+        'target_at', '2026-07-08T09:00:00Z',
+        'appointment_fingerprint', 'fingerprint-rpc-store',
+        'fetched_at', '2026-06-30T09:00:03Z'
+      ))
+    );
+    reset role;
+  $$,
+  'run API role records CRM visit facts through the DB store RPC'
+);
+
+select is(
+  (
+    select count(*)::int
+      from app.crm_visit_facts
+     where cliniccards_visit_id = 'visit-rpc-store'
+       and appointment_fingerprint = 'fingerprint-rpc-store'
+  ),
+  1,
+  'run_record_visit_facts writes the visit fact row'
+);
+
+select lives_ok(
+  $$
+    set local role dentino_run_api;
+    select api.run_materialize_message(
+      (
+        select id
+          from app.reminder_runs
+         where target_date = '2026-07-08'
+         order by id desc
+         limit 1
+      ),
+      'visit-rpc-store',
+      'patient-rpc-store',
+      '2026-07-08'::date,
+      '2026-07-08 09:00:00+00'::timestamptz,
+      'initial_reminder',
+      'fingerprint-rpc-store',
+      'PLANNED',
+      'pending',
+      null,
+      'Synthetic Patient',
+      '2026-06-30 09:00:04+00'::timestamptz
+    );
+    reset role;
+  $$,
+  'run API role materializes a reminder message through the DB store RPC'
+);
+
+select is(
+  (
+    select count(*)::int
+      from app.reminder_messages m
+      join app.patients p on p.id = m.patient_id
+     where m.cliniccards_visit_id = 'visit-rpc-store'
+       and p.cliniccards_id = 'patient-rpc-store'
+       and m.status = 'pending'
+  ),
+  1,
+  'run_materialize_message writes the patient and pending reminder row'
+);
+
+select lives_ok(
+  $$
+    set local role dentino_run_api;
+    select api.run_claim_message_for_send(
+      (
+        select id
+          from app.reminder_messages
+         where cliniccards_visit_id = 'visit-rpc-store'
+         order by id desc
+         limit 1
+      ),
+      '00000000-0000-0000-0000-000000000109'::uuid,
+      repeat('a', 64),
+      '2026-07-09 09:00:00+00'::timestamptz,
+      '2026-06-30 09:05:00+00'::timestamptz,
+      '2026-06-30 09:00:05+00'::timestamptz
+    );
+    reset role;
+  $$,
+  'run API role atomically claims a message for send through the DB store RPC'
+);
+
+select is(
+  (
+    select status || ':' || encode(tracking_token_digest, 'hex')
+      from app.reminder_messages
+     where cliniccards_visit_id = 'visit-rpc-store'
+  ),
+  'sending:' || repeat('a', 64),
+  'run_claim_message_for_send stores only the token digest and moves status to sending'
+);
+
+select lives_ok(
+  $$
+    set local role dentino_run_api;
+    select api.run_commit_send_outcome(
+      (
+        select id
+          from app.reminder_messages
+         where cliniccards_visit_id = 'visit-rpc-store'
+         order by id desc
+         limit 1
+      ),
+      '00000000-0000-0000-0000-000000000109'::uuid,
+      'sent',
+      null,
+      'provider-rpc-store',
+      null,
+      '2026-06-30 09:00:06+00'::timestamptz
+    );
+    reset role;
+  $$,
+  'run API role commits the winning send outcome through the DB store RPC'
+);
+
+select is(
+  (
+    select status || ':' || provider_message_id
+      from app.reminder_messages
+     where cliniccards_visit_id = 'visit-rpc-store'
+  ),
+  'sent:provider-rpc-store',
+  'run_commit_send_outcome fences the send outcome and clears the claim'
+);
+
+select lives_ok(
+  $$
+    set local role dentino_run_api;
+    select api.run_reconcile_day(
+      '2026-07-08'::date,
+      '2026-06-30 09:00:07+00'::timestamptz
+    );
+    reset role;
+  $$,
+  'run API role reconciles the day through the DB store RPC'
+);
+
+select is(
+  (
+    select status || ':' || health || ':' || sent_total::text
+      from app.reminder_days
+     where target_date = '2026-07-08'
+  ),
+  'completed:green:1',
+  'run_reconcile_day records a green completed day'
+);
+
+select lives_ok(
+  $$
+    set local role dentino_run_api;
+    select api.run_finish_run(
+      (
+        select id
+          from app.reminder_runs
+         where target_date = '2026-07-08'
+         order by id desc
+         limit 1
+      ),
+      'completed',
+      jsonb_build_object(
+        'health', 'green',
+        'remindableTotal', 1,
+        'sentTotal', 1,
+        'failedTotal', 0,
+        'skippedTotal', 0
+      ),
+      '2026-06-30 09:00:08+00'::timestamptz
+    );
+    reset role;
+  $$,
+  'run API role finishes the reminder run through the DB store RPC'
+);
+
+select is(
+  (
+    select status || ':' || total::text || ':' || sent::text
+      from app.reminder_runs
+     where target_date = '2026-07-08'
+     order by id desc
+     limit 1
+  ),
+  'completed:1:1',
+  'run_finish_run records completed run counters'
+);
+
+select ok(
+  has_function_privilege('dentino_run_api', 'api.run_start_run(date,date,text,text,timestamptz)'::regprocedure, 'execute')
+  and has_function_privilege('service_role', 'api.run_start_run(date,date,text,text,timestamptz)'::regprocedure, 'execute'),
+  'dentino_run_api and service_role execute non-public run-store RPCs'
+);
+
+select ok(
+  not has_function_privilege('dentino_confirm_api', 'api.run_start_run(date,date,text,text,timestamptz)'::regprocedure, 'execute'),
+  'dentino_confirm_api cannot execute run-store RPCs'
 );
 
 select * from finish();

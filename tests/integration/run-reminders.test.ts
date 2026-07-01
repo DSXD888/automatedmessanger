@@ -29,6 +29,7 @@ import {
   createClinicCardsStatusPolicy,
 } from "../../supabase/functions/_shared/clinicCardsClient.ts";
 import { loadRuntimeConfig } from "../../supabase/functions/_shared/config.ts";
+import type { DentinoDbRpcClient } from "../../supabase/functions/_shared/db.ts";
 import type { HttpClient } from "../../supabase/functions/_shared/http.ts";
 import type {
   MessageSender,
@@ -41,9 +42,13 @@ import {
   evaluateSmsBalanceReadiness,
   type SmsBalanceChecker,
 } from "../../supabase/functions/_shared/smsSender.ts";
-import type { GuardedCrmWriteBack } from "../../supabase/functions/_shared/writeBack.ts";
-import type { PendingCrmWriteBack } from "../../supabase/functions/_shared/writeBack.ts";
+import type {
+  GuardedCrmWriteBack,
+  GuardedCrmWriteBackRequest,
+  GuardedCrmWriteBackResult,
+} from "../../supabase/functions/_shared/writeBack.ts";
 import {
+  createDbBackedReminderRunStore,
   createInMemoryReminderRunStore,
   handleRunRemindersRequest,
   reconcileMessagesAndFacts,
@@ -156,6 +161,160 @@ Deno.test("IT-RUN-01 dry-run loop reads tomorrow, materializes, renders, and rec
     "GET patients patient-visit-run-1",
     "GET writeback_pre visit-run-1",
   ]);
+});
+
+Deno.test("IT-RUN-01 DB store persists through the dentino_run_api RPC surface", async () => {
+  const calls: { name: string; args: unknown }[] = [];
+  const rpcReplies = new Map<string, () => unknown>([
+    ["run_cliniccards_status_policy", () => [{
+      status: "PLANNED",
+      remindable: true,
+      terminal: false,
+      allow_confirm_action: true,
+      allow_cancel_action: true,
+      send_change_notice: true,
+    }]],
+    ["run_start_run", () => [dbRunRow()]],
+    ["run_finish_run", () => [dbRunRow()]],
+    ["run_claim_day", () => [{
+      claimed: true,
+      reason: null,
+      stole_existing_lease: false,
+    }]],
+    ["run_renew_day_heartbeat", () => true],
+    ["run_commit_send_outcome", () => true],
+    ["run_finish_writeback", () => true],
+    ["run_record_fetch_logs", () => 1],
+    ["run_record_visit_facts", () => 1],
+    ["run_reap_expired_send_claims", () => 1],
+    ["run_reap_orphaned_send_claims", () => 1],
+    ["run_materialize_message", () => [dbMessageRow()]],
+    ["run_claim_message_for_send", () => [dbMessageRow()]],
+    ["run_messages_for_target_date", () => [dbMessageRow()]],
+    ["run_pending_writebacks", () => [{
+      message_id: 7,
+      cliniccards_visit_id: "visit-db",
+      action: "confirm",
+      expected_appointment_fingerprint: "fingerprint-db",
+      crm_writeback_ok: null,
+      superseded_at: null,
+    }]],
+    ["run_reconcile_day", () => [dbReconciliationRow()]],
+    ["run_mark_message_skipped", () => undefined],
+  ]);
+  const db: DentinoDbRpcClient = {
+    async rpc(name, args) {
+      calls.push({ name, args });
+      await Promise.resolve();
+      const reply = rpcReplies.get(name);
+      if (!reply) {
+        throw new Error(`Unexpected RPC ${name}`);
+      }
+      return reply() as never;
+    },
+  };
+  const store = createDbBackedReminderRunStore({ db });
+
+  const policy = await store.loadClinicCardsStatusPolicy?.();
+  const dbSendClaimToken = syntheticFenceValue("db-send");
+  const dbTokenExpiresAt = new Date(
+    fixedNow().getTime() + 24 * 60 * 60 * 1_000,
+  ).toISOString();
+  const run = await store.startRun({
+    runDate: "2026-06-30" as LocalDate,
+    targetDate,
+    trigger: "cron",
+    passKind: "initial",
+    now: fixedNow(),
+  });
+  const claim = await store.claimDay({
+    targetDate,
+    runId: run.id,
+    passKind: "initial",
+    lockToken: syntheticFenceValue("db-day"),
+    now: fixedNow(),
+  });
+  await store.recordFetchLogs?.(run.id, [
+    fetchLog("visits_initial", "GET", "/visits"),
+  ]);
+  await store.recordVisitFacts(run.id, [
+    fact(visit("visit-db"), "visits_initial", "fingerprint-db", {
+      targetDate,
+    }),
+  ]);
+  const message = await store.materializeMessage({
+    runId: run.id,
+    cliniccardsVisitId: "visit-db",
+    cliniccardsPatientId: "patient-db",
+    targetDate,
+    targetAt: "2026-07-01T09:00:00+03:00",
+    messageKind: "initial_reminder",
+    appointmentFingerprint: "fingerprint-db",
+    sourceStatus: "PLANNED",
+    status: "pending",
+    patientDisplaySnapshot: "Олена",
+    now: fixedNow(),
+  });
+  await store.claimMessageForSend({
+    messageId: message.id,
+    claimToken: dbSendClaimToken,
+    tokenDigestHex: "a".repeat(64),
+    tokenExpiresAt: dbTokenExpiresAt,
+    claimExpiresAt: "2026-06-30T09:05:00.000Z",
+    now: fixedNow(),
+  });
+  await store.commitSendOutcome({
+    messageId: message.id,
+    claimToken: dbSendClaimToken,
+    result: {
+      status: "would_send",
+      providerMessageId: "provider-db",
+    },
+    now: fixedNow(),
+  });
+  await store.finishWriteBack?.({
+    messageId: 7,
+    result: {
+      status: "written",
+      action: "confirm",
+      cliniccardsVisitId: "visit-db",
+      crmTargetStatus: "CONFIRMED",
+      crmWritebackOk: true,
+      dryRun: false,
+      staffAttention: false,
+      attempts: 1,
+    },
+  });
+  await store.reconcileDay({ targetDate, now: fixedNow() });
+  await store.finishRun({
+    runId: run.id,
+    status: "completed",
+    reconciliation: dbReconciliationRecord(),
+    now: fixedNow(),
+  });
+
+  assertEquals(policy?.[0].status, "PLANNED");
+  assertEquals(claim, { claimed: true, stoleExistingLease: false });
+  assertEquals(message.cliniccardsVisitId, "visit-db");
+  assertEquals(calls.map((call) => call.name), [
+    "run_cliniccards_status_policy",
+    "run_start_run",
+    "run_claim_day",
+    "run_record_fetch_logs",
+    "run_record_visit_facts",
+    "run_materialize_message",
+    "run_claim_message_for_send",
+    "run_commit_send_outcome",
+    "run_finish_writeback",
+    "run_reconcile_day",
+    "run_finish_run",
+  ]);
+  assertEquals(
+    (calls.find((call) => call.name === "run_record_fetch_logs")?.args as {
+      p_logs: unknown[];
+    }).p_logs.length,
+    1,
+  );
 });
 
 Deno.test("IT-RUN-02 every observed visit is either sent or explicitly skipped", async () => {
@@ -908,29 +1067,41 @@ Deno.test("IT-BUDGET-01 high sendable volume marks queue migration recommended",
 Deno.test("IT-WRITEBACK-REAPER-02 run-owned reaper redrives unfinished CRM writes before reconciliation", async () => {
   const redriven: unknown[] = [];
   const writeBack: GuardedCrmWriteBack = Object.freeze({
-    write(): Promise<never> {
-      throw new Error("run-reminders test uses redrivePending only");
+    write(
+      request: GuardedCrmWriteBackRequest,
+    ): Promise<GuardedCrmWriteBackResult> {
+      redriven.push(request);
+      return Promise.resolve({
+        status: "written",
+        action: request.action,
+        cliniccardsVisitId: request.cliniccardsVisitId,
+        crmTargetStatus: "CANCELLED",
+        crmWritebackOk: true,
+        dryRun: false,
+        staffAttention: false,
+        attempts: 1,
+      });
     },
-    redrivePending(pending: readonly PendingCrmWriteBack[]) {
-      redriven.push(...pending);
+    redrivePending() {
       return Promise.resolve([]);
     },
+  });
+  const store = createInMemoryReminderRunStore({
+    messages: [
+      messageRecord({
+        id: 99,
+        cliniccardsVisitId: "visit-writeback-gap",
+        actionTaken: "cancelled",
+        crmWritebackOk: null,
+      }),
+    ],
   });
   const result = await runReminders({
     config,
     clock: fixedClock(),
     clinicCardsClient: mutableClinicCardsClient([]).client,
     sender: captureSender().sender,
-    store: createInMemoryReminderRunStore({
-      messages: [
-        messageRecord({
-          id: 99,
-          cliniccardsVisitId: "visit-writeback-gap",
-          actionTaken: "cancelled",
-          crmWritebackOk: null,
-        }),
-      ],
-    }),
+    store,
     writeBack,
     trigger: "cron",
   });
@@ -940,11 +1111,10 @@ Deno.test("IT-WRITEBACK-REAPER-02 run-owned reaper redrives unfinished CRM write
     cliniccardsVisitId: "visit-writeback-gap",
     action: "cancel",
     expectedAppointmentFingerprint: "fingerprint-1",
-    crmWritebackOk: null,
-    supersededAt: undefined,
   }]);
-  assertEquals(result.status, "failed");
-  assertEquals(result.reconciliation?.writebackPendingTotal, 1);
+  assertEquals(store.messages[0].crmWritebackOk, true);
+  assertEquals(result.status, "completed");
+  assertEquals(result.reconciliation?.writebackPendingTotal, 0);
 });
 
 function fixedClock(): FixedClock {
@@ -1181,6 +1351,84 @@ function fetchLog(
     raw_redacted: {},
     raw_sha256_hex: "0".repeat(64),
     fetched_at: fixedNowIso,
+  };
+}
+
+function dbRunRow() {
+  return {
+    id: 42,
+    run_date: "2026-06-30",
+    target_date: targetDate,
+    trigger: "cron",
+    pass_kind: "initial",
+    status: "completed",
+    started_at: fixedNowIso,
+    finished_at: fixedNowIso,
+  };
+}
+
+function dbMessageRow() {
+  return {
+    id: 7,
+    run_id: 42,
+    cliniccards_visit_id: "visit-db",
+    cliniccards_patient_id: "patient-db",
+    target_date: targetDate,
+    target_at: "2026-07-01T09:00:00.000Z",
+    channel: "sms",
+    message_kind: "initial_reminder",
+    appointment_fingerprint: "fingerprint-db",
+    source_status: "PLANNED",
+    status: "pending",
+    skip_reason: null,
+    patient_id: 3,
+    patient_display_snapshot: "Олена",
+    send_claim_token: null,
+    send_claim_expires_at: null,
+    send_attempt_count: 0,
+    last_attempt_at: null,
+    provider_message_id: null,
+    tracking_token_digest_hex: null,
+    token_expires_at: null,
+    superseded_at: null,
+    superseded_by_message_id: null,
+    error: null,
+    action_taken: "none",
+    crm_writeback_ok: null,
+  };
+}
+
+function dbReconciliationRow() {
+  return {
+    target_date: targetDate,
+    cliniccards_total: 1,
+    remindable_total: 1,
+    sendable_total: 1,
+    sent_total: 1,
+    skipped_total: 0,
+    failed_total: 0,
+    send_unknown_total: 0,
+    pending_total: 0,
+    writeback_pending_total: 0,
+    unaccounted_total: 0,
+    health: "green",
+  };
+}
+
+function dbReconciliationRecord() {
+  return {
+    targetDate,
+    cliniccardsTotal: 1,
+    remindableTotal: 1,
+    sendableTotal: 1,
+    sentTotal: 1,
+    skippedTotal: 0,
+    failedTotal: 0,
+    sendUnknownTotal: 0,
+    pendingTotal: 0,
+    writebackPendingTotal: 0,
+    unaccountedTotal: 0,
+    health: "green" as const,
   };
 }
 
