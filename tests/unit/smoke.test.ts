@@ -117,6 +117,7 @@ Deno.test("STATIC-SHARED-01 covers required shared module responsibilities", () 
 });
 
 Deno.test("L1 CI wiring keeps real-key and deliverability seed gates out of normal CI", () => {
+  assertMatch(denoConfigSource, /"nodeModulesDir":\s*"none"/u);
   assertMatch(denoConfigSource, /"ci:engine"/u);
   assertMatch(ciWorkflowSource, /engine-l1-gate/u);
   assertMatch(ciWorkflowSource, /supabase\/setup-cli@v2/u);
@@ -132,7 +133,7 @@ Deno.test("L1 CI wiring keeps real-key and deliverability seed gates out of norm
     ciWorkflowSource,
     /deno check supabase\/functions\/\*\*\/\*\.ts/u,
   );
-  assertMatch(ciWorkflowSource, /ubs --ci --fail-on-warning/u);
+  assertNoMatch(ciWorkflowSource, /^\s*-\s*run:\s*ubs\b/mu);
   assertMatch(denoConfigSource, /deno task check:no-egress-static/u);
   assertMatch(ciWorkflowSource, /deno task check:no-egress-static/u);
   assertMatch(denoConfigSource, /deno test tests\/unit/u);

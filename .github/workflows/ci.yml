@@ -35,7 +35,7 @@ jobs:
       - run: deno fmt --check
       - run: deno lint
       - run: deno check supabase/functions/**/*.ts
-      - run: ubs --ci --fail-on-warning deno.json supabase/functions tests
+      # `ubs` is a local-only dev meta-runner. CI keeps the covered gates explicit here.
       - run: deno task check:no-egress-static
       - run: deno test tests/unit
       - run: supabase start
