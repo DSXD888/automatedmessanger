@@ -7,27 +7,28 @@ select plan(14);
 
 select is(
   (
+    with expected_boundary_functions(function_oid) as (
+      values
+        ('private.token_digest(text)'::regprocedure),
+        ('api.lookup_reminder_by_token(text)'::regprocedure),
+        ('api.prepare_reminder_action(text,text)'::regprocedure),
+        ('api.record_reminder_action(text,text,text)'::regprocedure),
+        ('api.finish_reminder_action(bigint,boolean,text,jsonb)'::regprocedure),
+        ('api.dashboard_board_rows()'::regprocedure),
+        ('api.dashboard_needs_attention_rows()'::regprocedure),
+        ('api.update_message_template(bigint,text,text)'::regprocedure),
+        ('api.resolve_held_cancels(date,bigint[],text,text,jsonb)'::regprocedure),
+        ('api.reenable_sms_reminders(bigint,text,text)'::regprocedure),
+        ('api.record_go_live_mode_flip(text,text,text,text,text,date,text,jsonb)'::regprocedure),
+        ('maintenance.record_guard_liveness(text,text,integer,integer,text,text,jsonb)'::regprocedure),
+        ('maintenance.reap_stale_sends(date)'::regprocedure),
+        ('maintenance.purge_privacy()'::regprocedure),
+        ('maintenance.invoke_run_reminders(text,date)'::regprocedure)
+    )
     select count(*)::int
-    from pg_proc p
-    join pg_namespace n on n.oid = p.pronamespace
-    where n.nspname in ('api', 'private', 'maintenance')
-      and p.proname in (
-        'token_digest',
-        'lookup_reminder_by_token',
-        'prepare_reminder_action',
-        'record_reminder_action',
-        'finish_reminder_action',
-        'dashboard_board_rows',
-        'dashboard_needs_attention_rows',
-        'update_message_template',
-        'resolve_held_cancels',
-        'reenable_sms_reminders',
-        'record_go_live_mode_flip',
-        'record_guard_liveness',
-        'reap_stale_sends',
-        'purge_privacy'
-      )
-      and not p.prosecdef
+    from expected_boundary_functions expected
+    join pg_proc p on p.oid = expected.function_oid
+    where not p.prosecdef
   ),
   0,
   'all boundary functions are security definer'
@@ -39,26 +40,11 @@ select is(
     from pg_proc p
     join pg_namespace n on n.oid = p.pronamespace
     where n.nspname in ('api', 'private', 'maintenance')
-      and p.proname in (
-        'token_digest',
-        'lookup_reminder_by_token',
-        'prepare_reminder_action',
-        'record_reminder_action',
-        'finish_reminder_action',
-        'dashboard_board_rows',
-        'dashboard_needs_attention_rows',
-        'update_message_template',
-        'resolve_held_cancels',
-        'reenable_sms_reminders',
-        'record_go_live_mode_flip',
-        'record_guard_liveness',
-        'reap_stale_sends',
-        'purge_privacy'
-      )
+      and p.prosecdef
       and not ('search_path=""' = any(coalesce(p.proconfig, array[]::text[])))
   ),
   0,
-  'all boundary functions pin search_path to empty string'
+  'all security definer functions pin search_path to empty string'
 );
 
 select is(
@@ -68,22 +54,7 @@ select is(
     join pg_namespace n on n.oid = p.pronamespace
     join pg_roles r on r.oid = p.proowner
     where n.nspname in ('api', 'private', 'maintenance')
-      and p.proname in (
-        'token_digest',
-        'lookup_reminder_by_token',
-        'prepare_reminder_action',
-        'record_reminder_action',
-        'finish_reminder_action',
-        'dashboard_board_rows',
-        'dashboard_needs_attention_rows',
-        'update_message_template',
-        'resolve_held_cancels',
-        'reenable_sms_reminders',
-        'record_go_live_mode_flip',
-        'record_guard_liveness',
-        'reap_stale_sends',
-        'purge_privacy'
-      )
+      and p.prosecdef
       and (r.rolsuper or r.rolcanlogin)
   ),
   0,
@@ -96,26 +67,11 @@ select is(
     from pg_proc p
     join pg_namespace n on n.oid = p.pronamespace
     where n.nspname in ('api', 'private', 'maintenance')
-      and p.proname in (
-        'token_digest',
-        'lookup_reminder_by_token',
-        'prepare_reminder_action',
-        'record_reminder_action',
-        'finish_reminder_action',
-        'dashboard_board_rows',
-        'dashboard_needs_attention_rows',
-        'update_message_template',
-        'resolve_held_cancels',
-        'reenable_sms_reminders',
-        'record_go_live_mode_flip',
-        'record_guard_liveness',
-        'reap_stale_sends',
-        'purge_privacy'
-      )
+      and p.prosecdef
       and has_function_privilege('public', p.oid, 'execute')
   ),
   0,
-  'PUBLIC execute is revoked from boundary functions'
+  'PUBLIC execute is revoked from security definer functions'
 );
 
 select is(
@@ -124,26 +80,11 @@ select is(
     from pg_proc p
     join pg_namespace n on n.oid = p.pronamespace
     where n.nspname in ('api', 'private', 'maintenance')
-      and p.proname in (
-        'token_digest',
-        'lookup_reminder_by_token',
-        'prepare_reminder_action',
-        'record_reminder_action',
-        'finish_reminder_action',
-        'dashboard_board_rows',
-        'dashboard_needs_attention_rows',
-        'update_message_template',
-        'resolve_held_cancels',
-        'reenable_sms_reminders',
-        'record_go_live_mode_flip',
-        'record_guard_liveness',
-        'reap_stale_sends',
-        'purge_privacy'
-      )
+      and p.prosecdef
       and p.prosrc ~* '\mexecute\M'
   ),
   0,
-  'boundary function bodies contain no dynamic SQL'
+  'security definer function bodies contain no dynamic SQL'
 );
 
 select is(

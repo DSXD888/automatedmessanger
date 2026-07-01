@@ -8,6 +8,7 @@ select set_config('app.test_now', '2026-06-30 09:00:00+00', false);
 do $$
 begin
   execute format('grant dentino_run_api to %I', current_user);
+  execute format('grant dentino_confirm_api to %I', current_user);
 end;
 $$;
 
@@ -128,154 +129,6 @@ begin
   return updated_count;
 end;
 $$;
-
-create or replace function pg_temp.record_action_cas(
-  p_message_id bigint,
-  p_action text
-)
-returns int
-language plpgsql
-as $$
-declare
-  updated_count int;
-begin
-  update app.reminder_messages
-     set response = p_action,
-         responded_at = app.now(),
-         action_locked_at = app.now(),
-         action_taken = case
-           when p_action = 'confirm' then 'confirmed'
-           else 'cancelled'
-         end
-   where id = p_message_id
-     and action_locked_at is null
-     and response is null
-     and status in ('sent', 'delivered', 'send_unknown')
-     and token_expires_at > app.now()
-     and superseded_at is null;
-
-  get diagnostics updated_count = row_count;
-  return updated_count;
-end;
-$$;
-
-create or replace function pg_temp.claim_write_lock(
-  p_visit_id text,
-  p_message_id bigint,
-  p_token uuid,
-  p_now timestamptz
-)
-returns boolean
-language plpgsql
-as $$
-declare
-  claimed boolean;
-begin
-  insert into app.crm_visit_write_locks(
-    cliniccards_visit_id,
-    lock_token,
-    locked_by_message_id,
-    locked_at,
-    lock_expires_at
-  )
-  values (
-    p_visit_id,
-    p_token,
-    p_message_id,
-    p_now,
-    p_now + interval '90 seconds'
-  )
-  on conflict (cliniccards_visit_id) do update
-  set lock_token = excluded.lock_token,
-      locked_by_message_id = excluded.locked_by_message_id,
-      locked_at = excluded.locked_at,
-      lock_expires_at = excluded.lock_expires_at
-  where app.crm_visit_write_locks.lock_expires_at <= p_now
-  returning true into claimed;
-
-  return coalesce(claimed, false);
-end;
-$$;
-
-create or replace function pg_temp.release_write_lock(
-  p_visit_id text,
-  p_token uuid
-)
-returns int
-language plpgsql
-as $$
-declare
-  deleted_count int;
-begin
-  delete from app.crm_visit_write_locks
-  where cliniccards_visit_id = p_visit_id
-    and lock_token = p_token;
-  get diagnostics deleted_count = row_count;
-  return deleted_count;
-end;
-$$;
-
-create or replace function pg_temp.write_lock_fixture()
-returns table(
-  visit_id text,
-  first_message_id bigint,
-  second_message_id bigint,
-  first_token uuid,
-  second_token uuid
-)
-language plpgsql
-as $$
-declare
-  run_id bigint;
-  fixture_visit_id text := 'visit-write-lock-' || extensions.gen_random_uuid()::text;
-begin
-  insert into app.reminder_runs(run_date, target_date, trigger)
-  values ('2026-06-30', '2026-07-01', 'manual')
-  returning id into run_id;
-
-  insert into app.reminder_messages(
-    run_id,
-    cliniccards_visit_id,
-    target_date,
-    target_at,
-    message_kind
-  )
-  values (
-    run_id,
-    fixture_visit_id,
-    '2026-07-01',
-    '2026-07-01 09:00+00',
-    'initial_reminder'
-  )
-  returning id into first_message_id;
-
-  insert into app.reminder_messages(
-    run_id,
-    cliniccards_visit_id,
-    target_date,
-    target_at,
-    message_kind,
-    appointment_fingerprint
-  )
-  values (
-    run_id,
-    fixture_visit_id,
-    '2026-07-01',
-    '2026-07-01 09:00+00',
-    'time_change_notice',
-    'second-contender'
-  )
-  returning id into second_message_id;
-
-  visit_id := fixture_visit_id;
-  first_token := extensions.gen_random_uuid();
-  second_token := extensions.gen_random_uuid();
-  return next;
-end;
-$$;
-
-create temp table write_lock_case as
-select * from pg_temp.write_lock_fixture();
 
 create temp table day_claim_case(
   target_date date not null,
@@ -413,7 +266,10 @@ select
   extensions.gen_random_uuid(),
   extensions.gen_random_uuid();
 
-create temp table action_cas_case(message_id bigint not null);
+create temp table action_cas_case(
+  message_id bigint not null,
+  raw_token text not null
+);
 
 with run as (
   insert into app.reminder_runs(run_date, target_date, trigger, pass_kind)
@@ -439,14 +295,286 @@ message as (
     '2026-07-04 09:00+00',
     'initial_reminder',
     'action-cas-fingerprint',
-    'sent',
-    extensions.gen_random_bytes(32),
+    'send_unknown',
+    private.token_digest('token-action-cas-0001'),
     app.now() + interval '1 day'
   from run
   returning id
 )
-insert into action_cas_case(message_id)
-select id from message;
+insert into action_cas_case(message_id, raw_token)
+select id, 'token-action-cas-0001' from message;
+
+create temp table write_lock_case(
+  visit_id text not null,
+  first_message_id bigint not null,
+  second_message_id bigint not null,
+  first_raw_token text not null,
+  second_raw_token text not null
+);
+
+with run as (
+  insert into app.reminder_runs(run_date, target_date, trigger, pass_kind)
+  values ('2026-06-30', '2026-07-05', 'manual', 'initial')
+  returning id
+),
+first_message as (
+  insert into app.reminder_messages(
+    run_id,
+    cliniccards_visit_id,
+    target_date,
+    target_at,
+    message_kind,
+    appointment_fingerprint,
+    status,
+    tracking_token_digest,
+    token_expires_at
+  )
+  select
+    id,
+    'visit-write-lock-rpc',
+    '2026-07-05',
+    '2026-07-05 09:00+00',
+    'initial_reminder',
+    'write-lock-first-fingerprint',
+    'sent',
+    private.token_digest('token-write-lock-0001'),
+    app.now() + interval '1 day'
+  from run
+  returning id
+),
+second_message as (
+  insert into app.reminder_messages(
+    run_id,
+    cliniccards_visit_id,
+    target_date,
+    target_at,
+    message_kind,
+    appointment_fingerprint,
+    status,
+    tracking_token_digest,
+    token_expires_at
+  )
+  select
+    id,
+    'visit-write-lock-rpc',
+    '2026-07-05',
+    '2026-07-05 09:00+00',
+    'time_change_notice',
+    'write-lock-second-fingerprint',
+    'sent',
+    private.token_digest('token-write-lock-0002'),
+    app.now() + interval '1 day'
+  from run
+  returning id
+)
+insert into write_lock_case(
+  visit_id,
+  first_message_id,
+  second_message_id,
+  first_raw_token,
+  second_raw_token
+)
+select
+  'visit-write-lock-rpc',
+  (select id from first_message),
+  (select id from second_message),
+  'token-write-lock-0001',
+  'token-write-lock-0002';
+
+create temp table action_cas_prepare as
+select * from api.prepare_reminder_action('token-action-cas-0001', 'confirm')
+with no data;
+create temp table action_cas_recorded as
+select * from api.record_reminder_action('token-action-cas-0001', 'confirm', 'nonce')
+with no data;
+create temp table action_cas_second_recorded as
+select * from api.record_reminder_action('token-action-cas-0001', 'cancel', 'nonce')
+with no data;
+create temp table write_lock_first_prepare as
+select * from api.prepare_reminder_action('token-write-lock-0001', 'confirm')
+with no data;
+create temp table write_lock_first_record as
+select * from api.record_reminder_action('token-write-lock-0001', 'confirm', 'nonce')
+with no data;
+create temp table write_lock_second_prepare as
+select * from api.prepare_reminder_action('token-write-lock-0002', 'confirm')
+with no data;
+create temp table write_lock_second_busy as
+select * from api.record_reminder_action('token-write-lock-0002', 'confirm', 'nonce')
+with no data;
+create temp table write_lock_second_record as
+select * from api.record_reminder_action('token-write-lock-0002', 'confirm', 'nonce')
+with no data;
+create temp table write_lock_stale_finish as
+select * from api.finish_reminder_action(null::bigint, true, null::text, '{}'::jsonb)
+with no data;
+create temp table write_lock_current_finish as
+select * from api.finish_reminder_action(null::bigint, true, null::text, '{}'::jsonb)
+with no data;
+create temp table write_lock_snapshots(
+  phase text primary key,
+  locked_by_message_id bigint,
+  lock_token uuid,
+  lock_count integer not null
+);
+
+grant select on action_cas_case, write_lock_case to dentino_confirm_api;
+grant insert, select on
+  action_cas_prepare,
+  action_cas_recorded,
+  action_cas_second_recorded,
+  write_lock_first_prepare,
+  write_lock_first_record,
+  write_lock_second_prepare,
+  write_lock_second_busy,
+  write_lock_second_record,
+  write_lock_stale_finish,
+  write_lock_current_finish,
+  write_lock_snapshots
+to dentino_confirm_api;
+
+set local role dentino_confirm_api;
+
+insert into action_cas_prepare
+select *
+from api.prepare_reminder_action(
+  (select raw_token from action_cas_case),
+  'confirm'
+);
+
+insert into action_cas_recorded
+select *
+from api.record_reminder_action(
+  (select raw_token from action_cas_case),
+  'confirm',
+  (select action_nonce from action_cas_prepare)
+);
+
+insert into action_cas_second_recorded
+select *
+from api.record_reminder_action(
+  (select raw_token from action_cas_case),
+  'cancel',
+  (select action_nonce from action_cas_prepare)
+);
+
+insert into write_lock_first_prepare
+select *
+from api.prepare_reminder_action(
+  (select first_raw_token from write_lock_case),
+  'confirm'
+);
+
+insert into write_lock_first_record
+select *
+from api.record_reminder_action(
+  (select first_raw_token from write_lock_case),
+  'confirm',
+  (select action_nonce from write_lock_first_prepare)
+);
+
+reset role;
+
+insert into write_lock_snapshots(phase, locked_by_message_id, lock_token, lock_count)
+values (
+  'after_first_record',
+  (select locked_by_message_id from app.crm_visit_write_locks where cliniccards_visit_id = (select visit_id from write_lock_case)),
+  (select lock_token from app.crm_visit_write_locks where cliniccards_visit_id = (select visit_id from write_lock_case)),
+  (select count(*)::int from app.crm_visit_write_locks where cliniccards_visit_id = (select visit_id from write_lock_case))
+);
+
+set local role dentino_confirm_api;
+
+insert into write_lock_second_prepare
+select *
+from api.prepare_reminder_action(
+  (select second_raw_token from write_lock_case),
+  'confirm'
+);
+
+insert into write_lock_second_busy
+select *
+from api.record_reminder_action(
+  (select second_raw_token from write_lock_case),
+  'confirm',
+  (select action_nonce from write_lock_second_prepare)
+);
+
+reset role;
+
+insert into write_lock_snapshots(phase, locked_by_message_id, lock_token, lock_count)
+values (
+  'after_second_busy',
+  (select locked_by_message_id from app.crm_visit_write_locks where cliniccards_visit_id = (select visit_id from write_lock_case)),
+  (select lock_token from app.crm_visit_write_locks where cliniccards_visit_id = (select visit_id from write_lock_case)),
+  (select count(*)::int from app.crm_visit_write_locks where cliniccards_visit_id = (select visit_id from write_lock_case))
+);
+
+update app.crm_visit_write_locks
+   set lock_expires_at = app.now() - interval '1 second'
+ where cliniccards_visit_id = (select visit_id from write_lock_case);
+
+set local role dentino_confirm_api;
+
+insert into write_lock_second_record
+select *
+from api.record_reminder_action(
+  (select second_raw_token from write_lock_case),
+  'confirm',
+  (select action_nonce from write_lock_second_prepare)
+);
+
+reset role;
+
+insert into write_lock_snapshots(phase, locked_by_message_id, lock_token, lock_count)
+values (
+  'after_second_record',
+  (select locked_by_message_id from app.crm_visit_write_locks where cliniccards_visit_id = (select visit_id from write_lock_case)),
+  (select lock_token from app.crm_visit_write_locks where cliniccards_visit_id = (select visit_id from write_lock_case)),
+  (select count(*)::int from app.crm_visit_write_locks where cliniccards_visit_id = (select visit_id from write_lock_case))
+);
+
+set local role dentino_confirm_api;
+
+insert into write_lock_stale_finish
+select *
+from api.finish_reminder_action(
+  (select first_message_id from write_lock_case),
+  true,
+  null::text,
+  jsonb_build_object('lock_token', (select lock_token from write_lock_first_record))
+);
+
+reset role;
+
+insert into write_lock_snapshots(phase, locked_by_message_id, lock_token, lock_count)
+values (
+  'after_stale_finish',
+  (select locked_by_message_id from app.crm_visit_write_locks where cliniccards_visit_id = (select visit_id from write_lock_case)),
+  (select lock_token from app.crm_visit_write_locks where cliniccards_visit_id = (select visit_id from write_lock_case)),
+  (select count(*)::int from app.crm_visit_write_locks where cliniccards_visit_id = (select visit_id from write_lock_case))
+);
+
+set local role dentino_confirm_api;
+
+insert into write_lock_current_finish
+select *
+from api.finish_reminder_action(
+  (select second_message_id from write_lock_case),
+  true,
+  null::text,
+  jsonb_build_object('lock_token', (select lock_token from write_lock_second_record))
+);
+
+reset role;
+
+insert into write_lock_snapshots(phase, locked_by_message_id, lock_token, lock_count)
+values (
+  'after_current_finish',
+  (select locked_by_message_id from app.crm_visit_write_locks where cliniccards_visit_id = (select visit_id from write_lock_case)),
+  (select lock_token from app.crm_visit_write_locks where cliniccards_visit_id = (select visit_id from write_lock_case)),
+  (select count(*)::int from app.crm_visit_write_locks where cliniccards_visit_id = (select visit_id from write_lock_case))
+);
 
 select ok(
   pg_temp.claim_day(
@@ -581,21 +709,27 @@ select ok(
 );
 
 select is(
-  pg_temp.record_action_cas(
-    (select message_id from action_cas_case),
-    'confirm'
+  (
+    select recorded.ok::text || ':' ||
+      recorded.action_taken || ':' ||
+      recorded.crm_target_status || ':' ||
+      message.status || ':' ||
+      message.response || ':' ||
+      (message.action_locked_at is not null)::text
+    from action_cas_recorded recorded
+    join app.reminder_messages message on message.id = recorded.message_id
   ),
-  1,
-  'first action CAS consumes exactly one action lock'
+  'true:confirmed:CONFIRMED:delivered:confirm:true',
+  'record_reminder_action consumes the first action lock and promotes send_unknown to delivered'
 );
 
 select is(
-  pg_temp.record_action_cas(
-    (select message_id from action_cas_case),
-    'cancel'
+  (
+    select ok::text || ':' || neutral_reason
+    from action_cas_second_recorded
   ),
-  0,
-  'second action CAS affects zero rows'
+  'false:invalid_or_expired',
+  'second action through record_reminder_action is rejected after CAS'
 );
 
 select throws_like(
@@ -609,52 +743,69 @@ select throws_like(
   'action-lock trigger rejects unlock and re-response attempts'
 );
 
-select ok(
-  pg_temp.claim_write_lock(
-    (select visit_id from write_lock_case),
-    (select first_message_id from write_lock_case),
-    (select first_token from write_lock_case),
-    app.now()
+select is(
+  (
+    select first_record.ok::text || ':' ||
+      first_snapshot.lock_count::text || ':' ||
+      first_snapshot.locked_by_message_id::text
+    from write_lock_first_record first_record
+    cross join write_lock_snapshots first_snapshot
+    where first_snapshot.phase = 'after_first_record'
   ),
-  'first write-lock contender claims the visit lease'
-);
-
-select ok(
-  not pg_temp.claim_write_lock(
-    (select visit_id from write_lock_case),
-    (select second_message_id from write_lock_case),
-    (select second_token from write_lock_case),
-    app.now() + interval '1 second'
-  ),
-  'second live write-lock contender does not win'
-);
-
-select ok(
-  pg_temp.claim_write_lock(
-    (select visit_id from write_lock_case),
-    (select second_message_id from write_lock_case),
-    (select second_token from write_lock_case),
-    app.now() + interval '91 seconds'
-  ),
-  'stale write-lock lease is stealable after expiry'
+  'true:1:' || (select first_message_id::text from write_lock_case),
+  'first record_reminder_action contender claims the visit write lease'
 );
 
 select is(
-  pg_temp.release_write_lock(
-    (select visit_id from write_lock_case),
-    (select first_token from write_lock_case)
+  (
+    select second_busy.ok::text || ':' ||
+      second_busy.neutral_reason || ':' ||
+      busy_snapshot.lock_count::text || ':' ||
+      busy_snapshot.locked_by_message_id::text
+    from write_lock_second_busy second_busy
+    cross join write_lock_snapshots busy_snapshot
+    where busy_snapshot.phase = 'after_second_busy'
   ),
-  0,
-  'stale owner token cannot release the stealer lease'
+  'false:write_lock_busy:1:' || (select first_message_id::text from write_lock_case),
+  'second live record_reminder_action contender does not win the visit write lease'
 );
 
 select is(
-  pg_temp.release_write_lock(
-    (select visit_id from write_lock_case),
-    (select second_token from write_lock_case)
+  (
+    select second_record.ok::text || ':' ||
+      stale_snapshot.lock_count::text || ':' ||
+      stale_snapshot.locked_by_message_id::text
+    from write_lock_second_record second_record
+    cross join write_lock_snapshots stale_snapshot
+    where stale_snapshot.phase = 'after_second_record'
   ),
-  1,
-  'current owner token releases exactly one write-lock lease'
+  'true:1:' || (select second_message_id::text from write_lock_case),
+  'stale visit write lease is stealable by record_reminder_action'
+);
+
+select is(
+  (
+    select stale_finish.ok::text || ':' ||
+      after_stale.lock_count::text || ':' ||
+      after_stale.locked_by_message_id::text
+    from write_lock_stale_finish stale_finish
+    cross join write_lock_snapshots after_stale
+    where after_stale.phase = 'after_stale_finish'
+  ),
+  'true:1:' || (select second_message_id::text from write_lock_case),
+  'stale owner finish_reminder_action cannot release the stealer lease'
+);
+
+select is(
+  (
+    select current_finish.ok::text || ':' ||
+      after_current.lock_count::text
+    from write_lock_current_finish current_finish
+    cross join write_lock_snapshots after_current
+    where after_current.phase = 'after_current_finish'
+  ),
+  'true:0',
+  'current owner finish_reminder_action releases exactly one visit write lease'
 );
 
 select lives_ok(
