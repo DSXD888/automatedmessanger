@@ -1,11 +1,67 @@
 # Dentino Clinic — Automated Appointment Confirmation/Cancellation Messaging System
+
 ## Research Document
 
 - **Date:** 2026-06-18 (original research draft: 2026-06-16)
-- **Status:** Research complete (**v2.26.3** — **Default SMS reminder copy revised (owner decision, 2026-06-27):** the default body is now `{{name}}, ваш візит: завтра {{date}} о {{time}}.\nПідтвердити/змінити: {{confirm_url}}. Тел: {{clinic_phone}}` (**130 chars = 2 UCS-2 segments**) — the clinic-name `{{clinic}}:` lead is replaced by the generic **«ваш візит»** (clinic identity still carried by the `Dentino` sender + the `r.dentino.com.ua` link), a **line break** now splits the appointment line from the action line, and `{{clinic_phone}}` renders **without spaces** (`+380679876111`) — segment-saving + more reliable tap-to-call, matching the confirm page's `tel:` href. The old general "compact" fallback is **retired** (the default already fits 2 segments); the **only** remaining fallback is the **name-overflow** variant (drops `{{name}}` → «Ваш візит:», ≈123 chars) for rendered first names ≳10 chars. The v1.1 no-reply nudge is harmonised to the same style. **Docs-only, no ADR/decision-spine change** (§1, §4.2; canonical copy lives only in §4.2 + the DB `message_templates` seed). On the **v2.26.2** base: **Alpha sender renamed `DentinoLviv` → `Dentino` (owner decision, 2026-06-27):** the owner submitted the cleaner 7-char **`Dentino`** to TurboSMS (the city stays in the TurboSMS sender *description*, not the sender line); `SMS_SENDER_ID` `"DentinoLviv"`→`"Dentino"`, national-tariff rate lever unchanged — docs-only, no ADR/decision-spine change, layermaxxer pipeline unaffected (cite-don't-copy: the value lives only in env + this doc). On the **v2.26.1** base: **TurboSMS SMS-preclearance correction (no ADR change):** SMS has **no** Viber-style "transactional template" to register (a template the text must match is Viber, code 416) — SMS pre-clearance = **alpha-name + medical-content sign-off + promo-free text**, and the rate lever is keeping `Dentino` **national**; the Kyivstar provider vendor dir was removed. On the **v2.26** base: **SMS provider pivot: Kyivstar-direct → TurboSMS** (UA-native aggregator, self-service signup; **AlphaSMS** fallback route). SMS-only **re-confirmed** (Viber re-checked and rejected at this volume — its monthly floor makes it ~4–7× costlier; crossover ≈ 150–170/day). **ADR-005's routing sub-decision + consequence rewritten** (Kyivstar-direct dropped as default; **no new ADR** — the SMS-only channel strategy and channel-agnostic spine are unchanged). Config `KYIVSTAR_API_KEY` → **`SMS_PROVIDER_API_KEY`** + new **`SMS_DLR_WEBHOOK_SECRET`**; `SMS_IDEMPOTENCY_MODE` upgraded to "`strict_dedupe` plausible via TurboSMS `sequence_id`". On the **v2.25.2** base — Planmaxer iteration-2 **Live-Clinic Production Safety & Staged Go-Live** integration: new **ADR-024 (live-clinic safety & staged go-live)**; new **§6.6** (read-only-until-go-live mode flags · the `shadow → seed → canary → full` ladder · the fail-closed allowlist guard · credential lifecycle/env separation); `SEND_MODE`/`CRM_WRITE_MODE`/`SEND_ALLOWLIST`/`CRM_WRITE_ALLOWLIST`/`APP_ENV` config (§9.2); the §5.2 trust-panel current-mode banner; AGENTS.md **RULE 3** (no real patient touched by the build); your-tasks A7/D1a/D1b. On the v2.24 base [Test Strategy & Hermetic Test Harness — ADR-023, the §6.5 layered strategy, the no-egress chokepoint these go-live flags climb]) **· v2.25.1 fresh-eyes correctness patch** — staff-time breakeven *sensitivity* upper bound corrected ~40%→~33%, the SMS-cost-vs-ROI month-basis made explicit, and the deferred-§4.3 WhatsApp illustration rescaled to the clinic's real volume (no ADR/decision change — see Change Log) **· v2.25.2 owner-decisions integration** — official vector logo (white + black) recorded as the build-time inline-SVG source (§5.8/ADR-022/§8); **B4** single-tenant scope confirmed by the owner in §10 (no growth — clinic just expanded); **A4** already matched the plan (ADR-003, develop-on-Free→Pro-at-go-live); **A5** left unchanged in the plan per owner (operationally optional — captured in `your-tasks.md`); no ADR added or reversed — ready for `research-to-spec`
+- **Status:** Research complete (**v2.26.3** — **Default SMS reminder copy
+  revised (owner decision, 2026-06-27):** the default body is now
+  `{{name}}, ваш візит: завтра {{date}} о {{time}}.\nПідтвердити/змінити: {{confirm_url}}. Тел: {{clinic_phone}}`
+  (**130 chars = 2 UCS-2 segments**) — the clinic-name `{{clinic}}:` lead is
+  replaced by the generic **«ваш візит»** (clinic identity still carried by the
+  `Dentino` sender + the `r.dentino.com.ua` link), a **line break** now splits
+  the appointment line from the action line, and `{{clinic_phone}}` renders
+  **without spaces** (`+380679876111`) — segment-saving + more reliable
+  tap-to-call, matching the confirm page's `tel:` href. The old general
+  "compact" fallback is **retired** (the default already fits 2 segments); the
+  **only** remaining fallback is the **name-overflow** variant (drops `{{name}}`
+  → «Ваш візит:», ≈123 chars) for rendered first names ≳10 chars. The v1.1
+  no-reply nudge is harmonised to the same style. **Docs-only, no
+  ADR/decision-spine change** (§1, §4.2; canonical copy lives only in §4.2 + the
+  DB `message_templates` seed). On the **v2.26.2** base: **Alpha sender renamed
+  `DentinoLviv` → `Dentino` (owner decision, 2026-06-27):** the owner submitted
+  the cleaner 7-char **`Dentino`** to TurboSMS (the city stays in the TurboSMS
+  sender _description_, not the sender line); `SMS_SENDER_ID`
+  `"DentinoLviv"`→`"Dentino"`, national-tariff rate lever unchanged — docs-only,
+  no ADR/decision-spine change, layermaxxer pipeline unaffected
+  (cite-don't-copy: the value lives only in env + this doc). On the **v2.26.1**
+  base: **TurboSMS SMS-preclearance correction (no ADR change):** SMS has **no**
+  Viber-style "transactional template" to register (a template the text must
+  match is Viber, code 416) — SMS pre-clearance = **alpha-name + medical-content
+  sign-off + promo-free text**, and the rate lever is keeping `Dentino`
+  **national**; the Kyivstar provider vendor dir was removed. On the **v2.26**
+  base: **SMS provider pivot: Kyivstar-direct → TurboSMS** (UA-native
+  aggregator, self-service signup; **AlphaSMS** fallback route). SMS-only
+  **re-confirmed** (Viber re-checked and rejected at this volume — its monthly
+  floor makes it ~4–7× costlier; crossover ≈ 150–170/day). **ADR-005's routing
+  sub-decision + consequence rewritten** (Kyivstar-direct dropped as default;
+  **no new ADR** — the SMS-only channel strategy and channel-agnostic spine are
+  unchanged). Config `KYIVSTAR_API_KEY` → **`SMS_PROVIDER_API_KEY`** + new
+  **`SMS_DLR_WEBHOOK_SECRET`**; `SMS_IDEMPOTENCY_MODE` upgraded to
+  "`strict_dedupe` plausible via TurboSMS `sequence_id`". On the **v2.25.2**
+  base — Planmaxer iteration-2 **Live-Clinic Production Safety & Staged
+  Go-Live** integration: new **ADR-024 (live-clinic safety & staged go-live)**;
+  new **§6.6** (read-only-until-go-live mode flags · the
+  `shadow → seed → canary → full` ladder · the fail-closed allowlist guard ·
+  credential lifecycle/env separation);
+  `SEND_MODE`/`CRM_WRITE_MODE`/`SEND_ALLOWLIST`/`CRM_WRITE_ALLOWLIST`/`APP_ENV`
+  config (§9.2); the §5.2 trust-panel current-mode banner; AGENTS.md **RULE 3**
+  (no real patient touched by the build); your-tasks A7/D1a/D1b. On the v2.24
+  base [Test Strategy & Hermetic Test Harness — ADR-023, the §6.5 layered
+  strategy, the no-egress chokepoint these go-live flags climb]) **· v2.25.1
+  fresh-eyes correctness patch** — staff-time breakeven _sensitivity_ upper
+  bound corrected ~40%→~33%, the SMS-cost-vs-ROI month-basis made explicit, and
+  the deferred-§4.3 WhatsApp illustration rescaled to the clinic's real volume
+  (no ADR/decision change — see Change Log) **· v2.25.2 owner-decisions
+  integration** — official vector logo (white + black) recorded as the
+  build-time inline-SVG source (§5.8/ADR-022/§8); **B4** single-tenant scope
+  confirmed by the owner in §10 (no growth — clinic just expanded); **A4**
+  already matched the plan (ADR-003, develop-on-Free→Pro-at-go-live); **A5**
+  left unchanged in the plan per owner (operationally optional — captured in
+  `your-tasks.md`); no ADR added or reversed — ready for `research-to-spec`
 - **Author:** idea-to-research pipeline
 - **Project:** `~/Desktop/automatedmessanger` (greenfield)
-- **Reference template studied:** `~/Desktop/testproject1` (Rust daemon + CDP browser skills + Tauri desktop + SQLite)
+- **Reference template studied:** `~/Desktop/testproject1` (Rust daemon + CDP
+  browser skills + Tauri desktop + SQLite)
 
 ---
 
@@ -22,6 +78,7 @@
 9. Dependencies & Prerequisites
 10. Open Questions
 11. Next Steps
+
 - Appendices (A-C): Glossary, References, Change Log
 
 ---
@@ -30,53 +87,141 @@
 
 ### Feature Overview
 
-Build a system that, on a **12:00 Europe/Kyiv daily run plus an automatic afternoon catch-up**, finds every **remindable** appointment for **the next day** in the ClinicCards CRM, materializes each appointment row, sends each **sendable** patient an SMS containing a personalized **confirm/cancel link**, and - when the patient completes a valid action - writes the allowed Confirm/Cancel status back to ClinicCards. Every patient, send, and response is tracked in a database so no **appointment** gets a duplicate reminder (a *materially changed* appointment - moved day/time - gets one explicit follow-up *change notice*). SMS gives **universal reach** (every phone, no app, no app-channel opt-in/onboarding), so v1 needs **no per-patient channel and no channel-discovery**; sends still honor the `sms_reminders_enabled` preference. *(Messaging-app channels - Viber/WhatsApp/Telegram - are a deferred future enhancement; see §4.3. The rest of the architecture is channel-agnostic, so adding them later is additive, not a rebuild.)*
+Build a system that, on a **12:00 Europe/Kyiv daily run plus an automatic
+afternoon catch-up**, finds every **remindable** appointment for **the next
+day** in the ClinicCards CRM, materializes each appointment row, sends each
+**sendable** patient an SMS containing a personalized **confirm/cancel link**,
+and - when the patient completes a valid action - writes the allowed
+Confirm/Cancel status back to ClinicCards. Every patient, send, and response is
+tracked in a database so no **appointment** gets a duplicate reminder (a
+_materially changed_ appointment - moved day/time - gets one explicit follow-up
+_change notice_). SMS gives **universal reach** (every phone, no app, no
+app-channel opt-in/onboarding), so v1 needs **no per-patient channel and no
+channel-discovery**; sends still honor the `sms_reminders_enabled` preference.
+_(Messaging-app channels - Viber/WhatsApp/Telegram - are a deferred future
+enhancement; see §4.3. The rest of the architecture is channel-agnostic, so
+adding them later is additive, not a rebuild.)_
 
-The system must keep message templates **easily interchangeable** (Ukrainian in v1; the template store is multi-language-ready), and the architecture must be **extensible** toward future two-way scheduling ("book by text").
+The system must keep message templates **easily interchangeable** (Ukrainian in
+v1; the template store is multi-language-ready), and the architecture must be
+**extensible** toward future two-way scheduling ("book by text").
 
 ### Key Recommendations
 
-1. **CRM integration: use the ClinicCards REST API — NOT browser automation.** The API supports all three needs we have (list tomorrow's visits, read patient phone, cancel a visit). This is the single most important finding: it removes the need for the daemon + CDP "agent-browser" pattern from `testproject1` entirely.
-2. **Delivery model: a small cloud engine + a thin web dashboard — NOT a desktop app and NOT AWS Step Functions.** Capturing responses requires an always-on public HTTPS confirm page; that requirement makes a clinic-PC desktop app unviable as the engine, and the workload is too small to justify Step Functions' complexity.
-3. **Platform: Supabase** (managed Postgres + `pg_cron` scheduler/backup trigger + Edge Functions for the send-engine and confirm page + Auth for the dashboard + Vault for secrets). One platform replaces five services. **The reliability boundary lives *outside* Supabase:** an external dead-man's-switch (Healthchecks.io/Cronitor) detects a missed run, and the run is a **lease-guarded outbox with self-reconciliation** (run-level lease + per-message claim) so a crash or timeout never double-sends or silently skips (ADR-003, ADR-012, ADR-013).
-4. **Language: TypeScript + Hono.** One language across engine, webhook, scheduled job, and dashboard; best messaging-SDK coverage. Do **not** reuse the Rust/Tauri template — its strengths (always-on local daemon, browser automation, native window) are exactly what we no longer need.
-5. **Messaging (v1): SMS via TurboSMS** (UA-native aggregator, self-service; **AlphaSMS** fallback) with the registered alphanumeric sender ID **`Dentino`**. SMS reaches **every** eligible patient with no app, no app-channel opt-in/onboarding, and no channel-discovery — so v1 stores **no** per-patient channel. Because UA alpha senders are **one-way**, the confirm/cancel response is captured via a **personalized link → confirm web page**, not an SMS reply. *(Viber/WhatsApp/Telegram via a CPaaS aggregator + Telegram bot remain fully researched and viable as a later cost/UX optimization — §4.3.)*
-6. **Response→CRM write-back (guarded):** a valid Confirm/Cancel action is a nonce-backed POST; it re-fetches ClinicCards, verifies the visit is still writeable, records the response, and writes the allowed CRM status. Cancel always passes through an interstitial and circuit-breaker guard. `PUT /visits status:"CANCELLED"` remains the default because it preserves history; `DELETE` is a staff-approved fallback only, since ClinicCards drops deleted visits from history/reports.
+1. **CRM integration: use the ClinicCards REST API — NOT browser automation.**
+   The API supports all three needs we have (list tomorrow's visits, read
+   patient phone, cancel a visit). This is the single most important finding: it
+   removes the need for the daemon + CDP "agent-browser" pattern from
+   `testproject1` entirely.
+2. **Delivery model: a small cloud engine + a thin web dashboard — NOT a desktop
+   app and NOT AWS Step Functions.** Capturing responses requires an always-on
+   public HTTPS confirm page; that requirement makes a clinic-PC desktop app
+   unviable as the engine, and the workload is too small to justify Step
+   Functions' complexity.
+3. **Platform: Supabase** (managed Postgres + `pg_cron` scheduler/backup
+   trigger + Edge Functions for the send-engine and confirm page + Auth for the
+   dashboard + Vault for secrets). One platform replaces five services. **The
+   reliability boundary lives _outside_ Supabase:** an external
+   dead-man's-switch (Healthchecks.io/Cronitor) detects a missed run, and the
+   run is a **lease-guarded outbox with self-reconciliation** (run-level lease +
+   per-message claim) so a crash or timeout never double-sends or silently skips
+   (ADR-003, ADR-012, ADR-013).
+4. **Language: TypeScript + Hono.** One language across engine, webhook,
+   scheduled job, and dashboard; best messaging-SDK coverage. Do **not** reuse
+   the Rust/Tauri template — its strengths (always-on local daemon, browser
+   automation, native window) are exactly what we no longer need.
+5. **Messaging (v1): SMS via TurboSMS** (UA-native aggregator, self-service;
+   **AlphaSMS** fallback) with the registered alphanumeric sender ID
+   **`Dentino`**. SMS reaches **every** eligible patient with no app, no
+   app-channel opt-in/onboarding, and no channel-discovery — so v1 stores **no**
+   per-patient channel. Because UA alpha senders are **one-way**, the
+   confirm/cancel response is captured via a **personalized link → confirm web
+   page**, not an SMS reply. _(Viber/WhatsApp/Telegram via a CPaaS aggregator +
+   Telegram bot remain fully researched and viable as a later cost/UX
+   optimization — §4.3.)_
+6. **Response→CRM write-back (guarded):** a valid Confirm/Cancel action is a
+   nonce-backed POST; it re-fetches ClinicCards, verifies the visit is still
+   writeable, records the response, and writes the allowed CRM status. Cancel
+   always passes through an interstitial and circuit-breaker guard.
+   `PUT /visits status:"CANCELLED"` remains the default because it preserves
+   history; `DELETE` is a staff-approved fallback only, since ClinicCards drops
+   deleted visits from history/reports.
 
 ### Decisions (confirmed)
 
 - **Channel/UX:** SMS-only v1 with **confirm-via-link** (ADR-010).
-- **Volume:** ~20 reminders/day — far under the ~100–130/day SMS↔Viber cost crossover for the 2-segment default template, so SMS is the cheapest universal-reach option.
-- **ClinicCards:** clinic is on the **paid top tier** → no API gating; visit datetimes are **Europe/Kyiv**.
-- **SMS:** provider **TurboSMS** (UA-native aggregator, self-service signup; **AlphaSMS** fallback route — primary+fallback routing redundancy without Kyivstar-direct; ADR-005); alpha sender **`Dentino`** (7 chars); confirm link on the clinic-owned, app-only origin **`r.dentino.com.ua/r/<token>`** (full-entropy **128-bit** token — never shortened for segment budget); reschedule phone **`+380679876111`** (the SMS body uses the no-space dialable form — segment-saving + reliable tap-to-call; the same number is on the confirm page, prominently on a Cancel, and rides in both SMS bodies).
-- **Behaviour:** Ukrainian-only; remind `PLANNED` + `NOT_CONFIRMED`; a valid Confirm action writes `CONFIRMED` to ClinicCards when the status policy allows; no-reply = leave as-is + flag on the dashboard.
-- **Only residual setup task:** point the dedicated app-only subdomain `r.dentino.com.ua` at the engine (DNS) before go-live. *(Build-time technical confirmations are in §10.)*
+- **Volume:** ~20 reminders/day — far under the ~100–130/day SMS↔Viber cost
+  crossover for the 2-segment default template, so SMS is the cheapest
+  universal-reach option.
+- **ClinicCards:** clinic is on the **paid top tier** → no API gating; visit
+  datetimes are **Europe/Kyiv**.
+- **SMS:** provider **TurboSMS** (UA-native aggregator, self-service signup;
+  **AlphaSMS** fallback route — primary+fallback routing redundancy without
+  Kyivstar-direct; ADR-005); alpha sender **`Dentino`** (7 chars); confirm link
+  on the clinic-owned, app-only origin **`r.dentino.com.ua/r/<token>`**
+  (full-entropy **128-bit** token — never shortened for segment budget);
+  reschedule phone **`+380679876111`** (the SMS body uses the no-space dialable
+  form — segment-saving + reliable tap-to-call; the same number is on the
+  confirm page, prominently on a Cancel, and rides in both SMS bodies).
+- **Behaviour:** Ukrainian-only; remind `PLANNED` + `NOT_CONFIRMED`; a valid
+  Confirm action writes `CONFIRMED` to ClinicCards when the status policy
+  allows; no-reply = leave as-is + flag on the dashboard.
+- **Only residual setup task:** point the dedicated app-only subdomain
+  `r.dentino.com.ua` at the engine (DNS) before go-live. _(Build-time technical
+  confirmations are in §10.)_
 
 ### Value & ROI (the real business case)
 
-The headline cost (~€53–68/mo) is the *small* number and mis-frames the value. A clinic doesn't buy this to save on texts — it buys it to **stop losing chair-hours to empty slots** and to **stop phoning ~20 patients every day**. **Honest baseline (important):** the comparison is *not* "no reminders" — it's the clinic's **current manual phone calls**. Published evidence (Cochrane CD007458) finds SMS reminders beat **no** reminders but are **~similar to phone reminders** for attendance, so Dentino's *incremental* no-show drop versus its current process may be **modest unless that process is often skipped or poorly documented**. The defensible dominant wins are therefore **staff-time freed + faster, cleaner cancellation capture + more refillable slots + a clean audit trail** — with any no-show reduction **measured pre/post, not assumed** (§2.3 #11, ADR-017). The economics (modelled in §6.2, ADR-017):
+The headline cost (~€53–68/mo) is the _small_ number and mis-frames the value. A
+clinic doesn't buy this to save on texts — it buys it to **stop losing
+chair-hours to empty slots** and to **stop phoning ~20 patients every day**.
+**Honest baseline (important):** the comparison is _not_ "no reminders" — it's
+the clinic's **current manual phone calls**. Published evidence (Cochrane
+CD007458) finds SMS reminders beat **no** reminders but are **~similar to phone
+reminders** for attendance, so Dentino's _incremental_ no-show drop versus its
+current process may be **modest unless that process is often skipped or poorly
+documented**. The defensible dominant wins are therefore **staff-time freed +
+faster, cleaner cancellation capture + more refillable slots + a clean audit
+trail** — with any no-show reduction **measured pre/post, not assumed** (§2.3
+#11, ADR-017). The economics (modelled in §6.2, ADR-017):
 
-- **Recovered chair-time — the big € lever.** `monthly net ≈ (440 appts × Δ empty-slot-rate × contribution/slot) + staff-€-saved − ~€60`. At a **2-point** empty-slot reduction and **€75/slot** that's ≈**€630/mo net**; even **0.5-point at €30/slot** is net-positive — it **pays for itself at ~2–3 recovered slots/mo**. *Empty-slot = no-shows **plus** late cancellations not refilled*, because a cancel only has value if the slot is refilled — so **capturing cancellations early** (the link's job) is itself a revenue lever, independent of the no-show debate (§6.2).
-- **Staff-time — real, but small in € (large in goodwill).** At a **55%** action rate the model saves ≈14.75 staff-min/day ≈ **~5.4 h/mo ≈ ~€30/mo** at ~€6/h — operationally meaningful, but **recovered chair-time dominates the euro ROI**. Breakeven ≈ **22%** action rate *if no-replies are still phoned*; decisively positive once the clinic trusts "no-reply" enough to stop chasing it (§6.2 staff-time model).
-- **Proven, not assumed.** The owner measures **pre-go-live baselines** (current no-show **and** empty-slot rate, manual-call minutes, slot contribution) and watches a small owner **value panel** afterwards (§5.2, ADR-017); a **net-staff-time (staff-load) budget** is a first-class success bar (§2.3 #10).
+- **Recovered chair-time — the big € lever.**
+  `monthly net ≈ (440 appts × Δ empty-slot-rate × contribution/slot) + staff-€-saved − ~€60`.
+  At a **2-point** empty-slot reduction and **€75/slot** that's ≈**€630/mo
+  net**; even **0.5-point at €30/slot** is net-positive — it **pays for itself
+  at ~2–3 recovered slots/mo**. _Empty-slot = no-shows **plus** late
+  cancellations not refilled_, because a cancel only has value if the slot is
+  refilled — so **capturing cancellations early** (the link's job) is itself a
+  revenue lever, independent of the no-show debate (§6.2).
+- **Staff-time — real, but small in € (large in goodwill).** At a **55%** action
+  rate the model saves ≈14.75 staff-min/day ≈ **~5.4 h/mo ≈ ~€30/mo** at ~€6/h —
+  operationally meaningful, but **recovered chair-time dominates the euro ROI**.
+  Breakeven ≈ **22%** action rate _if no-replies are still phoned_; decisively
+  positive once the clinic trusts "no-reply" enough to stop chasing it (§6.2
+  staff-time model).
+- **Proven, not assumed.** The owner measures **pre-go-live baselines** (current
+  no-show **and** empty-slot rate, manual-call minutes, slot contribution) and
+  watches a small owner **value panel** afterwards (§5.2, ADR-017); a
+  **net-staff-time (staff-load) budget** is a first-class success bar (§2.3
+  #10).
 
 ### Quick Stats
 
-| Metric | Value |
-|---|---|
-| ClinicCards API | **Feasible** — REST, `Token` header, 60 req/min, no webhooks (poll) |
-| Browser automation needed? | **No** (anywhere) |
-| Recommended delivery | Cloud engine + thin web dashboard (Supabase) |
-| Recommended language | TypeScript + Hono |
-| Delivery channel (v1) | **SMS** — universal reach (every phone, no app, no app-channel opt-in/onboarding, no channel-discovery) |
-| Response capture | **Confirm/cancel link → web page** (UA alpha SMS senders are one-way) |
-| SMS cost (UA) | **~0.98–1.29 UAH/segment** (TurboSMS, **single SMS rate**, tiered by account top-up; the transactional/promotional split is a *Viber* feature, not SMS); Cyrillic = 70 chars/segment (67 in multi-part) → a reminder ≈ 2–3 segments ≈ **€0.05–0.08** (≈52 UAH/€); **no SMS monthly minimum** (1 UAH min top-up) |
-| Cost crossover vs Viber-primary | SMS cheaper *and* universal **below ~100–130 reminders/day** (2-segment SMS; ~67–90/day if 3-segment); Viber's flat ~€150–200/mo floor (→ €200 from 1 Jul 2026) wins above that |
-| Estimated all-in cost | **~€53–68/mo at ~20/day** (€30–45 SMS + ~$25/€23 Supabase Pro for guaranteed uptime) |
-| Primary ROI driver | **Recovered chair-time** (empty slots prevented/refilled) + **staff-time freed**, not per-SMS cost — pays for itself at **~2–3 recovered slots/mo**. *Honest baseline = current phone calls* (SMS ≈ phone for attendance, Cochrane), so no-show drop is **measured pre/post**, not assumed (§6.2, ADR-017). |
-| Deferred channels | Viber/WhatsApp/Telegram via CPaaS — researched, additive later (§4.3) |
-| Reliability model | **Lease-guarded outbox + self-reconciliation** — run-level `reminder_days` lease + per-message claim; **external** dead-man's-switch (Healthchecks.io, free tier) pages staff if the noon run misses (ADR-012, ADR-013) |
-| Complexity | Medium (many integrations, low volume, no real-time/scale pressure) |
+| Metric                          | Value                                                                                                                                                                                                                                                                                                           |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ClinicCards API                 | **Feasible** — REST, `Token` header, 60 req/min, no webhooks (poll)                                                                                                                                                                                                                                             |
+| Browser automation needed?      | **No** (anywhere)                                                                                                                                                                                                                                                                                               |
+| Recommended delivery            | Cloud engine + thin web dashboard (Supabase)                                                                                                                                                                                                                                                                    |
+| Recommended language            | TypeScript + Hono                                                                                                                                                                                                                                                                                               |
+| Delivery channel (v1)           | **SMS** — universal reach (every phone, no app, no app-channel opt-in/onboarding, no channel-discovery)                                                                                                                                                                                                         |
+| Response capture                | **Confirm/cancel link → web page** (UA alpha SMS senders are one-way)                                                                                                                                                                                                                                           |
+| SMS cost (UA)                   | **~0.98–1.29 UAH/segment** (TurboSMS, **single SMS rate**, tiered by account top-up; the transactional/promotional split is a _Viber_ feature, not SMS); Cyrillic = 70 chars/segment (67 in multi-part) → a reminder ≈ 2–3 segments ≈ **€0.05–0.08** (≈52 UAH/€); **no SMS monthly minimum** (1 UAH min top-up) |
+| Cost crossover vs Viber-primary | SMS cheaper _and_ universal **below ~100–130 reminders/day** (2-segment SMS; ~67–90/day if 3-segment); Viber's flat ~€150–200/mo floor (→ €200 from 1 Jul 2026) wins above that                                                                                                                                 |
+| Estimated all-in cost           | **~€53–68/mo at ~20/day** (€30–45 SMS + ~$25/€23 Supabase Pro for guaranteed uptime)                                                                                                                                                                                                                            |
+| Primary ROI driver              | **Recovered chair-time** (empty slots prevented/refilled) + **staff-time freed**, not per-SMS cost — pays for itself at **~2–3 recovered slots/mo**. _Honest baseline = current phone calls_ (SMS ≈ phone for attendance, Cochrane), so no-show drop is **measured pre/post**, not assumed (§6.2, ADR-017).     |
+| Deferred channels               | Viber/WhatsApp/Telegram via CPaaS — researched, additive later (§4.3)                                                                                                                                                                                                                                           |
+| Reliability model               | **Lease-guarded outbox + self-reconciliation** — run-level `reminder_days` lease + per-message claim; **external** dead-man's-switch (Healthchecks.io, free tier) pages staff if the noon run misses (ADR-012, ADR-013)                                                                                         |
+| Complexity                      | Medium (many integrations, low volume, no real-time/scale pressure)                                                                                                                                                                                                                                             |
 
 ---
 
@@ -84,116 +229,281 @@ The headline cost (~€53–68/mo) is the *small* number and mis-frames the valu
 
 ### 2.1 Problem Statement
 
-A dental clinic ("Dentino") in **Ukraine** manually telephones next-day patients to confirm appointments. This is slow, easy to skip, and produces no record. They want it automated: a daily, unattended job that **texts every sendable next-day patient an SMS with a confirm/cancel link**, captures the response, and keeps the CRM calendar in sync — aiming to reduce no-shows and free up staff time. (The clinic is in **Lviv**; the patient base is Ukrainian mobile-first, while invalid or missing numbers are skipped and flagged.)
+A dental clinic ("Dentino") in **Ukraine** manually telephones next-day patients
+to confirm appointments. This is slow, easy to skip, and produces no record.
+They want it automated: a daily, unattended job that **texts every sendable
+next-day patient an SMS with a confirm/cancel link**, captures the response, and
+keeps the CRM calendar in sync — aiming to reduce no-shows and free up staff
+time. (The clinic is in **Lviv**; the patient base is Ukrainian mobile-first,
+while invalid or missing numbers are skipped and flagged.)
 
-**The deeper "why":** the value is *reliable reach + a clean audit trail*. Any design that cannot reliably (a) run unattended every day and (b) capture the response 24/7 fails the core purpose — this is what drives the cloud-vs-desktop decision more than any preference.
+**The deeper "why":** the value is _reliable reach + a clean audit trail_. Any
+design that cannot reliably (a) run unattended every day and (b) capture the
+response 24/7 fails the core purpose — this is what drives the cloud-vs-desktop
+decision more than any preference.
 
-**Two economic truths frame everything below (ADR-017):** (1) the dominant payoff is **recovered chair-time** — empty slots *prevented or refilled*; a recovered chair-hour dwarfs a month of SMS. Measured against the clinic's *current phone calls* (not "no reminders"), the no-show-specific drop may be **modest** (SMS ≈ phone for attendance — Cochrane CD007458), but the *reliable* gains — **earlier cancellation capture → refillable slots**, plus the no-show effect that accrues from a reminder merely being *delivered and seen* — **survive a low action rate**, so the primary ROI is more robust than the action rate risk (§6.2/§1) implies; (2) the system only *wins on staff time* if it lets the front desk **stop calling the patients who respond** — so a measured **net staff-time reduction** (work *removed*, not merely *relocated* into a triage queue) is a first-class success bar (§2.3 #10, §6.2). And the clinic **never depends on the automation to operate**: ClinicCards + the phone remain a permanent, **designed-in manual backstop** (§4.4, ADR-017), so this is a labor-saver layered on top, not a single point of failure for the clinic's day.
+**Two economic truths frame everything below (ADR-017):** (1) the dominant
+payoff is **recovered chair-time** — empty slots _prevented or refilled_; a
+recovered chair-hour dwarfs a month of SMS. Measured against the clinic's
+_current phone calls_ (not "no reminders"), the no-show-specific drop may be
+**modest** (SMS ≈ phone for attendance — Cochrane CD007458), but the _reliable_
+gains — **earlier cancellation capture → refillable slots**, plus the no-show
+effect that accrues from a reminder merely being _delivered and seen_ —
+**survive a low action rate**, so the primary ROI is more robust than the action
+rate risk (§6.2/§1) implies; (2) the system only _wins on staff time_ if it lets
+the front desk **stop calling the patients who respond** — so a measured **net
+staff-time reduction** (work _removed_, not merely _relocated_ into a triage
+queue) is a first-class success bar (§2.3 #10, §6.2). And the clinic **never
+depends on the automation to operate**: ClinicCards + the phone remain a
+permanent, **designed-in manual backstop** (§4.4, ADR-017), so this is a
+labor-saver layered on top, not a single point of failure for the clinic's day.
 
 ### 2.2 User Stories
 
-- **As clinic reception staff**, I want next-day patients texted automatically at noon so I don't have to phone each one, and I want **one screen** that — after the noon run (or my manual trigger) — lists **all of tomorrow's appointments with each patient's status (Confirmed / Cancelled / No reply)** so that at end of day I can call the cancelled patients to reschedule and chase the no-replies.
-- **As clinic reception staff**, I want a "Message next day" button to trigger the run manually (e.g., to re-run or run early) without it double-sending.
-- **As a patient**, I want a short **SMS** (works on any phone, no app needed) with a low-friction link to a page I can immediately tell is **really my dental clinic** (not a scam), confirm in **one tap**, and — if I can't make it — easily **reach the clinic to reschedule** rather than only cancel.
-- **As an older or link-averse patient**, I want the clinic phone available in the message and on the page (one-tap to call), and to know that if I don't respond staff will still call me — so I'm **never forced through a web page** to keep my appointment.
-- **As the clinic owner**, I want cancelled appointments to disappear from the ClinicCards calendar automatically so the slot can be reused.
-- **As the system operator (you)**, I want to **swap the message wording/language without code changes** (per-patient channel storage isn't needed for SMS — it returns only when app channels are added later).
-- **(Future) As a patient**, I want to *book* or *reschedule* by replying, not just confirm/cancel.
+- **As clinic reception staff**, I want next-day patients texted automatically
+  at noon so I don't have to phone each one, and I want **one screen** that —
+  after the noon run (or my manual trigger) — lists **all of tomorrow's
+  appointments with each patient's status (Confirmed / Cancelled / No reply)**
+  so that at end of day I can call the cancelled patients to reschedule and
+  chase the no-replies.
+- **As clinic reception staff**, I want a "Message next day" button to trigger
+  the run manually (e.g., to re-run or run early) without it double-sending.
+- **As a patient**, I want a short **SMS** (works on any phone, no app needed)
+  with a low-friction link to a page I can immediately tell is **really my
+  dental clinic** (not a scam), confirm in **one tap**, and — if I can't make it
+  — easily **reach the clinic to reschedule** rather than only cancel.
+- **As an older or link-averse patient**, I want the clinic phone available in
+  the message and on the page (one-tap to call), and to know that if I don't
+  respond staff will still call me — so I'm **never forced through a web page**
+  to keep my appointment.
+- **As the clinic owner**, I want cancelled appointments to disappear from the
+  ClinicCards calendar automatically so the slot can be reused.
+- **As the system operator (you)**, I want to **swap the message
+  wording/language without code changes** (per-patient channel storage isn't
+  needed for SMS — it returns only when app channels are added later).
+- **(Future) As a patient**, I want to _book_ or _reschedule_ by replying, not
+  just confirm/cancel.
 
 ### 2.3 Success Criteria
 
-1. At 12:00 Kyiv daily (plus an automatic afternoon catch-up), the system reads the target day's appointments from ClinicCards and creates exactly **one** *ordinary* reminder per **remindable** appointment — remindability is **data-driven** (`cliniccards_status_policy`: default `PLANNED`/`NOT_CONFIRMED`, skip terminals, **flag** `BOOKING`/`MOVED`, unknown statuses **fail closed**) — with no duplicates and no omissions among the eligible set. If an appointment's date/time **materially changes** after sending, it gets exactly **one** explicit *change notice* (not another ordinary reminder).
-2. Every patient with a valid mobile number is sent an SMS **(only if SMS reminders are enabled — the patient's communication preference is on record; ADR-015)**; patients with no number, an opt-out / no enabled preference, an unresolved/merged patient record, or a changed `patient_id` are **always recorded as `skipped` with a reason** and flagged for staff (never silently omitted).
-3. A valid **Confirm** action marks the appointment confirmed and writes `CONFIRMED` to ClinicCards when the status policy allows. A valid **Cancel** action cancels the appointment in ClinicCards within minutes **of the tap** — unless the visit changed since the link was shown or the mass-cancel circuit breaker is open, in which case it is **flagged for staff rather than overwritten** (ADR-007, ADR-014) — and reflects the outcome in the dashboard.
-4. No appointment receives a duplicate *ordinary* reminder — even if the cron double-fires, staff click the button twice, or the run is deliberately re-run after a partial failure (idempotency is per *appointment-day*, not per run); a send whose outcome can't be recorded is flagged, not re-sent. A *materially changed* appointment may receive one explicit change notice.
-5. The dashboard shows a **live status board of all of tomorrow's appointments** — per patient: send state (sent/delivered/failed) and response (**Confirmed / Cancelled / No reply**) — grouped/filterable by status so staff can work the Cancelled (reschedule) and No-reply (chase) lists at end of day. Above it sits a **4-number trust panel** (CRM visits/remindable · SMS handled · problems · responses-so-far) that turns green only once the run reconciles.
-6. Message text is editable (per language; per channel once apps are added) without a code deploy.
-7. The system runs unattended with no clinic PC dependency; responses are captured even at 3am — and the system **proves it ran**: an **external** dead-man's-switch alerts a human the same day if the noon run hasn't completed by 12:30 Kyiv (absence detection independent of Supabase — ADR-013).
-8. **Every run reconciles itself:** every remindable appointment ends accounted-for (sent / known-skip / failed / send-unknown) with **zero unaccounted** before the run can close; the external heartbeat reports success only for green/amber reconciliation (known staff-work items allowed), while failed / unresolved `send_unknown` outcomes are red and alerted, never blindly re-sent.
-9. **Patient action rate is actively managed, not left to chance** (the doc's #1 residual risk, §6.2): reception **priming** is part of go-live (the booking-desk script, §9.3); the confirm page is built as a **trust + accessibility** surface (clinic-identity branding with no third-party assets, ≥48 px targets, a no-JavaScript form-POST flow that completes on an old WebView/slow data — §5.2); the Cancel flow **offers a one-tap reschedule** before and after the destructive confirm; and the tracked KPI is **recorded action ÷ delivered** (the nonce-backed POST, segmented by template and send-hour) — *not* page views, which are scanner-contaminated and security-excluded (§5.4). The **healthy band is ~55–65%**; below it, work the levers (priming → copy/sender trust → send-time → call-list workflow) and consider the v1.1 nudge — the value-red *failure* line is owned by #10/ADR-017, not a separate threshold. Staff also tag *why* a no-reply didn't act (a one-tap reason enum, §5.2/§6.2) so the leak is located cheaply, without scanner-prone GET telemetry.
-10. **Net staff-time is reduced, not relocated (a staff-load budget — ADR-017).** Measured against the manual-phone baseline (~20 confirm-calls/day ≈ ~45 min at ~2.25 min/call — to be confirmed by the pre-go-live measurement, your-tasks A5), the daily staff time to *run* the new workflow — dashboard triage + chasing **genuine** no-replies + rescheduling cancels + clearing needs-attention — must be **lower**, with the safety machinery's exception queue kept to a few minutes/day at ~20/day. **Concrete target:** at a **≥55% action rate**, normal daily reminder workflow ≤ **30 staff-min/day**. The win comes from eliminating the confirm-call for every patient who taps; below the **breakeven (~22% if no-replies are still phoned — §6.2)** the system is net-negative, so action rate is a *managed operational metric*, not a hope — treat **<35% for 5 clinic days as value-red** (the §11 stop-loss). The single biggest lever is making "no-reply" **safe to not chase** (measure no-reply show-rate; chase only high-value/long slots).
-11. **No-show / empty-slot reduction is measured against the *manual-phone* baseline, not assumed (ADR-017).** The clinic records **pre-go-live baselines** (~4 weeks): no-show rate **and** empty-slot rate (no-shows + late cancels not refilled), manual-call minutes, and slot contribution; then it tracks the post-go-live rates + the **cancelled-slot refill rate**. The honest claim is **not** "SMS cuts no-shows" (SMS ≈ phone reminders for attendance — Cochrane) but **same-or-better attendance at lower staff cost + more refillable slots + a clean audit trail**; a no-show drop, if any, is a measured bonus. These surface on an owner **value panel** distinct from the operational trust panel (§5.2, §6.2).
+1. At 12:00 Kyiv daily (plus an automatic afternoon catch-up), the system reads
+   the target day's appointments from ClinicCards and creates exactly **one**
+   _ordinary_ reminder per **remindable** appointment — remindability is
+   **data-driven** (`cliniccards_status_policy`: default
+   `PLANNED`/`NOT_CONFIRMED`, skip terminals, **flag** `BOOKING`/`MOVED`,
+   unknown statuses **fail closed**) — with no duplicates and no omissions among
+   the eligible set. If an appointment's date/time **materially changes** after
+   sending, it gets exactly **one** explicit _change notice_ (not another
+   ordinary reminder).
+2. Every patient with a valid mobile number is sent an SMS **(only if SMS
+   reminders are enabled — the patient's communication preference is on record;
+   ADR-015)**; patients with no number, an opt-out / no enabled preference, an
+   unresolved/merged patient record, or a changed `patient_id` are **always
+   recorded as `skipped` with a reason** and flagged for staff (never silently
+   omitted).
+3. A valid **Confirm** action marks the appointment confirmed and writes
+   `CONFIRMED` to ClinicCards when the status policy allows. A valid **Cancel**
+   action cancels the appointment in ClinicCards within minutes **of the tap** —
+   unless the visit changed since the link was shown or the mass-cancel circuit
+   breaker is open, in which case it is **flagged for staff rather than
+   overwritten** (ADR-007, ADR-014) — and reflects the outcome in the dashboard.
+4. No appointment receives a duplicate _ordinary_ reminder — even if the cron
+   double-fires, staff click the button twice, or the run is deliberately re-run
+   after a partial failure (idempotency is per _appointment-day_, not per run);
+   a send whose outcome can't be recorded is flagged, not re-sent. A _materially
+   changed_ appointment may receive one explicit change notice.
+5. The dashboard shows a **live status board of all of tomorrow's appointments**
+   — per patient: send state (sent/delivered/failed) and response (**Confirmed /
+   Cancelled / No reply**) — grouped/filterable by status so staff can work the
+   Cancelled (reschedule) and No-reply (chase) lists at end of day. Above it
+   sits a **4-number trust panel** (CRM visits/remindable · SMS handled ·
+   problems · responses-so-far) that turns green only once the run reconciles.
+6. Message text is editable (per language; per channel once apps are added)
+   without a code deploy.
+7. The system runs unattended with no clinic PC dependency; responses are
+   captured even at 3am — and the system **proves it ran**: an **external**
+   dead-man's-switch alerts a human the same day if the noon run hasn't
+   completed by 12:30 Kyiv (absence detection independent of Supabase —
+   ADR-013).
+8. **Every run reconciles itself:** every remindable appointment ends
+   accounted-for (sent / known-skip / failed / send-unknown) with **zero
+   unaccounted** before the run can close; the external heartbeat reports
+   success only for green/amber reconciliation (known staff-work items allowed),
+   while failed / unresolved `send_unknown` outcomes are red and alerted, never
+   blindly re-sent.
+9. **Patient action rate is actively managed, not left to chance** (the doc's #1
+   residual risk, §6.2): reception **priming** is part of go-live (the
+   booking-desk script, §9.3); the confirm page is built as a **trust +
+   accessibility** surface (clinic-identity branding with no third-party assets,
+   ≥48 px targets, a no-JavaScript form-POST flow that completes on an old
+   WebView/slow data — §5.2); the Cancel flow **offers a one-tap reschedule**
+   before and after the destructive confirm; and the tracked KPI is **recorded
+   action ÷ delivered** (the nonce-backed POST, segmented by template and
+   send-hour) — _not_ page views, which are scanner-contaminated and
+   security-excluded (§5.4). The **healthy band is ~55–65%**; below it, work the
+   levers (priming → copy/sender trust → send-time → call-list workflow) and
+   consider the v1.1 nudge — the value-red _failure_ line is owned by
+   #10/ADR-017, not a separate threshold. Staff also tag _why_ a no-reply didn't
+   act (a one-tap reason enum, §5.2/§6.2) so the leak is located cheaply,
+   without scanner-prone GET telemetry.
+10. **Net staff-time is reduced, not relocated (a staff-load budget —
+    ADR-017).** Measured against the manual-phone baseline (~20
+    confirm-calls/day ≈ ~45 min at ~2.25 min/call — to be confirmed by the
+    pre-go-live measurement, your-tasks A5), the daily staff time to _run_ the
+    new workflow — dashboard triage + chasing **genuine** no-replies +
+    rescheduling cancels + clearing needs-attention — must be **lower**, with
+    the safety machinery's exception queue kept to a few minutes/day at ~20/day.
+    **Concrete target:** at a **≥55% action rate**, normal daily reminder
+    workflow ≤ **30 staff-min/day**. The win comes from eliminating the
+    confirm-call for every patient who taps; below the **breakeven (~22% if
+    no-replies are still phoned — §6.2)** the system is net-negative, so action
+    rate is a _managed operational metric_, not a hope — treat **<35% for 5
+    clinic days as value-red** (the §11 stop-loss). The single biggest lever is
+    making "no-reply" **safe to not chase** (measure no-reply show-rate; chase
+    only high-value/long slots).
+11. **No-show / empty-slot reduction is measured against the _manual-phone_
+    baseline, not assumed (ADR-017).** The clinic records **pre-go-live
+    baselines** (~4 weeks): no-show rate **and** empty-slot rate (no-shows +
+    late cancels not refilled), manual-call minutes, and slot contribution; then
+    it tracks the post-go-live rates + the **cancelled-slot refill rate**. The
+    honest claim is **not** "SMS cuts no-shows" (SMS ≈ phone reminders for
+    attendance — Cochrane) but **same-or-better attendance at lower staff cost +
+    more refillable slots + a clean audit trail**; a no-show drop, if any, is a
+    measured bonus. These surface on an owner **value panel** distinct from the
+    operational trust panel (§5.2, §6.2).
 
 ### 2.4 Scope Definition
 
-| Category | Items |
-|---|---|
-| **Must Have (MVP)** | Daily fetch of next-day visits from ClinicCards; **SMS send with a personalized confirm/cancel link**; **confirm/cancel web page** with footer opt-out; policy-gated Confirm write-back (`CONFIRMED`); guarded Cancel write-back to ClinicCards; tracking DB; idempotent runs; last-run recap + manual "Message next day" button; editable templates. |
-| **Should Have (v1.1)** | SMS delivery-status callbacks when provider-supported; provider idempotency key support; provider retry tooling; a no-reply nudge (a second SMS) **only if the one-ordinary-reminder rule is relaxed**. |
-| **Could Have (v1.2)** | **Multi-channel via CPaaS (Viber/WhatsApp) + a Telegram bot** — the §4.3 deferred research; multi-language auto-selection; configurable lead times; per-doctor templates; analytics (confirm/cancel/no-reply rates). |
-| **Future (vNext)** | Two-way scheduling/rescheduling (conversational state machine) — pairs far better with an app channel than one-way SMS; patient-initiated booking. |
+| Category               | Items                                                                                                                                                                                                                                                                                                                                                 |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Must Have (MVP)**    | Daily fetch of next-day visits from ClinicCards; **SMS send with a personalized confirm/cancel link**; **confirm/cancel web page** with footer opt-out; policy-gated Confirm write-back (`CONFIRMED`); guarded Cancel write-back to ClinicCards; tracking DB; idempotent runs; last-run recap + manual "Message next day" button; editable templates. |
+| **Should Have (v1.1)** | SMS delivery-status callbacks when provider-supported; provider idempotency key support; provider retry tooling; a no-reply nudge (a second SMS) **only if the one-ordinary-reminder rule is relaxed**.                                                                                                                                               |
+| **Could Have (v1.2)**  | **Multi-channel via CPaaS (Viber/WhatsApp) + a Telegram bot** — the §4.3 deferred research; multi-language auto-selection; configurable lead times; per-doctor templates; analytics (confirm/cancel/no-reply rates).                                                                                                                                  |
+| **Future (vNext)**     | Two-way scheduling/rescheduling (conversational state machine) — pairs far better with an app channel than one-way SMS; patient-initiated booking.                                                                                                                                                                                                    |
 
 ### 2.5 Non-Goals & Exclusions
 
-- **No messaging-app channels in v1** — Viber/WhatsApp/Telegram are deferred to a later phase (§4.3). v1 is SMS-only, which sidesteps channel-discovery entirely (no "which app is this number on?"); actual sends still require a valid mobile and enabled SMS-reminder preference.
-- **No PHI / clinical content** in messages — logistics only (name, date, time, clinic). Prudent under data-protection law (and required by app-channel policies once those are added).
+- **No messaging-app channels in v1** — Viber/WhatsApp/Telegram are deferred to
+  a later phase (§4.3). v1 is SMS-only, which sidesteps channel-discovery
+  entirely (no "which app is this number on?"); actual sends still require a
+  valid mobile and enabled SMS-reminder preference.
+- **No PHI / clinical content** in messages — logistics only (name, date, time,
+  clinic). Prudent under data-protection law (and required by app-channel
+  policies once those are added).
 - **No telemedicine** features.
-- **No desktop-app engine** and **no Rust/CDP daemon** (research shows neither is needed).
+- **No desktop-app engine** and **no Rust/CDP daemon** (research shows neither
+  is needed).
 - **No multi-clinic / multi-tenant** abstraction in MVP (single clinic).
 
 ---
 
 ## 3. Internal Codebase Analysis
 
-The application implementation in `~/Desktop/automatedmessanger` is still **greenfield**; this repository currently holds the planning/docs, not the Supabase app yet. So "codebase analysis" here means (a) what we carry over conceptually from the reference template `~/Desktop/testproject1`, and (b) the integration surface of the external CRM.
+The application implementation in `~/Desktop/automatedmessanger` is still
+**greenfield**; this repository currently holds the planning/docs, not the
+Supabase app yet. So "codebase analysis" here means (a) what we carry over
+conceptually from the reference template `~/Desktop/testproject1`, and (b) the
+integration surface of the external CRM.
 
 ### 3.1 Reference Template Architecture (`testproject1`)
 
-`testproject1` is a procurement-automation monorepo. Its shape is the canonical "Option 1" (daemon + browser automation) you asked me to study. Verified structure:
+`testproject1` is a procurement-automation monorepo. Its shape is the canonical
+"Option 1" (daemon + browser automation) you asked me to study. Verified
+structure:
 
-- **Daemon** (`crates/daemon`, Rust): CLI-driven dispatch, scheduler built on the `cron` crate (`scheduler/cron.rs`, `scheduler/tick.rs`), persists to **SQLite** via `rusqlite`; schema in `migrations/00xx.sql`.
-- **Skills** (`skills/<id>/SKILL.md`): YAML frontmatter + markdown playbook. Browser automation via an **`agent-browser` CLI over Chrome DevTools Protocol** (port 9222) attaching to a *persistent logged-in Chrome profile* (`~/.chrome-automation`). `bin/ensure-cdp-9222` launches/verifies CDP. Skills emit a `result.json` contract the daemon reads and persists. Auth handled by `auth-signin/*` skills reusing cookies; auto-recovery on session expiry.
-- **Desktop** (`apps/desktop`): **Tauri v2 + React/Vite**, talks to the daemon over a **Unix domain socket**, polls status ~250ms, renders last-run/recaps, buttons invoke the daemon subprocess.
-- **Contracts** (`packages/contracts-schema`): TypeScript types mirroring the DB schema (manually kept in sync).
-- **Testing**: **cassette fixtures** (`tests/fixtures/cassettes/*.json`) = recorded portal state for offline skill testing.
+- **Daemon** (`crates/daemon`, Rust): CLI-driven dispatch, scheduler built on
+  the `cron` crate (`scheduler/cron.rs`, `scheduler/tick.rs`), persists to
+  **SQLite** via `rusqlite`; schema in `migrations/00xx.sql`.
+- **Skills** (`skills/<id>/SKILL.md`): YAML frontmatter + markdown playbook.
+  Browser automation via an **`agent-browser` CLI over Chrome DevTools
+  Protocol** (port 9222) attaching to a _persistent logged-in Chrome profile_
+  (`~/.chrome-automation`). `bin/ensure-cdp-9222` launches/verifies CDP. Skills
+  emit a `result.json` contract the daemon reads and persists. Auth handled by
+  `auth-signin/*` skills reusing cookies; auto-recovery on session expiry.
+- **Desktop** (`apps/desktop`): **Tauri v2 + React/Vite**, talks to the daemon
+  over a **Unix domain socket**, polls status ~250ms, renders last-run/recaps,
+  buttons invoke the daemon subprocess.
+- **Contracts** (`packages/contracts-schema`): TypeScript types mirroring the DB
+  schema (manually kept in sync).
+- **Testing**: **cassette fixtures** (`tests/fixtures/cassettes/*.json`) =
+  recorded portal state for offline skill testing.
 - **Secrets**: `.env` (git-ignored) + `.envrc.example`.
 
 ### 3.2 What We Carry Over vs. Leave Behind
 
 **Carry over (concepts, not code):**
 
-| Pattern from template | How it maps to our project |
-|---|---|
-| **Migrations discipline** (`migrations/00xx.sql`) | Supabase migrations for our schema. |
-| **Contracts schema** (TS types mirror DB) | Generate TS types from Supabase (`supabase gen types`) — *better* than the template's manual sync. |
-| **Result-contract pattern** (skill → `result.json`) | Each integration (CRM client, each channel sender) returns a typed, validated result object. |
-| **Cassette-based offline tests** | Record ClinicCards + provider HTTP responses as fixtures; test the pipeline without live calls. |
-| **Last-run recap UI + manual trigger button** | Same UX, but a web dashboard instead of a Tauri window. |
-| **Modular "skills" = discrete capabilities** | Modular adapters behind one interface: `clinicCardsClient` + `smsSender` (v1). App-channel senders slot in later behind the same interface (§4.3). |
+| Pattern from template                               | How it maps to our project                                                                                                                         |
+| --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Migrations discipline** (`migrations/00xx.sql`)   | Supabase migrations for our schema.                                                                                                                |
+| **Contracts schema** (TS types mirror DB)           | Generate TS types from Supabase (`supabase gen types`) — _better_ than the template's manual sync.                                                 |
+| **Result-contract pattern** (skill → `result.json`) | Each integration (CRM client, each channel sender) returns a typed, validated result object.                                                       |
+| **Cassette-based offline tests**                    | Record ClinicCards + provider HTTP responses as fixtures; test the pipeline without live calls.                                                    |
+| **Last-run recap UI + manual trigger button**       | Same UX, but a web dashboard instead of a Tauri window.                                                                                            |
+| **Modular "skills" = discrete capabilities**        | Modular adapters behind one interface: `clinicCardsClient` + `smsSender` (v1). App-channel senders slot in later behind the same interface (§4.3). |
 
 **Leave behind (and why):**
 
-| Template element | Why it does not apply |
-|---|---|
-| Rust daemon + `cron` crate + always-on process | No browser automation needed → no daemon. `pg_cron` schedules the one daily job. |
-| `agent-browser` / CDP / persistent Chrome profile | ClinicCards + messaging are all APIs. No screen-scraping. |
-| Tauri desktop + Unix-socket IPC | Engine must be cloud (24/7 webhook). Dashboard is a web page. |
-| SQLite local state | Cloud engine needs a managed remote DB → Supabase Postgres. |
-| Multi-operator sync, bidding, PDF extraction, marketplace logic | Irrelevant to appointment reminders. |
+| Template element                                                | Why it does not apply                                                            |
+| --------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| Rust daemon + `cron` crate + always-on process                  | No browser automation needed → no daemon. `pg_cron` schedules the one daily job. |
+| `agent-browser` / CDP / persistent Chrome profile               | ClinicCards + messaging are all APIs. No screen-scraping.                        |
+| Tauri desktop + Unix-socket IPC                                 | Engine must be cloud (24/7 webhook). Dashboard is a web page.                    |
+| SQLite local state                                              | Cloud engine needs a managed remote DB → Supabase Postgres.                      |
+| Multi-operator sync, bidding, PDF extraction, marketplace logic | Irrelevant to appointment reminders.                                             |
 
-> **Conclusion:** `testproject1` is an excellent reference for *how to think about modular automation, contracts, and testing*, but the clinic system is a much smaller, API-only, cloud-hosted service. We adopt its **disciplines**, not its **stack**.
+> **Conclusion:** `testproject1` is an excellent reference for _how to think
+> about modular automation, contracts, and testing_, but the clinic system is a
+> much smaller, API-only, cloud-hosted service. We adopt its **disciplines**,
+> not its **stack**.
 
 ### 3.3 Integration Points (external systems)
 
-This project's v1 "integration points" are external services, not internal modules:
+This project's v1 "integration points" are external services, not internal
+modules:
 
-1. **ClinicCards CRM** — read appointments + patients, write cancellation/confirmation. REST API. *(See §4.1.)*
-2. **UA SMS provider** — **TurboSMS** (UA-native aggregator, self-service); **AlphaSMS** fallback route. Outbound SMS + webhook DLR (delivery status). *(See §4.2.)*
-3. **Supabase** — DB, scheduler/backup trigger, Edge Functions, Auth, Vault, and migrations.
-4. **External scheduler / dead-man's-switch** — Cloudflare Workers Cron if used, plus Healthchecks.io/Cronitor for absence detection. *(See §4.4.)*
+1. **ClinicCards CRM** — read appointments + patients, write
+   cancellation/confirmation. REST API. _(See §4.1.)_
+2. **UA SMS provider** — **TurboSMS** (UA-native aggregator, self-service);
+   **AlphaSMS** fallback route. Outbound SMS + webhook DLR (delivery status).
+   _(See §4.2.)_
+3. **Supabase** — DB, scheduler/backup trigger, Edge Functions, Auth, Vault, and
+   migrations.
+4. **External scheduler / dead-man's-switch** — Cloudflare Workers Cron if used,
+   plus Healthchecks.io/Cronitor for absence detection. _(See §4.4.)_
 
-Deferred future integrations (not v1 integration points): **Viber Business Messages**, **WhatsApp Business Platform**, and **Telegram Bot API** (§4.3).
+Deferred future integrations (not v1 integration points): **Viber Business
+Messages**, **WhatsApp Business Platform**, and **Telegram Bot API** (§4.3).
 
 ### 3.4 Code Patterns to Follow (new project conventions to establish)
 
-- **Adapter interface per integration** with a single `send(reminder) → {providerMessageId, status}` (v1 has one sender: SMS). The response arrives through our **confirm/cancel page** (keyed by the capability token), not a provider inbound webhook, so no inbound response parser is needed in v1. When app channels are added (§4.3), their webhook/callback parser normalizes provider-specific payloads into the same `record_reminder_action` / guarded CRM write-back path instead of creating a parallel action model; app-channel Cancel must still require an equivalent explicit second-step confirmation or land in `pending_staff_review`, not bypass the destructive-action guard.
-- **Idempotency at the appointment level**: ordinary reminders are keyed by `(visit_id, target_date)` so an appointment gets at most one regardless of how many times the job runs (cron + manual re-runs are safe); a fingerprint key lets a *materially changed* appointment get exactly one explicit change notice (ADR-008). Runs are an append-only execution log, not the dedup key.
-- **Typed config** (Zod) validated at boot; secrets only from Vault/env, never in DB rows.
+- **Adapter interface per integration** with a single
+  `send(reminder) → {providerMessageId, status}` (v1 has one sender: SMS). The
+  response arrives through our **confirm/cancel page** (keyed by the capability
+  token), not a provider inbound webhook, so no inbound response parser is
+  needed in v1. When app channels are added (§4.3), their webhook/callback
+  parser normalizes provider-specific payloads into the same
+  `record_reminder_action` / guarded CRM write-back path instead of creating a
+  parallel action model; app-channel Cancel must still require an equivalent
+  explicit second-step confirmation or land in `pending_staff_review`, not
+  bypass the destructive-action guard.
+- **Idempotency at the appointment level**: ordinary reminders are keyed by
+  `(visit_id, target_date)` so an appointment gets at most one regardless of how
+  many times the job runs (cron + manual re-runs are safe); a fingerprint key
+  lets a _materially changed_ appointment get exactly one explicit change notice
+  (ADR-008). Runs are an append-only execution log, not the dedup key.
+- **Typed config** (Zod) validated at boot; secrets only from Vault/env, never
+  in DB rows.
 - **Everything logged** to a structured table + Sentry.
 
 ### 3.5–3.7 Files to Study / Modify / Refactor
 
-Greenfield — nothing to modify. The reference files worth reading once before building (for pattern inspiration only): `testproject1/migrations/0001_*.sql` (schema style), `testproject1/packages/contracts-schema/src/index.ts` (contract types), `testproject1/tests/fixtures/cassettes/*.json` (offline test pattern), `testproject1/apps/desktop/src/hooks/use-daemon.ts` (recap/polling UX). New file structure is proposed in §8.
+Greenfield — nothing to modify. The reference files worth reading once before
+building (for pattern inspiration only): `testproject1/migrations/0001_*.sql`
+(schema style), `testproject1/packages/contracts-schema/src/index.ts` (contract
+types), `testproject1/tests/fixtures/cassettes/*.json` (offline test pattern),
+`testproject1/apps/desktop/src/hooks/use-daemon.ts` (recap/polling UX). New file
+structure is proposed in §8.
 
 ---
 
@@ -201,154 +511,680 @@ Greenfield — nothing to modify. The reference files worth reading once before 
 
 ### 4.1 ClinicCards CRM API — **FEASIBLE** (the linchpin)
 
-ClinicCards is a **cloud SaaS dental practice-management CRM** with strong presence in Ukraine/CEE (EN/UA/RU UI; phone format `380XXXXXXXXX`). It exposes a real REST API. Source: the published Postman collection behind `https://documenter.getpostman.com/view/29513893/2s9YBxZbqY` (raw collection pulled via the documenter gateway), plus `cliniccards.com/en/help/api-settings`.
+ClinicCards is a **cloud SaaS dental practice-management CRM** with strong
+presence in Ukraine/CEE (EN/UA/RU UI; phone format `380XXXXXXXXX`). It exposes a
+real REST API. Source: the published Postman collection behind
+`https://documenter.getpostman.com/view/29513893/2s9YBxZbqY` (raw collection
+pulled via the documenter gateway), plus `cliniccards.com/en/help/api-settings`.
 
 **Auth & basics:**
+
 - Base URL: `https://cliniccards.com/api`
-- Auth header: **`Token: <api_key>`** (+ `Content-Type: application/json`). Single long-lived clinic-wide key; **no OAuth/expiry**.
-- Key generation: clinic **owner** → Settings → Other → Clinic Settings → API key → "Create and show". Regenerable.
-- Rate limit: **60 requests/minute** (ample for a once-daily run). JSON in/out. Response envelope: `{ data, result: "success"|"fail", error }`.
+- Auth header: **`Token: <api_key>`** (+ `Content-Type: application/json`).
+  Single long-lived clinic-wide key; **no OAuth/expiry**.
+- Key generation: clinic **owner** → Settings → Other → Clinic Settings → API
+  key → "Create and show". Regenerable.
+- Rate limit: **60 requests/minute** (ample for a once-daily run). JSON in/out.
+  Response envelope: `{ data, result: "success"|"fail", error }`.
 - **No pagination documented**; date-ranged endpoints use `from`/`to`.
 
 **Endpoints we need:**
 
-| Need | Method + Path | Notes |
-|---|---|---|
-| List tomorrow's appointments | `GET /visits?from=YYYY-MM-DD&to=YYYY-MM-DD` | Set `from=to=<tomorrow>`. Returns visit objects. |
-| Read patient name + phone | `GET /patients/{id}` (batch: comma-separated IDs) or `GET /patients?phone={phone}` | Two-step join (see below). |
-| Cancel appointment | `PUT /visits` body `{visit_id, status:"CANCELLED", ...}` **or** `DELETE /visits` body `{visit_id}` | `PUT` preserves audit trail (recommended). |
-| Confirm appointment (on Confirm action) | `PUT /visits` body `{visit_id, status:"CONFIRMED", ...}` | MVP write-back when `cliniccards_status_policy.allow_confirm_action` permits it. |
+| Need                                    | Method + Path                                                                                      | Notes                                                                            |
+| --------------------------------------- | -------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| List tomorrow's appointments            | `GET /visits?from=YYYY-MM-DD&to=YYYY-MM-DD`                                                        | Set `from=to=<tomorrow>`. Returns visit objects.                                 |
+| Read patient name + phone               | `GET /patients/{id}` (batch: comma-separated IDs) or `GET /patients?phone={phone}`                 | Two-step join (see below).                                                       |
+| Cancel appointment                      | `PUT /visits` body `{visit_id, status:"CANCELLED", ...}` **or** `DELETE /visits` body `{visit_id}` | `PUT` preserves audit trail (recommended).                                       |
+| Confirm appointment (on Confirm action) | `PUT /visits` body `{visit_id, status:"CONFIRMED", ...}`                                           | MVP write-back when `cliniccards_status_policy.allow_confirm_action` permits it. |
 
-**Visit object fields:** `visit_id, patient_id, status, doctor, doctor_id, date_created, date_edited, visit_start ("YYYY-MM-DD HH:MM:SS"), visit_end, note, cabinet, cabinet_id, ...`
-**Critical:** the visit object contains `patient_id` but **NOT patient name/phone** → a **second call** (`GET /patients/{id1,id2,...}`) resolves contact. Total = 2 calls per run (batched), not N.
+**Visit object fields:**
+`visit_id, patient_id, status, doctor, doctor_id, date_created, date_edited, visit_start ("YYYY-MM-DD HH:MM:SS"), visit_end, note, cabinet, cabinet_id, ...`
+**Critical:** the visit object contains `patient_id` but **NOT patient
+name/phone** → a **second call** (`GET /patients/{id1,id2,...}`) resolves
+contact. Total = 2 calls per run (batched), not N.
 
-**Patient object fields:** `patient_id, lastname, firstname, phone, phone2, email, preferred_contact ("SMS"/"PHONE"), birthday, next_visit_date, last_visit_date, ...`
+**Patient object fields:**
+`patient_id, lastname, firstname, phone, phone2, email, preferred_contact ("SMS"/"PHONE"), birthday, next_visit_date, last_visit_date, ...`
 
-**Visit status enum:** `PLANNED, CONFIRMED, NOT_CONFIRMED, VISITED, MOVED, DID_NOT_COME, IN_CLINIC, BOOKING, CANCELLED, IN_CHAIR`.
-**Remindability filter (important):** `GET /visits` returns *every* visit in the range regardless of status, so the engine must remind only appointments that actually need confirming — e.g. `PLANNED` / `NOT_CONFIRMED` — and **skip** `CANCELLED`, `VISITED`, `DID_NOT_COME`, `IN_CLINIC`, `IN_CHAIR`, `MOVED`, and (debatably) tentative `BOOKING`. The exact remindable set is a clinic decision and depends on the precise meaning of each status (confirm with the vendor — C3). **This mapping is data-driven, not hardcoded:** it lives in the `cliniccards_status_policy` table (§5.3, ADR-011), so a vendor answer or policy change ships as a tracked data migration (no application-code change, no dashboard SQL hot-edit), and a status with no policy row is treated as **unknown → fail closed** (skip + needs-attention).
-**Write-back note:** `PUT /visits` requires resending the other required fields (`patient_id, cabinet_id, doctor_id, date, time_start, time_end, note`), so you must **re-fetch the current visit, mutate status, resend** (or use `DELETE`, which needs only `visit_id` but hard-deletes).
+**Visit status enum:**
+`PLANNED, CONFIRMED, NOT_CONFIRMED, VISITED, MOVED, DID_NOT_COME, IN_CLINIC, BOOKING, CANCELLED, IN_CHAIR`.
+**Remindability filter (important):** `GET /visits` returns _every_ visit in the
+range regardless of status, so the engine must remind only appointments that
+actually need confirming — e.g. `PLANNED` / `NOT_CONFIRMED` — and **skip**
+`CANCELLED`, `VISITED`, `DID_NOT_COME`, `IN_CLINIC`, `IN_CHAIR`, `MOVED`, and
+(debatably) tentative `BOOKING`. The exact remindable set is a clinic decision
+and depends on the precise meaning of each status (confirm with the vendor —
+C3). **This mapping is data-driven, not hardcoded:** it lives in the
+`cliniccards_status_policy` table (§5.3, ADR-011), so a vendor answer or policy
+change ships as a tracked data migration (no application-code change, no
+dashboard SQL hot-edit), and a status with no policy row is treated as **unknown
+→ fail closed** (skip + needs-attention). **Write-back note:** `PUT /visits`
+requires resending the other required fields
+(`patient_id, cabinet_id, doctor_id, date, time_start, time_end, note`), so you
+must **re-fetch the current visit, mutate status, resend** (or use `DELETE`,
+which needs only `visit_id` but hard-deletes).
 
-**Webhooks: NONE.** The collection has zero webhook/subscription/callback support → we **poll** `GET /visits` once daily, which is exactly our cadence, so this is not a real limitation. (ClinicCards' only "webhook" is an inbound receive-only URL for WhatsApp delivery statuses inside its own SMS feature — unrelated.)
+**Webhooks: NONE.** The collection has zero webhook/subscription/callback
+support → we **poll** `GET /visits` once daily, which is exactly our cadence, so
+this is not a real limitation. (ClinicCards' only "webhook" is an inbound
+receive-only URL for WhatsApp delivery statuses inside its own SMS feature —
+unrelated.)
 
-**Bonus observation:** ClinicCards itself has a built-in WhatsApp/SMS connection feature for clinics. We are *not* relying on it (we want programmatic control + response capture + multi-channel), but it confirms the vendor is messaging-aware and Ukraine-focused.
+**Bonus observation:** ClinicCards itself has a built-in WhatsApp/SMS connection
+feature for clinics. We are _not_ relying on it (we want programmatic control +
+response capture + multi-channel), but it confirms the vendor is messaging-aware
+and Ukraine-focused.
 
 **Feasibility verdict:**
 
-| Need | Rating |
-|---|---|
+| Need                         | Rating                                 |
+| ---------------------------- | -------------------------------------- |
 | List tomorrow's appointments | **FEASIBLE** (`GET /visits?from=&to=`) |
-| Read patient name + phone | **FEASIBLE** (2nd call, batchable) |
-| Cancel appointment | **FEASIBLE** (`PUT` status / `DELETE`) |
-| Webhooks / push | **NOT FEASIBLE → poll** (acceptable) |
+| Read patient name + phone    | **FEASIBLE** (2nd call, batchable)     |
+| Cancel appointment           | **FEASIBLE** (`PUT` status / `DELETE`) |
+| Webhooks / push              | **NOT FEASIBLE → poll** (acceptable)   |
 
-**To confirm with the vendor before building (C3):** (1) whether API access requires a paid plan tier; (2) `Token` header case-sensitivity (docs show both cases); (3) whether `GET /visits` accepts an undocumented `status`/`patient_id` filter (so we can filter server-side); (4) `/patients` pagination **and max-IDs/URL-length** for large clinics; (5) **the timezone of visit datetimes and of the `from`/`to` filter** (`visit_start` has no TZ suffix — we assume Europe/Kyiv); (6) the **precise meaning of each visit status** (which are remindable; what `BOOKING` implies; which API strings map to UI labels *Scheduled/Confirmed/Booked/Canceled/Moved*); (7) whether `GET /visits` exposes a stable **`date_edited`** (and its precision) and whether `PUT /visits` honors any **optimistic-concurrency** primitive (ETag / `If-Match` / version / `date_edited` precondition) or a **status-only / `PATCH`** update; (8) whether **`CANCELLED`-via-`PUT` stays visible in schedule/history/reports and is reversible**, and whether **`DELETE` permanently removes** the visit from all views; (9) whether ClinicCards **reuses `visit_id`** when a cancelled visit is restored/rebooked, and whether a cross-day move keeps the same `visit_id`, mints a new one, or leaves a `MOVED` placeholder.
+**To confirm with the vendor before building (C3):** (1) whether API access
+requires a paid plan tier; (2) `Token` header case-sensitivity (docs show both
+cases); (3) whether `GET /visits` accepts an undocumented `status`/`patient_id`
+filter (so we can filter server-side); (4) `/patients` pagination **and
+max-IDs/URL-length** for large clinics; (5) **the timezone of visit datetimes
+and of the `from`/`to` filter** (`visit_start` has no TZ suffix — we assume
+Europe/Kyiv); (6) the **precise meaning of each visit status** (which are
+remindable; what `BOOKING` implies; which API strings map to UI labels
+_Scheduled/Confirmed/Booked/Canceled/Moved_); (7) whether `GET /visits` exposes
+a stable **`date_edited`** (and its precision) and whether `PUT /visits` honors
+any **optimistic-concurrency** primitive (ETag / `If-Match` / version /
+`date_edited` precondition) or a **status-only / `PATCH`** update; (8) whether
+**`CANCELLED`-via-`PUT` stays visible in schedule/history/reports and is
+reversible**, and whether **`DELETE` permanently removes** the visit from all
+views; (9) whether ClinicCards **reuses `visit_id`** when a cancelled visit is
+restored/rebooked, and whether a cross-day move keeps the same `visit_id`, mints
+a new one, or leaves a `MOVED` placeholder.
 
 ### 4.2 Messaging channel — SMS (v1 primary)
 
-SMS is the v1 channel because it is **universally reachable** — every Ukrainian mobile receives SMS with no app, no internet, and no app-channel opt-in/onboarding action. That single fact removes the hardest problems the multi-channel design carried: no channel-discovery, no per-patient channel storage, no Telegram "Start" onboarding, no Meta Business Verification, no Viber monthly floor. The send decision is still gated by `sms_reminders_enabled` as a communication preference (ADR-015).
+SMS is the v1 channel because it is **universally reachable** — every Ukrainian
+mobile receives SMS with no app, no internet, and no app-channel
+opt-in/onboarding action. That single fact removes the hardest problems the
+multi-channel design carried: no channel-discovery, no per-patient channel
+storage, no Telegram "Start" onboarding, no Meta Business Verification, no Viber
+monthly floor. The send decision is still gated by `sms_reminders_enabled` as a
+communication preference (ADR-015).
 
-- **Sender identity:** send from the clinic's **registered alphanumeric sender ID `Dentino`** (7 chars — well within the ≤11-char alphanumeric max). In Ukraine, domestic alpha names **must be registered**; via the aggregator (**TurboSMS**) the name is submitted **free** into the operators' **national-names register** (intended to cover all operators — verify at signup, §1; needs the clinic's ЄДРПОУ (ТОВ) or ІПН/РНОКПП (ФОП) — Vodafone guarantee letter only for ФОП; ~10 business days); an unregistered name is replaced with a neutral signature or billed at the pricier *international* rate.
-- **One-way → link-based confirm/cancel (the key design point):** UA alphanumeric senders are **one-way — recipients cannot reply**, and multiple UA provider routing guides report that numeric long/short-code sender paths aren't reliably supported or preserved in Ukraine (numeric senders may be overwritten or rejected) — so v1 must **not** depend on an SMS reply. The SMS carries a **personalized link on the clinic-owned, app-only origin** (`https://r.dentino.com.ua/r/<token>`, where `<token>` is a **full-entropy 128-bit CSPRNG value — 16 bytes → 22-char base64url** — and is **not** shortened to save segments; the 2-segment budget is met by tight copy instead, and the recognizable clinic domain aids trust/deliverability; the token is **stored only as an HMAC digest** and enforced as a 128-bit capability — §6.3, ADR-014) → a tiny branded **Confirm / Cancel web page** (a Supabase Edge Function) → which records the response and triggers the ClinicCards write-back. The `tracking_token` pins the exact appointment, so there is **no response-matching ambiguity and no shared-family-phone problem**. The token is stored **only as an HMAC digest** and is a bearer capability scoped to one reminder — enough to view/Confirm but **not** to Cancel on its own (Cancel adds a confirmation step + single-use nonce + expiry; the page is served from dedicated app-only origin **`r.dentino.com.ua`** — §6.3, ADR-014). **Opt-out lives on the confirm-page footer** (same token → a nonce-backed `POST` sets `sms_reminders_enabled=false`; §5.6), so the SMS spends no characters on a second URL (a one-way sender can't do reply-STOP) — *page-only opt-out is legally sufficient under the contract / healthcare-management basis (ADR-015); SMS-body opt-out wording is optional template copy.*
-- **Encoding & length:** Ukrainian (Cyrillic) forces **UCS-2** (vs GSM-7 Latin): **70 characters in a single segment, but 67/segment once a message spans multiple parts** (UDH overhead) — so ≤70 = 1 segment, >70 = `ceil(chars / 67)`. The production target is **2 segments = ≤134 rendered UCS-2 characters** after variable substitution; the renderer enforces this and falls back to the **name-overflow fallback** (it drops the name) if a long name would overflow. A reminder + link runs **2–3 segments**, each billed separately.
-- **Message body (production default, editable in `message_templates`):** the default Ukrainian template uses the `{{name}}` / `{{date}}` / `{{time}}` / `{{confirm_url}}` / `{{clinic_phone}}` placeholder contract — the clinic-name `{{clinic}}` placeholder is **no longer in the default body**; the in-body identity is the generic **«ваш візит»** (*your appointment*), with the clinic still identified by the `Dentino` sender ID and the `r.dentino.com.ua` link — and renders to **2 segments** — `{{name}}, ваш візит: завтра {{date}} о {{time}}.\nПідтвердити/змінити: {{confirm_url}}. Тел: {{clinic_phone}}` (the `\n` after the time is a **real line break** — 1 UCS-2 char — splitting the appointment line from the action line; e.g. *«Олено, ваш візит: завтра 18.06 о 14:30.⏎Підтвердити/змінити: https://r.dentino.com.ua/r/8xP4mZQ9tA2bC7dEfGhJkL. Тел: +380679876111»* where `⏎` marks that break = **130 chars = 2 UCS-2 segments**; URL 49 chars incl. the 22-char token, phone 13). **Phone format — no spaces (`+380679876111`, not `+380 67 987 6111`):** the SMS body renders the clinic phone in compact dialable form — it saves 3 characters (part of how the default fits 2 segments with the name *and* the phone) **and** auto-linkifies most reliably for tap-to-call across handsets, matching the `tel:+380679876111` href already used on the confirm page (§5.8). **The clinic phone rides in the _default_ template** (Patient-Experience external review, v2.14) — it fits the 2-segment budget once the lead is tightened (the generic **«ваш візит:»** replaces the wordier clinic-name lead "{{clinic}}: ваш запис у …"), and **"Підтвердити/змінити"** (not "Підтвердити/скасувати") keeps reschedule psychologically available so "скасувати"/cancel isn't given equal salience to the desired action. The phone is a **trust signal** (a verifiable number a wary patient can call to check the SMS is real), a **link-averse/accessibility path**, and a **reschedule channel** — so it belongs in nearly every SMS. A **name-overflow fallback** — now the *only* fallback, since the default already fits 2 segments (the old general "compact" variant is retired) — is used **solely** when a long rendered `{{name}}` would push the default past the 134-char / 2-segment budget (the default is `125 + len(name)` UCS-2 chars, so a rendered first name ≳10 chars trips it). The renderer drops the name and re-renders `Ваш візит: завтра {{date}} о {{time}}.\nПідтвердити/змінити: {{confirm_url}}. Тел: {{clinic_phone}}` (**≈123 chars = 2 segments**; «Ваш» capitalised as the new sentence lead). **Latin transliteration** would collapse a body to one GSM-7 segment (~1 segment / ~1 UAH cheaper) but is **rejected** — it reads as low-trust bulk SMS and is harder for Ukrainian patients; the saving isn't worth the trust/comprehension cost. **Named-vs-fallback:** **both** bodies carry the clinic phone; the **default** keeps the personal `{{name}}` greeting *and* the phone (it fits 2 segments for rendered names ≲9 chars), while the **name-overflow fallback** drops only the name when a long name would otherwise overflow 2 segments. **Owner B1 sign-off:** several 2-segment wordings exist (warm-vs-terse), so the exact default copy is an owner-approval + A/B refinement, not a locked string. Staff may still flag a patient to a specific variant.
-- **No-reply nudge template (pre-designed, deferred to v1.1 — §6.2, ADR-008/012/021):** when the one-ordinary-reminder rule is relaxed, the nudge is a **distinct** template (`message_kind='no_reply_nudge'`) — harmonised to the new default's style (no `{{clinic}}` lead, no-spaces phone) — e.g. `{{name}}, підтвердіть ваш візит завтра {{date}} о {{time}}: {{confirm_url}}. Тел: {{clinic_phone}}` (≈120 chars = **2 segments**; same ≤134 budget + name-overflow fallback as the initial). It is fired **once** per `(visit_id, target_date)` under its **own** partial-unique key, only to recipients with a delivered initial reminder and **no recorded response**, a few hours after send, and runs the same pre-send revalidation (skip if already acted/cancelled/moved). **Token architecture — corrected (the Patient-Experience external review caught a real flaw in the v2.7 design, ADR-021):** the nudge **cannot "re-use the initial token"** — the raw token is **never stored** (only its HMAC digest, §6.3/ADR-014), so there is no stored value to put into a second SMS. The settled v1.1 design **mints a fresh CSPRNG token and re-issues the capability** by expiring the prior token (`token_expires_at = now()`, reusing the §5.5-I3 token-kill), so the appointment has exactly **one live link** and **one possible action** across both SMSs via the existing single-use CAS (§5.7c). Never store the raw token; never keep both links live in v1.1; never re-arm double-send (§5.5).
-- **Cost (TurboSMS):** **~0.98–1.29 UAH/segment incl. VAT** — a **single SMS rate**, tiered by account top-up (lower with a bigger top-up); the transactional/promotional split is a *Viber* feature, **not** SMS. A Cyrillic reminder + link ≈ **2–3 segments → ~2–3.9 UAH ≈ €0.05–0.08** (at the 2026 NBU rate ≈ 52 UAH/€). **No SMS monthly minimum** (1 UAH min top-up; the ₴9,000/mo floor is **Viber-only**). At **~20/day** (costed over a conservative full ~30-day month ≈ 600 sends; actual billable volume tracks the **~440 appts/mo** of §1/ADR-017 — ~22 operating days — so true SMS spend runs *below* these figures, which are kept as a deliberately high ceiling) that's **≈ €30–45/mo SMS** (the conservative ceiling; actual ≈ **€27–32/mo** at 2 segments × ~600 sends); **≈ €53–68/mo all-in** with Supabase Pro (~$25/€23). **Cost crossover:** an optimized 2-segment SMS is cheaper *and* universal **below ~100–130 reminders/day** (≈67–90/day if messages run to 3 segments), against Viber's monthly floor — for TurboSMS Viber that floor is **₴9,000/mo → ₴10,367 (€200) from 1 Jul 2026** (Viber moves to EUR billing); the TurboSMS-Viber own-sender crossover is **~150–170/day** — far above our ~20/day.
-- **Provider (chosen): TurboSMS** (UA-native aggregator, **self-service web signup — no sales call**). Chosen for the best technical fit at this volume — where the whole price field spans only ~€28–53/mo, so **capability beats price**: a **free alpha name `Dentino`** into the operators' national-names register, **webhook DLR + rejection/error codes**, a **`sequence_id` idempotency key** (≤40 chars, 30-day same-key dedup, code 507 `FAILED_DUPLICATE_REQUEST` → enables `SMS_IDEMPOTENCY_MODE='strict_dedupe'`), **links allowed in transactional SMS** (with the required medical-content sign-off; **no** Viber-style template registry), a **single SMS rate** (not split into separate transactional vs advertising SMS tiers — that split is Viber-only), and **no SMS monthly floor** (1 UAH min top-up). **AlphaSMS** is the documented **fallback route** (the only other UA aggregator to explicitly confirm links-allowed + webhook DLR; ~20% pricier) — two aggregators preserve the primary+fallback routing redundancy ADR-005 always wanted, now without Kyivstar-direct. The §6.5 seed test still gates go-live: cross-operator delivery (Kyivstar / Vodafone UA / lifecell / **ported MNP** numbers), `Dentino` **sender preservation** on every route, **link-bearing-SMS acceptance + medical-content sign-off**, **per-message delivery status** (not just monthly aggregates), rejection-reason codes, TTL/retry behaviour, and per-segment billing (TurboSMS bills **per segment**). ⚠️ **TurboSMS verify-gate (highest):** get **written TurboSMS confirmation that a link-bearing service SMS is accepted**, plus the **medical-content sign-off** — SMS has **no** transactional-vs-advertising rate split and **no** mandatory template registry (both Viber-only, code 416); the SMS rate lever is keeping `Dentino` **national** — §1/§10. (Avoid Twilio for UA SMS — ≈$0.22/segment + no two-way.)
-- **Constraints:** plain text only (no buttons — the link is the interaction). **URL deliverability is a launch gate, not a footnote:** UA carriers increasingly filter/spam-score A2P URLs, and the Dentino domain has no SMS-channel sending reputation. Before live traffic, **pre-clear the sender ID + message templates + the exact URL pattern (`https://r.dentino.com.ua/r/*`) with the provider/operator**; use HTTPS on the clinic-owned domain with **no public shorteners, redirect chains, or rotating link hosts**; keep `https://` explicit (don't rely on bare-domain auto-linkification); keep the capability flow on the dedicated app-only `r.dentino.com.ua` host unless provider testing forces a different clinic-owned origin that satisfies the same no-CMS/no-user-content security rule (§6.3). Gate go-live on the §6.5 deliverability seed test.
-- **Verdict:** the pragmatic, fastest, universal-reach v1. Trades slick native buttons and at-scale per-message efficiency for reach, simplicity, and speed — and removes the three biggest delivery unknowns (Meta verification, Viber floor, Telegram cold-start) at once. The response path is a **hybrid by design — link primary + a clinic-phone fallback (always on the page and in both SMS bodies) + a dashboard no-reply staff call queue** — yet stays strictly **one-way SMS** (no inbound reply path). *(Future signal, not v1: Kyivstar launched business **RCS** mailings in May 2026 and lifecell has an RCS channel, but UA iPhone RCS was still unavailable as of mid-2026 — monitor, don't build on it.)*
+- **Sender identity:** send from the clinic's **registered alphanumeric sender
+  ID `Dentino`** (7 chars — well within the ≤11-char alphanumeric max). In
+  Ukraine, domestic alpha names **must be registered**; via the aggregator
+  (**TurboSMS**) the name is submitted **free** into the operators'
+  **national-names register** (intended to cover all operators — verify at
+  signup, §1; needs the clinic's ЄДРПОУ (ТОВ) or ІПН/РНОКПП (ФОП) — Vodafone
+  guarantee letter only for ФОП; ~10 business days); an unregistered name is
+  replaced with a neutral signature or billed at the pricier _international_
+  rate.
+- **One-way → link-based confirm/cancel (the key design point):** UA
+  alphanumeric senders are **one-way — recipients cannot reply**, and multiple
+  UA provider routing guides report that numeric long/short-code sender paths
+  aren't reliably supported or preserved in Ukraine (numeric senders may be
+  overwritten or rejected) — so v1 must **not** depend on an SMS reply. The SMS
+  carries a **personalized link on the clinic-owned, app-only origin**
+  (`https://r.dentino.com.ua/r/<token>`, where `<token>` is a **full-entropy
+  128-bit CSPRNG value — 16 bytes → 22-char base64url** — and is **not**
+  shortened to save segments; the 2-segment budget is met by tight copy instead,
+  and the recognizable clinic domain aids trust/deliverability; the token is
+  **stored only as an HMAC digest** and enforced as a 128-bit capability — §6.3,
+  ADR-014) → a tiny branded **Confirm / Cancel web page** (a Supabase Edge
+  Function) → which records the response and triggers the ClinicCards
+  write-back. The `tracking_token` pins the exact appointment, so there is **no
+  response-matching ambiguity and no shared-family-phone problem**. The token is
+  stored **only as an HMAC digest** and is a bearer capability scoped to one
+  reminder — enough to view/Confirm but **not** to Cancel on its own (Cancel
+  adds a confirmation step + single-use nonce + expiry; the page is served from
+  dedicated app-only origin **`r.dentino.com.ua`** — §6.3, ADR-014). **Opt-out
+  lives on the confirm-page footer** (same token → a nonce-backed `POST` sets
+  `sms_reminders_enabled=false`; §5.6), so the SMS spends no characters on a
+  second URL (a one-way sender can't do reply-STOP) — _page-only opt-out is
+  legally sufficient under the contract / healthcare-management basis (ADR-015);
+  SMS-body opt-out wording is optional template copy._
+- **Encoding & length:** Ukrainian (Cyrillic) forces **UCS-2** (vs GSM-7 Latin):
+  **70 characters in a single segment, but 67/segment once a message spans
+  multiple parts** (UDH overhead) — so ≤70 = 1 segment, >70 =
+  `ceil(chars / 67)`. The production target is **2 segments = ≤134 rendered
+  UCS-2 characters** after variable substitution; the renderer enforces this and
+  falls back to the **name-overflow fallback** (it drops the name) if a long
+  name would overflow. A reminder + link runs **2–3 segments**, each billed
+  separately.
+- **Message body (production default, editable in `message_templates`):** the
+  default Ukrainian template uses the `{{name}}` / `{{date}}` / `{{time}}` /
+  `{{confirm_url}}` / `{{clinic_phone}}` placeholder contract — the clinic-name
+  `{{clinic}}` placeholder is **no longer in the default body**; the in-body
+  identity is the generic **«ваш візит»** (_your appointment_), with the clinic
+  still identified by the `Dentino` sender ID and the `r.dentino.com.ua` link —
+  and renders to **2 segments** —
+  `{{name}}, ваш візит: завтра {{date}} о {{time}}.\nПідтвердити/змінити: {{confirm_url}}. Тел: {{clinic_phone}}`
+  (the `\n` after the time is a **real line break** — 1 UCS-2 char — splitting
+  the appointment line from the action line; e.g. _«Олено, ваш візит: завтра
+  18.06 о 14:30.⏎Підтвердити/змінити:
+  https://r.dentino.com.ua/r/8xP4mZQ9tA2bC7dEfGhJkL. Тел: +380679876111»_ where
+  `⏎` marks that break = **130 chars = 2 UCS-2 segments**; URL 49 chars incl.
+  the 22-char token, phone 13). **Phone format — no spaces (`+380679876111`, not
+  `+380 67 987 6111`):** the SMS body renders the clinic phone in compact
+  dialable form — it saves 3 characters (part of how the default fits 2 segments
+  with the name _and_ the phone) **and** auto-linkifies most reliably for
+  tap-to-call across handsets, matching the `tel:+380679876111` href already
+  used on the confirm page (§5.8). **The clinic phone rides in the _default_
+  template** (Patient-Experience external review, v2.14) — it fits the 2-segment
+  budget once the lead is tightened (the generic **«ваш візит:»** replaces the
+  wordier clinic-name lead "{{clinic}}: ваш запис у …"), and
+  **"Підтвердити/змінити"** (not "Підтвердити/скасувати") keeps reschedule
+  psychologically available so "скасувати"/cancel isn't given equal salience to
+  the desired action. The phone is a **trust signal** (a verifiable number a
+  wary patient can call to check the SMS is real), a **link-averse/accessibility
+  path**, and a **reschedule channel** — so it belongs in nearly every SMS. A
+  **name-overflow fallback** — now the _only_ fallback, since the default
+  already fits 2 segments (the old general "compact" variant is retired) — is
+  used **solely** when a long rendered `{{name}}` would push the default past
+  the 134-char / 2-segment budget (the default is `125 + len(name)` UCS-2 chars,
+  so a rendered first name ≳10 chars trips it). The renderer drops the name and
+  re-renders
+  `Ваш візит: завтра {{date}} о {{time}}.\nПідтвердити/змінити: {{confirm_url}}. Тел: {{clinic_phone}}`
+  (**≈123 chars = 2 segments**; «Ваш» capitalised as the new sentence lead).
+  **Latin transliteration** would collapse a body to one GSM-7 segment (~1
+  segment / ~1 UAH cheaper) but is **rejected** — it reads as low-trust bulk SMS
+  and is harder for Ukrainian patients; the saving isn't worth the
+  trust/comprehension cost. **Named-vs-fallback:** **both** bodies carry the
+  clinic phone; the **default** keeps the personal `{{name}}` greeting _and_ the
+  phone (it fits 2 segments for rendered names ≲9 chars), while the
+  **name-overflow fallback** drops only the name when a long name would
+  otherwise overflow 2 segments. **Owner B1 sign-off:** several 2-segment
+  wordings exist (warm-vs-terse), so the exact default copy is an
+  owner-approval + A/B refinement, not a locked string. Staff may still flag a
+  patient to a specific variant.
+- **No-reply nudge template (pre-designed, deferred to v1.1 — §6.2,
+  ADR-008/012/021):** when the one-ordinary-reminder rule is relaxed, the nudge
+  is a **distinct** template (`message_kind='no_reply_nudge'`) — harmonised to
+  the new default's style (no `{{clinic}}` lead, no-spaces phone) — e.g.
+  `{{name}}, підтвердіть ваш візит завтра {{date}} о {{time}}: {{confirm_url}}. Тел: {{clinic_phone}}`
+  (≈120 chars = **2 segments**; same ≤134 budget + name-overflow fallback as the
+  initial). It is fired **once** per `(visit_id, target_date)` under its **own**
+  partial-unique key, only to recipients with a delivered initial reminder and
+  **no recorded response**, a few hours after send, and runs the same pre-send
+  revalidation (skip if already acted/cancelled/moved). **Token architecture —
+  corrected (the Patient-Experience external review caught a real flaw in the
+  v2.7 design, ADR-021):** the nudge **cannot "re-use the initial token"** — the
+  raw token is **never stored** (only its HMAC digest, §6.3/ADR-014), so there
+  is no stored value to put into a second SMS. The settled v1.1 design **mints a
+  fresh CSPRNG token and re-issues the capability** by expiring the prior token
+  (`token_expires_at = now()`, reusing the §5.5-I3 token-kill), so the
+  appointment has exactly **one live link** and **one possible action** across
+  both SMSs via the existing single-use CAS (§5.7c). Never store the raw token;
+  never keep both links live in v1.1; never re-arm double-send (§5.5).
+- **Cost (TurboSMS):** **~0.98–1.29 UAH/segment incl. VAT** — a **single SMS
+  rate**, tiered by account top-up (lower with a bigger top-up); the
+  transactional/promotional split is a _Viber_ feature, **not** SMS. A Cyrillic
+  reminder + link ≈ **2–3 segments → ~2–3.9 UAH ≈ €0.05–0.08** (at the 2026 NBU
+  rate ≈ 52 UAH/€). **No SMS monthly minimum** (1 UAH min top-up; the ₴9,000/mo
+  floor is **Viber-only**). At **~20/day** (costed over a conservative full
+  ~30-day month ≈ 600 sends; actual billable volume tracks the **~440 appts/mo**
+  of §1/ADR-017 — ~22 operating days — so true SMS spend runs _below_ these
+  figures, which are kept as a deliberately high ceiling) that's **≈ €30–45/mo
+  SMS** (the conservative ceiling; actual ≈ **€27–32/mo** at 2 segments × ~~600
+  sends); **≈ €53–68/mo all-in** with Supabase Pro (~~$25/€23). **Cost
+  crossover:** an optimized 2-segment SMS is cheaper _and_ universal **below
+  ~100–130 reminders/day** (≈67–90/day if messages run to 3 segments), against
+  Viber's monthly floor — for TurboSMS Viber that floor is **₴9,000/mo → ₴10,367
+  (€200) from 1 Jul 2026** (Viber moves to EUR billing); the TurboSMS-Viber
+  own-sender crossover is **~150–170/day** — far above our ~20/day.
+- **Provider (chosen): TurboSMS** (UA-native aggregator, **self-service web
+  signup — no sales call**). Chosen for the best technical fit at this volume —
+  where the whole price field spans only ~€28–53/mo, so **capability beats
+  price**: a **free alpha name `Dentino`** into the operators' national-names
+  register, **webhook DLR + rejection/error codes**, a **`sequence_id`
+  idempotency key** (≤40 chars, 30-day same-key dedup, code 507
+  `FAILED_DUPLICATE_REQUEST` → enables `SMS_IDEMPOTENCY_MODE='strict_dedupe'`),
+  **links allowed in transactional SMS** (with the required medical-content
+  sign-off; **no** Viber-style template registry), a **single SMS rate** (not
+  split into separate transactional vs advertising SMS tiers — that split is
+  Viber-only), and **no SMS monthly floor** (1 UAH min top-up). **AlphaSMS** is
+  the documented **fallback route** (the only other UA aggregator to explicitly
+  confirm links-allowed + webhook DLR; ~20% pricier) — two aggregators preserve
+  the primary+fallback routing redundancy ADR-005 always wanted, now without
+  Kyivstar-direct. The §6.5 seed test still gates go-live: cross-operator
+  delivery (Kyivstar / Vodafone UA / lifecell / **ported MNP** numbers),
+  `Dentino` **sender preservation** on every route, **link-bearing-SMS
+  acceptance + medical-content sign-off**, **per-message delivery status** (not
+  just monthly aggregates), rejection-reason codes, TTL/retry behaviour, and
+  per-segment billing (TurboSMS bills **per segment**). ⚠️ **TurboSMS
+  verify-gate (highest):** get **written TurboSMS confirmation that a
+  link-bearing service SMS is accepted**, plus the **medical-content sign-off**
+  — SMS has **no** transactional-vs-advertising rate split and **no** mandatory
+  template registry (both Viber-only, code 416); the SMS rate lever is keeping
+  `Dentino` **national** — §1/§10. (Avoid Twilio for UA SMS — ≈$0.22/segment +
+  no two-way.)
+- **Constraints:** plain text only (no buttons — the link is the interaction).
+  **URL deliverability is a launch gate, not a footnote:** UA carriers
+  increasingly filter/spam-score A2P URLs, and the Dentino domain has no
+  SMS-channel sending reputation. Before live traffic, **pre-clear the sender
+  ID + message templates + the exact URL pattern
+  (`https://r.dentino.com.ua/r/*`) with the provider/operator**; use HTTPS on
+  the clinic-owned domain with **no public shorteners, redirect chains, or
+  rotating link hosts**; keep `https://` explicit (don't rely on bare-domain
+  auto-linkification); keep the capability flow on the dedicated app-only
+  `r.dentino.com.ua` host unless provider testing forces a different
+  clinic-owned origin that satisfies the same no-CMS/no-user-content security
+  rule (§6.3). Gate go-live on the §6.5 deliverability seed test.
+- **Verdict:** the pragmatic, fastest, universal-reach v1. Trades slick native
+  buttons and at-scale per-message efficiency for reach, simplicity, and speed —
+  and removes the three biggest delivery unknowns (Meta verification, Viber
+  floor, Telegram cold-start) at once. The response path is a **hybrid by design
+  — link primary + a clinic-phone fallback (always on the page and in both SMS
+  bodies) + a dashboard no-reply staff call queue** — yet stays strictly
+  **one-way SMS** (no inbound reply path). _(Future signal, not v1: Kyivstar
+  launched business **RCS** mailings in May 2026 and lifecell has an RCS
+  channel, but UA iPhone RCS was still unavailable as of mid-2026 — monitor,
+  don't build on it.)_
 
 ### 4.3 Deferred: messaging-app channels (Viber / WhatsApp / Telegram) + CPaaS — future enhancement
 
-> **Status: NOT in v1.** The research in §4.3.1–4.3.5 is retained and remains valid; these channels are a **later cost/UX optimization**, not part of the SMS-only MVP. Because the spine (ClinicCards API, Supabase, idempotency, templates, write-back) is **channel-agnostic**, adding a channel is **additive** — a new `send()` adapter + (for apps) an inbound webhook — not a rebuild.
+> **Status: NOT in v1.** The research in §4.3.1–4.3.5 is retained and remains
+> valid; these channels are a **later cost/UX optimization**, not part of the
+> SMS-only MVP. Because the spine (ClinicCards API, Supabase, idempotency,
+> templates, write-back) is **channel-agnostic**, adding a channel is
+> **additive** — a new `send()` adapter + (for apps) an inbound webhook — not a
+> rebuild.
 >
-> **Channel-agnostic boundary:** SMS v1 uses `/r/<token>` because SMS is one-way; future app channels may use native buttons/callback webhooks instead. The invariant is **not** "every channel opens the SMS confirm page" — it is that every channel creates/updates the same `reminder_messages` row and feeds the same response/action service. Any Confirm/Cancel response, regardless of channel, must carry a reminder-scoped token/reference, pass single-use/action-lock checks, revalidate live CRM state, honor `cliniccards_status_policy`, and use the same mass-cancel circuit-breaker before a destructive CRM write (ADR-007/010/014). A provider signature or callback secret authenticates the provider, **not** the patient's deliberate destructive intent; therefore app-native **Cancel** also needs either an explicit second-step confirmation in that channel or a `pending_staff_review` handoff. App-native buttons can replace the link surface, but they cannot bypass the guarded write-back model.
+> **Channel-agnostic boundary:** SMS v1 uses `/r/<token>` because SMS is
+> one-way; future app channels may use native buttons/callback webhooks instead.
+> The invariant is **not** "every channel opens the SMS confirm page" — it is
+> that every channel creates/updates the same `reminder_messages` row and feeds
+> the same response/action service. Any Confirm/Cancel response, regardless of
+> channel, must carry a reminder-scoped token/reference, pass
+> single-use/action-lock checks, revalidate live CRM state, honor
+> `cliniccards_status_policy`, and use the same mass-cancel circuit-breaker
+> before a destructive CRM write (ADR-007/010/014). A provider signature or
+> callback secret authenticates the provider, **not** the patient's deliberate
+> destructive intent; therefore app-native **Cancel** also needs either an
+> explicit second-step confirmation in that channel or a `pending_staff_review`
+> handoff. App-native buttons can replace the link surface, but they cannot
+> bypass the guarded write-back model.
 >
-> **Why apps come later, not first:** the decisive cross-channel fact is that **only Viber Business Messages and WhatsApp are phone-addressable; Telegram bots cannot cold-message** (the patient must press Start once). Apps also require Meta Business Verification (weeks), Viber sender/template registration + a €150–200/mo floor, and/or Telegram opt-in onboarding — all of which SMS avoids. **Why add them later anyway:** lower per-message cost at higher volume (especially Viber, once past its floor), richer native Confirm/Cancel buttons, and a better fit for future two-way scheduling. Per-channel detail follows.
+> **Why apps come later, not first:** the decisive cross-channel fact is that
+> **only Viber Business Messages and WhatsApp are phone-addressable; Telegram
+> bots cannot cold-message** (the patient must press Start once). Apps also
+> require Meta Business Verification (weeks), Viber sender/template
+> registration + a €150–200/mo floor, and/or Telegram opt-in onboarding — all of
+> which SMS avoids. **Why add them later anyway:** lower per-message cost at
+> higher volume (especially Viber, once past its floor), richer native
+> Confirm/Cancel buttons, and a better fit for future two-way scheduling.
+> Per-channel detail follows.
 
-#### 4.3.1 Telegram Bot API — free, best UX, requires one-time opt-in *(deferred)*
+#### 4.3.1 Telegram Bot API — free, best UX, requires one-time opt-in _(deferred)_
 
-- **Constraint:** a bot cannot start a conversation. The patient must open `t.me/<bot>?start=<token>` and press **Start** once (or message the bot). No API maps a phone number → chat. (Telegram *Gateway API* exists but is for verification codes only, and also requires opt-in.)
-- **Consent does NOT unlock this (verified 2026).** Unlike Viber/WhatsApp, the limit is **technical, not legal** — there is no Bot-API way to send a *first* message by phone number, with or without a signed consent. So a contract clause buys you nothing here: Telegram = consent **plus** a one-time Start. (The only way to message by phone is *user-account automation* — Telethon/Pyrogram importing contacts — which violates Telegram's ToS and gets accounts banned; **not viable for a clinic.**)
-- **Onboarding/binding:** generate a single-use token per patient, store `token → patient`, give them `t.me/YourClinicBot?start=<token>` (QR at reception, in the SMS/email booking confirmation). On Start, bind `chat_id ↔ patient`. Optionally `request_contact` to capture/verify phone.
-- **Send + response:** `sendMessage` with an **inline keyboard** (`✅ Confirm` / `❌ Cancel`, `callback_data` carrying the reminder's `tracking_token`). Taps arrive as `callback_query`; call `answerCallbackQuery`, then edit the message. **Cleanest Y/N UX of any channel.**
-- **Receiving:** long polling (`getUpdates`, no public server needed) or `setWebhook` (HTTPS, ports 443/80/88/8443). For us, the cloud function uses a webhook.
-- **Cost:** **free.** Rate limits (~30 msg/s broadcast, ~1 msg/s per chat) are far above clinic volume.
-- **Ukraine:** #1 messenger — ≈58% name it their most-used app and ≈27M are monthly-active (two different measures, both pointing to #1).
-- **Verdict:** Excellent and free **for opted-in patients**. The only friction is the one-time Start — solvable by making "scan to get reminders" part of the booking ritual.
+- **Constraint:** a bot cannot start a conversation. The patient must open
+  `t.me/<bot>?start=<token>` and press **Start** once (or message the bot). No
+  API maps a phone number → chat. (Telegram _Gateway API_ exists but is for
+  verification codes only, and also requires opt-in.)
+- **Consent does NOT unlock this (verified 2026).** Unlike Viber/WhatsApp, the
+  limit is **technical, not legal** — there is no Bot-API way to send a _first_
+  message by phone number, with or without a signed consent. So a contract
+  clause buys you nothing here: Telegram = consent **plus** a one-time Start.
+  (The only way to message by phone is _user-account automation_ —
+  Telethon/Pyrogram importing contacts — which violates Telegram's ToS and gets
+  accounts banned; **not viable for a clinic.**)
+- **Onboarding/binding:** generate a single-use token per patient, store
+  `token → patient`, give them `t.me/YourClinicBot?start=<token>` (QR at
+  reception, in the SMS/email booking confirmation). On Start, bind
+  `chat_id ↔ patient`. Optionally `request_contact` to capture/verify phone.
+- **Send + response:** `sendMessage` with an **inline keyboard** (`✅ Confirm` /
+  `❌ Cancel`, `callback_data` carrying the reminder's `tracking_token`). Taps
+  arrive as `callback_query`; call `answerCallbackQuery`, then edit the message.
+  **Cleanest Y/N UX of any channel.**
+- **Receiving:** long polling (`getUpdates`, no public server needed) or
+  `setWebhook` (HTTPS, ports 443/80/88/8443). For us, the cloud function uses a
+  webhook.
+- **Cost:** **free.** Rate limits (~30 msg/s broadcast, ~1 msg/s per chat) are
+  far above clinic volume.
+- **Ukraine:** #1 messenger — ≈58% name it their most-used app and ≈27M are
+  monthly-active (two different measures, both pointing to #1).
+- **Verdict:** Excellent and free **for opted-in patients**. The only friction
+  is the one-time Start — solvable by making "scan to get reminders" part of the
+  booking ritual.
 
-#### 4.3.2 WhatsApp Business Platform (Cloud API) — phone-addressable, compliant, low per-msg cost *(deferred)*
+#### 4.3.2 WhatsApp Business Platform (Cloud API) — phone-addressable, compliant, low per-msg cost _(deferred)_
 
-- **Business-initiated rule:** outside a 24-hour customer-service window you may only send a **pre-approved template**. Appointment reminders = **Utility** category (explicitly allowed; auto-reviewed, usually minutes–24h).
-- **Buttons:** Utility templates support **quick-reply buttons** (≤3, title ≤20 chars) → taps return as a `button_reply`/`button` **webhook**. Clean Confirm/Cancel.
-- **Webhook infra:** public HTTPS endpoint + verification handshake (`hub.challenge`), subscribe to `messages`, app in Live mode, return 200 (Meta retries up to 7 days → handlers must be idempotent).
-- **Onboarding:** Meta Business portfolio + **Business Verification** (live website + legal docs; **days to several weeks** — start early), a dedicated number (the clinic's existing number works if freed from any current WhatsApp account, or use Coexistence), display-name approval. After verification → Tier 1 = 1,000 business-initiated/24h (ample).
-- **Cost (2025/2026 per-message model):** Ukraine = "Rest of Central & Eastern Europe" band → **Utility ≈ $0.0212/msg** (the normal cold-reminder case); **free** only when sent inside an *already-open* 24h window; inbound replies free. If *all* ~600 reminders/mo went via WhatsApp that's ≈ **~$13** in Meta fees (+ any BSP fee) — in practice WhatsApp is only a slice of the channel mix, so its share of cost is lower.
-- **Path:** **direct Cloud API** (self-serve, cheapest, you build webhooks) vs **BSP** (Twilio pay-as-you-go; 360dialog ~€49/mo; turnkey vendors). For a small clinic a BSP shortens setup; an aggregator (next) can also front WhatsApp.
-- **Policy:** healthcare appointment reminders allowed (Ukraine **not** in the excluded list of US/France); **no PHI/telemedicine**; consent + opt-out required.
-- **Ukraine:** ~20% / ~11M WAU — real but third place. Worth including; not sufficient alone.
+- **Business-initiated rule:** outside a 24-hour customer-service window you may
+  only send a **pre-approved template**. Appointment reminders = **Utility**
+  category (explicitly allowed; auto-reviewed, usually minutes–24h).
+- **Buttons:** Utility templates support **quick-reply buttons** (≤3, title ≤20
+  chars) → taps return as a `button_reply`/`button` **webhook**. Clean
+  Confirm/Cancel.
+- **Webhook infra:** public HTTPS endpoint + verification handshake
+  (`hub.challenge`), subscribe to `messages`, app in Live mode, return 200 (Meta
+  retries up to 7 days → handlers must be idempotent).
+- **Onboarding:** Meta Business portfolio + **Business Verification** (live
+  website + legal docs; **days to several weeks** — start early), a dedicated
+  number (the clinic's existing number works if freed from any current WhatsApp
+  account, or use Coexistence), display-name approval. After verification → Tier
+  1 = 1,000 business-initiated/24h (ample).
+- **Cost (2025/2026 per-message model):** Ukraine = "Rest of Central & Eastern
+  Europe" band → **Utility ≈
+  $0.0212/msg** (the normal cold-reminder case); **free** only when sent inside an *already-open* 24h window; inbound replies free. If *all* ~600 reminders/mo went via WhatsApp that's ≈ **~$13**
+  in Meta fees (+ any BSP fee) — in practice WhatsApp is only a slice of the
+  channel mix, so its share of cost is lower.
+- **Path:** **direct Cloud API** (self-serve, cheapest, you build webhooks) vs
+  **BSP** (Twilio pay-as-you-go; 360dialog ~€49/mo; turnkey vendors). For a
+  small clinic a BSP shortens setup; an aggregator (next) can also front
+  WhatsApp.
+- **Policy:** healthcare appointment reminders allowed (Ukraine **not** in the
+  excluded list of US/France); **no PHI/telemedicine**; consent + opt-out
+  required.
+- **Ukraine:** ~20% / ~11M WAU — real but third place. Worth including; not
+  sufficient alone.
 
-#### 4.3.3 Viber — two products; **Business Messages** is the right one *(deferred)*
+#### 4.3.3 Viber — two products; **Business Messages** is the right one _(deferred)_
 
-- **Product A — Viber Bot/Public Account** (`developers.viber.com`): subscription-only (user must subscribe first), **no phone addressing**, and **no longer free since Feb 2024** (~€100/bot/mo + per-msg). *Not the path.*
-- **Product B — Viber Business Messages** (via authorized partners/aggregators): **phone-addressable** — send to any Viber user by E.164 number, no prior subscription. **This is the path** for clinic reminders, and it's the standard A2P business-notification channel in Ukraine.
-  - **Ukraine rule:** transactional (informational) messages **must use Viber-approved registered templates**; otherwise billed at the higher promotional rate.
-  - **Buttons caveat:** in Ukraine a *transactional* message is text-only (+ optional URL). Native two-button Confirm/Cancel pushes it into *promotional* (higher cost, can't be first message). **Workarounds:** a **2-way sender** + "reply **1** to confirm / **2** to cancel", or a partner **List message** (2-option), or accept promotional pricing for true buttons. TurboSMS exposes native Viber "**surveys**" = a true 2-option Y/N with a `VIBER_BUTTON_CLICK` webhook.
-  - **Response capture:** configure the sender **2-way**; replies hit your webhook and open a free 24h session.
-  - **Cost:** ~**€0.0104/msg** transactional **+ a ~€150–200/mo minimum commitment per sender** — the *minimum is the dominant cost* at clinic volume (≈€6 of actual messages, but you pay the floor). This is a **Viber-imposed floor, present at every provider** (Infobip/BulkGate ~€150, SMSBAT/Stream ~€175, TurboSMS ₴9,000 ≈ €185–195 — **rising to ₴10,367 ≈ €200 on 1 Jul 2026**, lifecell ~€200).
-  - **Onboarding:** via a partner — register a verified **Sender ID** (clinic name, immutable), submit a Service Qualification Form + Warranty Letter (consent), register UA templates. ~2–7 business days.
-- **Ukraine:** ~22–23M users; #2 by personal use (behind Telegram) and very widely integrated for business notifications (~52% of UA business sites). Its real edge here is being **phone-addressable A2P** — making it the natural primary for *reaching the existing patient list without onboarding* — if the monthly minimum is acceptable.
+- **Product A — Viber Bot/Public Account** (`developers.viber.com`):
+  subscription-only (user must subscribe first), **no phone addressing**, and
+  **no longer free since Feb 2024** (~€100/bot/mo + per-msg). _Not the path._
+- **Product B — Viber Business Messages** (via authorized partners/aggregators):
+  **phone-addressable** — send to any Viber user by E.164 number, no prior
+  subscription. **This is the path** for clinic reminders, and it's the standard
+  A2P business-notification channel in Ukraine.
+  - **Ukraine rule:** transactional (informational) messages **must use
+    Viber-approved registered templates**; otherwise billed at the higher
+    promotional rate.
+  - **Buttons caveat:** in Ukraine a _transactional_ message is text-only (+
+    optional URL). Native two-button Confirm/Cancel pushes it into _promotional_
+    (higher cost, can't be first message). **Workarounds:** a **2-way sender** +
+    "reply **1** to confirm / **2** to cancel", or a partner **List message**
+    (2-option), or accept promotional pricing for true buttons. TurboSMS exposes
+    native Viber "**surveys**" = a true 2-option Y/N with a `VIBER_BUTTON_CLICK`
+    webhook.
+  - **Response capture:** configure the sender **2-way**; replies hit your
+    webhook and open a free 24h session.
+  - **Cost:** ~**€0.0104/msg** transactional **+ a ~€150–200/mo minimum
+    commitment per sender** — the _minimum is the dominant cost_ at clinic
+    volume (≈€6 of actual messages, but you pay the floor). This is a
+    **Viber-imposed floor, present at every provider** (Infobip/BulkGate ~€150,
+    SMSBAT/Stream ~€175, TurboSMS ₴9,000 ≈ €185–195 — **rising to ₴10,367 ≈ €200
+    on 1 Jul 2026**, lifecell ~€200).
+  - **Onboarding:** via a partner — register a verified **Sender ID** (clinic
+    name, immutable), submit a Service Qualification Form + Warranty Letter
+    (consent), register UA templates. ~2–7 business days.
+- **Ukraine:** ~22–23M users; #2 by personal use (behind Telegram) and very
+  widely integrated for business notifications (~52% of UA business sites). Its
+  real edge here is being **phone-addressable A2P** — making it the natural
+  primary for _reaching the existing patient list without onboarding_ — if the
+  monthly minimum is acceptable.
 
-#### 4.3.4 Channel comparison (when apps are added) *(deferred)*
+#### 4.3.4 Channel comparison (when apps are added) _(deferred)_
 
-| Dimension | Telegram | WhatsApp | Viber (Business Messages) |
-|---|---|---|---|
-| Reach existing patient list by phone (no opt-in) | ❌ (must press Start) | ✅ (template) | ✅ (native) |
-| UA reach (rough) | #1 (~58%) | #3 (~20%) | #2 (~29%) |
-| Native Confirm/Cancel buttons | ✅ best | ✅ quick-reply | ⚠️ text-only transactional; use reply 1/2 or List |
-| Per-message cost (UA) | Free | ~$0.0212 (free in 24h) | ~€0.0104 |
-| Fixed monthly cost | €0 | €0 (direct) / ~€49 (BSP) | **~€150–200/mo minimum** |
-| Setup lead time | Hours | Days–weeks (Meta verification) | ~2–7 days (partner) |
-| Response capture | callback_query | button_reply webhook | 2-way webhook |
+| Dimension                                        | Telegram              | WhatsApp                       | Viber (Business Messages)                         |
+| ------------------------------------------------ | --------------------- | ------------------------------ | ------------------------------------------------- |
+| Reach existing patient list by phone (no opt-in) | ❌ (must press Start) | ✅ (template)                  | ✅ (native)                                       |
+| UA reach (rough)                                 | #1 (~58%)             | #3 (~20%)                      | #2 (~29%)                                         |
+| Native Confirm/Cancel buttons                    | ✅ best               | ✅ quick-reply                 | ⚠️ text-only transactional; use reply 1/2 or List |
+| Per-message cost (UA)                            | Free                  | ~$0.0212 (free in 24h)         | ~€0.0104                                          |
+| Fixed monthly cost                               | €0                    | €0 (direct) / ~€49 (BSP)       | **~€150–200/mo minimum**                          |
+| Setup lead time                                  | Hours                 | Days–weeks (Meta verification) | ~2–7 days (partner)                               |
+| Response capture                                 | callback_query        | button_reply webhook           | 2-way webhook                                     |
 
-#### 4.3.5 CPaaS Aggregators — one API for Viber + WhatsApp (+ SMS, + free native Telegram) *(deferred)*
+#### 4.3.5 CPaaS Aggregators — one API for Viber + WhatsApp (+ SMS, + free native Telegram) _(deferred)_
 
-> When app channels are added, a CPaaS aggregator can also take over SMS so all channels share one API + one inbound webhook. For SMS-only v1, a direct UA SMS provider (§4.2) is simpler and cheaper.
+> When app channels are added, a CPaaS aggregator can also take over SMS so all
+> channels share one API + one inbound webhook. For SMS-only v1, a direct UA SMS
+> provider (§4.2) is simpler and cheaper.
 
-**No single Western CPaaS does all four channels for business-initiated messaging** — Telegram is the spoiler (bot-only, can't cold-send), so paying an aggregator's Telegram markup buys nothing. The realistic backbone:
+**No single Western CPaaS does all four channels for business-initiated
+messaging** — Telegram is the spoiler (bot-only, can't cold-send), so paying an
+aggregator's Telegram markup buys nothing. The realistic backbone:
 
-> **Aggregator for Viber + WhatsApp + SMS (with one-call cascade fallback) + a free, self-hosted Telegram bot for opted-in patients.**
+> **Aggregator for Viber + WhatsApp + SMS (with one-call cascade fallback) + a
+> free, self-hosted Telegram bot for opted-in patients.**
 
-**Ranked for a small UA clinic (Viber-primary, 2-way + Y/N + low cost + good DX):**
+**Ranked for a small UA clinic (Viber-primary, 2-way + Y/N + low cost + good
+DX):**
 
-1. **Messaggio or TurboSMS (UA-native).** One HTTP API for Viber+WhatsApp+SMS, **Viber→SMS cascade** ("pay only for delivered"), reply webhook, UAH billing, self-serve, UA-language support that handles sender/template registration. **TurboSMS** additionally offers native **Viber surveys (true 2-option Y/N)**, the cheapest Viber (~0.6 UAH), and excellent bilingual docs (note its 9,000 UAH/mo Viber package floor).
-2. **Sinch** — the only major Western CPaaS with Viber+WhatsApp+Telegram+SMS in one Conversation API (its Telegram is still bot-only, so no cold-send — the same limitation as everyone), native `channel_priority_order` fallback (failed attempts free), clean cross-channel **Choice/quick-reply buttons** with postback, EU data residency. Pricing largely sales-gated; ~€175/mo Viber min.
-3. **Infobip** — polished DX (dry-run validation endpoint, 6 SDKs), documented **dental-reminder template with Yes/No postback buttons**, first 1,000 WhatsApp service conversations/mo free; €150/mo Viber UA min; Telegram is inbound-only/outside the unified API.
+1. **Messaggio or TurboSMS (UA-native).** One HTTP API for Viber+WhatsApp+SMS,
+   **Viber→SMS cascade** ("pay only for delivered"), reply webhook, UAH billing,
+   self-serve, UA-language support that handles sender/template registration.
+   **TurboSMS** additionally offers native **Viber surveys (true 2-option
+   Y/N)**, the cheapest Viber (~0.6 UAH), and excellent bilingual docs (note its
+   9,000 UAH/mo Viber package floor).
+2. **Sinch** — the only major Western CPaaS with Viber+WhatsApp+Telegram+SMS in
+   one Conversation API (its Telegram is still bot-only, so no cold-send — the
+   same limitation as everyone), native `channel_priority_order` fallback
+   (failed attempts free), clean cross-channel **Choice/quick-reply buttons**
+   with postback, EU data residency. Pricing largely sales-gated; ~€175/mo Viber
+   min.
+3. **Infobip** — polished DX (dry-run validation endpoint, 6 SDKs), documented
+   **dental-reminder template with Yes/No postback buttons**, first 1,000
+   WhatsApp service conversations/mo free; €150/mo Viber UA min; Telegram is
+   inbound-only/outside the unified API.
 
-**Cost takeaway:** WhatsApp Utility (~$0.021, free in 24h) is cheaper than SMS; Viber transactional is cheap per-message but gated behind a ~€150–200/mo minimum per sender; **UA-native cascade providers give the lowest blended cost**.
+**Cost takeaway:** WhatsApp Utility (~$0.021, free in 24h) is cheaper than SMS;
+Viber transactional is cheap per-message but gated behind a ~€150–200/mo minimum
+per sender; **UA-native cascade providers give the lowest blended cost**.
 
 ### 4.4 Delivery Stack & Dev Tooling
 
-- **Why cloud, not desktop:** the **confirm/cancel page must be reachable 24/7** (patients tap the link whenever they see the SMS) and the noon job must run unattended. A clinic PC (asleep at night, behind NAT, power-cuts) can't host a public page reliably. So the **engine must be cloud**; a desktop window is at best a thin client. (A **web URL** is simpler to deliver and maintain for a clinic than a native app. This holds doubly once app channels are added, since those *do* need provider inbound webhooks.)
-- **Why not AWS Step Functions:** the workload is one daily job + a webhook + a tiny DB. Step Functions/Lambda is viable but heavier to wire (IAM, API Gateway, state machine) than needed. We keep it simpler with Supabase; AWS remains a fine alternative if you already live there.
-- **Recommended platform — Supabase (Pro):** Postgres (the core tables) + **`pg_cron`** (the noon job, or a backup trigger) + **Edge Functions** (Deno/TS: send-engine + the confirm/cancel page) + **Auth** (dashboard login) + **Vault** (API keys) + admin UI + a **Supabase MCP** for AI-assisted build/debug. **Pro is mandatory for production, and Free is forbidden:** Free projects pause after ~7 days idle and it is *not* guaranteed that internal `pg_cron`-only activity prevents this, so a keepalive ping is not a reliability strategy — Pro ($25/mo) never pauses. **Pausing is not the only Supabase gotcha,** so the reliability boundary moves *outside* Supabase (external heartbeat + optional external scheduler — ADR-003, ADR-013). Residual Supabase-specific risks to design around: (1) **shared fate** if scheduler, DB, and function all live in one project; (2) **`pg_net` is async fire-and-forget** — a queued HTTP call ≠ a completed Edge Function (inspect `net._http_response` only as a diagnostic, never as source of truth); (3) **Edge Function limits** (paid: 400 s wall-clock, 150 s request idle, bounded CPU) + **cold starts**; (4) **single-region** — Pro stops pausing but is not multi-region failover; (5) **deploy/editor drift** — the dashboard editor has no version control/rollback. **Production rule:** deploy Edge Functions + migrations from **git-controlled CI/CLI only — no dashboard hot-edits.**
-- **Backend language — TypeScript + Hono:** one language across engine/webhook/cron/dashboard; runs on Supabase Edge (Deno), Node, or Workers; best messaging-SDK coverage; tiny + fast. (FastAPI is the only strong alternative; Rust template is overkill.)
-- **Scheduling — multi-fire window + run-level lease.** Ukraine observes DST, so **12:00 Kyiv = 10:00 UTC in winter (EET, UTC+2) / 09:00 UTC in summer (EEST, UTC+3)**. A UTC scheduler won't auto-shift, so schedule **several firings across the noon window** (covering both DST offsets — e.g. 09:00 / 09:30 / 10:00 / 10:30 UTC), plus the late-afternoon catch-up firing (ADR-006), and **gate each firing inside the handler on the current Europe/Kyiv time** (proceed only once it's ≥ 12:00 Kyiv). The multi-fire window is **trigger redundancy + a retry opportunity — it is *not* the concurrency mechanism.** Before any CRM fetch or send, the handler must **atomically claim the `reminder_days(target_date)` lease** (status `running` + `lock_token` + `lock_expires_at` ~15 min as the absolute backstop, with a **120 s heartbeat-grace as the primary steal signal (§5.7a)** — so a dead lease is reclaimable within ~120 s, well before the 12:30 firing): a non-expired lease → `no_op_already_running`; a `completed` day → `no_op_completed` **only for a duplicate `pass_kind='initial'` noon-window firing**; a stale lease is stolen only after the heartbeat-grace / `lock_expires_at` (§5.7a). **The scheduled late-afternoon catch-up and any manual firing are NOT suppressed by `completed`** — a `pass_kind in ('catchup','manual')` firing **re-claims** the day (`completed → running`) and re-scans CRM for late bookings/changes, because `completed` means *the last pass finished*, not *no more passes today* (ADR-006/012/020; the `(visit_id, target_date)` idempotency key blocks any duplicate ordinary reminder, so a re-scan only sends genuinely new/changed work). This is recorded on `reminder_runs.pass_kind`, not inferred from the trigger alone. Each `reminder_messages` row is **also** claimed (`status='sending'` via `FOR UPDATE SKIP LOCKED`) before its send. **Do not treat `pg_cron` non-overlap as the guard:** `pg_cron` may serialize the SQL job, but it calls the Edge Function through `pg_net` **asynchronously**, so the function can still be running after the cron statement returns — two firings can overlap. The lease + per-message claim is what makes a concurrent firing a true no-op and lets a later firing **resume** (not redo) a crashed run; the `(visit_id, target_date)` key protects the *row*, the claim protects the *outbound SMS* (§5.2, §5.6, ADR-012). **Date math is always Europe/Kyiv:** every run logs `utc_now`, `kyiv_now`, `run_date_kyiv`, `target_date_kyiv` and **fails before sending on any local-date/target-date mismatch** — never derive `target_date` from UTC. **Trigger options:** `pg_cron` (in-project, simplest) is acceptable for v1 *because* the external heartbeat (§4.4 observability, ADR-013) + the manual "Message next day" button cover a miss; for stronger fate-isolation use an **external scheduler** (Cloudflare Workers Cron — free, but UTC-only so it still needs the Kyiv gate) as the primary trigger with `pg_cron` as backup (ADR-003). (A TZ-aware scheduler — AWS EventBridge / GCP Cloud Scheduler — handles DST natively but adds a cloud/IAM surface not justified at this scale.) **Idempotency:** appointment-level dedup on `(visit_id, target_date)` protects against double-fire, double-click, and re-runs at the row layer; the lease + claim extend it to the SMS side effect (ADR-012). In addition to the noon-window firings, schedule **one automatic late-afternoon catch-up** for the same `target_date` (≈16:30 Kyiv) to reconcile late bookings and same-day changes — the CRM-correctness rationale and pre-send revalidation are in **ADR-006**; gating and the run-level `reminder_days` lease / per-message claim are specified above (ADR-012).
-- **Dashboard:** one protected web page (Next.js on Vercel *or* served by the engine) — "Message next day" button + last-run recap, behind Supabase Auth.
-- **Dev/test/debug tooling:** **Supabase CLI** (local Postgres + Edge Functions stack), **cloudflared / ngrok** (expose the confirm page for end-to-end link testing — and, later, app-channel inbound webhooks), the chosen **SMS provider's test balance + delivery logs**, **Sentry** (free tier error monitoring), secrets via `.env` + **Supabase Vault**. **MCP servers:** Supabase MCP (migrations/SQL/logs/deploy), Exa MCP (research) — both useful while building.
-- **Observability & absence-detection (the unattended promise):** Sentry catches *errors that throw*; it cannot catch a run that simply **never starts** — that needs **absence** detection on infrastructure that *isn't the thing that's down*. Use an **external dead-man's-switch** — **Healthchecks.io** or **Cronitor** (free tier covers one daily check) — on a daily **Europe/Kyiv** schedule with a **30-minute grace** (fail at **12:30 Kyiv**). The run pings: **start** after it claims the day lease, **fail** on an unrecoverable CRM/provider/reconciliation error, and **success *only after* reconciliation proves every remindable appointment was handled** (so the heartbeat carries the success-shape, not merely "I ran"). The payload is **counts only — no patient names, phones, tokens, or clinical data** (§4.5). **Alert path:** primary = receptionist/clinic manager (Telegram or SMS + email), technical = operator/developer, escalation = owner if unacknowledged after ~15 min; the alert text is operational ("the noon run didn't complete — open the dashboard and press *Message next day*; if it's down, use the ClinicCards tomorrow list and call patients"). A **separate `/healthz` uptime check** watches the public confirm page; it is **not** the noon-run heartbeat. (Mechanism + runbook: ADR-013; risks: §6.2.)
-- **Data-retention purge (`pg_cron`):** a second daily `pg_cron` job runs `maintenance.purge_privacy()` to enforce the §4.5 retention windows — delete raw provider/fetch payloads past their cap, anonymize identifiable `reminder_messages` snapshots + token digests past 90 days, drop long-inactive patient rows — and writes a **counts-only** purge-audit row (ADR-016; §5.3, §6.3).
-- **Operational continuity (solo-built, non-technically-operated) — ADR-017:** the bus-factor is one builder + non-technical reception, so continuity rests on a **designed-in manual backstop**, not on the builder's availability. (1) **The clinic can always run the day manually** from the ClinicCards tomorrow-list + phone — the automation is a labor-saver layered on top and **never gates clinic operation**; every failure path (missed run, CRM/SMS/Supabase outage, an API change) degrades to "fall back to the manual list," which *is* today's process. (2) A **one-step "pause automation"** (disable the schedule / a kill-switch) lets a non-technical operator stop all sends and revert to manual without the builder if anything looks wrong — this is also the **rollback floor for every rung of the §6.6 staged go-live ladder** (ADR-024): each rung is exited by a one-flip `SEND_MODE`/`CRM_WRITE_MODE` change plus this pause switch. (3) A **complaint micro-runbook**: if a patient reports a wrong/odd action, staff show the recorded action + reverse it manually in ClinicCards and escalate to the builder with the `reminder_message_id` (`audit_log` / `consent_events` / the signed render-fingerprint are the evidence — §6.3). (4) An **"if the builder vanishes" handover note** + an owner-controlled **password vault** (logins for TurboSMS, ClinicCards, Supabase, the watchdog; where secrets live; how to pause; the deploy command; the monthly bills; any backup technical contact), kept with the owner outside this repo; plus a **laminated one-page green/amber/red runbook** at the desk and a **monthly 5-minute manual-fallback drill** (pretend the dashboard is down → open tomorrow's ClinicCards list → confirm staff can phone) so the fallback is *practiced*, not theoretical. (5) **Recurring owner ownership** (monthly): SMS balance/top-up, a glance at the value panel, Supabase billing health (your-tasks). **Per-failure no-builder fallback:** *missed run* → press *Message next day*, else phone from the ClinicCards list; *SMS/provider down* → phone from ClinicCards; *cancel write-back failed* → staff cancel manually in ClinicCards (§5.6); *breaker open* → resolve held cancels (bulk-approve-safe or close without write) after checking ClinicCards; *wrongful-action complaint* → pause sends + the micro-runbook. API changes / key rotation / infra incidents can wait for the builder because the manual backstop covers operations meanwhile.
+- **Why cloud, not desktop:** the **confirm/cancel page must be reachable 24/7**
+  (patients tap the link whenever they see the SMS) and the noon job must run
+  unattended. A clinic PC (asleep at night, behind NAT, power-cuts) can't host a
+  public page reliably. So the **engine must be cloud**; a desktop window is at
+  best a thin client. (A **web URL** is simpler to deliver and maintain for a
+  clinic than a native app. This holds doubly once app channels are added, since
+  those _do_ need provider inbound webhooks.)
+- **Why not AWS Step Functions:** the workload is one daily job + a webhook + a
+  tiny DB. Step Functions/Lambda is viable but heavier to wire (IAM, API
+  Gateway, state machine) than needed. We keep it simpler with Supabase; AWS
+  remains a fine alternative if you already live there.
+- **Recommended platform — Supabase (Pro):** Postgres (the core tables) +
+  **`pg_cron`** (the noon job, or a backup trigger) + **Edge Functions**
+  (Deno/TS: send-engine + the confirm/cancel page) + **Auth** (dashboard
+  login) + **Vault** (API keys) + admin UI + a **Supabase MCP** for AI-assisted
+  build/debug. **Pro is mandatory for production, and Free is forbidden:** Free
+  projects pause after ~7 days idle and it is _not_ guaranteed that internal
+  `pg_cron`-only activity prevents this, so a keepalive ping is not a
+  reliability strategy — Pro ($25/mo) never pauses. **Pausing is not the only
+  Supabase gotcha,** so the reliability boundary moves _outside_ Supabase
+  (external heartbeat + optional external scheduler — ADR-003, ADR-013).
+  Residual Supabase-specific risks to design around: (1) **shared fate** if
+  scheduler, DB, and function all live in one project; (2) **`pg_net` is async
+  fire-and-forget** — a queued HTTP call ≠ a completed Edge Function (inspect
+  `net._http_response` only as a diagnostic, never as source of truth); (3)
+  **Edge Function limits** (paid: 400 s wall-clock, 150 s request idle, bounded
+  CPU) + **cold starts**; (4) **single-region** — Pro stops pausing but is not
+  multi-region failover; (5) **deploy/editor drift** — the dashboard editor has
+  no version control/rollback. **Production rule:** deploy Edge Functions +
+  migrations from **git-controlled CI/CLI only — no dashboard hot-edits.**
+- **Backend language — TypeScript + Hono:** one language across
+  engine/webhook/cron/dashboard; runs on Supabase Edge (Deno), Node, or Workers;
+  best messaging-SDK coverage; tiny + fast. (FastAPI is the only strong
+  alternative; Rust template is overkill.)
+- **Scheduling — multi-fire window + run-level lease.** Ukraine observes DST, so
+  **12:00 Kyiv = 10:00 UTC in winter (EET, UTC+2) / 09:00 UTC in summer (EEST,
+  UTC+3)**. A UTC scheduler won't auto-shift, so schedule **several firings
+  across the noon window** (covering both DST offsets — e.g. 09:00 / 09:30 /
+  10:00 / 10:30 UTC), plus the late-afternoon catch-up firing (ADR-006), and
+  **gate each firing inside the handler on the current Europe/Kyiv time**
+  (proceed only once it's ≥ 12:00 Kyiv). The multi-fire window is **trigger
+  redundancy + a retry opportunity — it is _not_ the concurrency mechanism.**
+  Before any CRM fetch or send, the handler must **atomically claim the
+  `reminder_days(target_date)` lease** (status `running` + `lock_token` +
+  `lock_expires_at` ~15 min as the absolute backstop, with a **120 s
+  heartbeat-grace as the primary steal signal (§5.7a)** — so a dead lease is
+  reclaimable within ~120 s, well before the 12:30 firing): a non-expired lease
+  → `no_op_already_running`; a `completed` day → `no_op_completed` **only for a
+  duplicate `pass_kind='initial'` noon-window firing**; a stale lease is stolen
+  only after the heartbeat-grace / `lock_expires_at` (§5.7a). **The scheduled
+  late-afternoon catch-up and any manual firing are NOT suppressed by
+  `completed`** — a `pass_kind in ('catchup','manual')` firing **re-claims** the
+  day (`completed → running`) and re-scans CRM for late bookings/changes,
+  because `completed` means _the last pass finished_, not _no more passes today_
+  (ADR-006/012/020; the `(visit_id, target_date)` idempotency key blocks any
+  duplicate ordinary reminder, so a re-scan only sends genuinely new/changed
+  work). This is recorded on `reminder_runs.pass_kind`, not inferred from the
+  trigger alone. Each `reminder_messages` row is **also** claimed
+  (`status='sending'` via `FOR UPDATE SKIP LOCKED`) before its send. **Do not
+  treat `pg_cron` non-overlap as the guard:** `pg_cron` may serialize the SQL
+  job, but it calls the Edge Function through `pg_net` **asynchronously**, so
+  the function can still be running after the cron statement returns — two
+  firings can overlap. The lease + per-message claim is what makes a concurrent
+  firing a true no-op and lets a later firing **resume** (not redo) a crashed
+  run; the `(visit_id, target_date)` key protects the _row_, the claim protects
+  the _outbound SMS_ (§5.2, §5.6, ADR-012). **Date math is always Europe/Kyiv:**
+  every run logs `utc_now`, `kyiv_now`, `run_date_kyiv`, `target_date_kyiv` and
+  **fails before sending on any local-date/target-date mismatch** — never derive
+  `target_date` from UTC. **Trigger options:** `pg_cron` (in-project, simplest)
+  is acceptable for v1 _because_ the external heartbeat (§4.4 observability,
+  ADR-013) + the manual "Message next day" button cover a miss; for stronger
+  fate-isolation use an **external scheduler** (Cloudflare Workers Cron — free,
+  but UTC-only so it still needs the Kyiv gate) as the primary trigger with
+  `pg_cron` as backup (ADR-003). (A TZ-aware scheduler — AWS EventBridge / GCP
+  Cloud Scheduler — handles DST natively but adds a cloud/IAM surface not
+  justified at this scale.) **Idempotency:** appointment-level dedup on
+  `(visit_id, target_date)` protects against double-fire, double-click, and
+  re-runs at the row layer; the lease + claim extend it to the SMS side effect
+  (ADR-012). In addition to the noon-window firings, schedule **one automatic
+  late-afternoon catch-up** for the same `target_date` (≈16:30 Kyiv) to
+  reconcile late bookings and same-day changes — the CRM-correctness rationale
+  and pre-send revalidation are in **ADR-006**; gating and the run-level
+  `reminder_days` lease / per-message claim are specified above (ADR-012).
+- **Dashboard:** one protected web page (Next.js on Vercel _or_ served by the
+  engine) — "Message next day" button + last-run recap, behind Supabase Auth.
+- **Dev/test/debug tooling:** **Supabase CLI** (local Postgres + Edge Functions
+  stack), **cloudflared / ngrok** (expose the confirm page for end-to-end link
+  testing — and, later, app-channel inbound webhooks), the chosen **SMS
+  provider's test balance + delivery logs**, **Sentry** (free tier error
+  monitoring), secrets via `.env` + **Supabase Vault**. **MCP servers:**
+  Supabase MCP (migrations/SQL/logs/deploy), Exa MCP (research) — both useful
+  while building.
+- **Observability & absence-detection (the unattended promise):** Sentry catches
+  _errors that throw_; it cannot catch a run that simply **never starts** — that
+  needs **absence** detection on infrastructure that _isn't the thing that's
+  down_. Use an **external dead-man's-switch** — **Healthchecks.io** or
+  **Cronitor** (free tier covers one daily check) — on a daily **Europe/Kyiv**
+  schedule with a **30-minute grace** (fail at **12:30 Kyiv**). The run pings:
+  **start** after it claims the day lease, **fail** on an unrecoverable
+  CRM/provider/reconciliation error, and **success _only after_ reconciliation
+  proves every remindable appointment was handled** (so the heartbeat carries
+  the success-shape, not merely "I ran"). The payload is **counts only — no
+  patient names, phones, tokens, or clinical data** (§4.5). **Alert path:**
+  primary = receptionist/clinic manager (Telegram or SMS + email), technical =
+  operator/developer, escalation = owner if unacknowledged after ~15 min; the
+  alert text is operational ("the noon run didn't complete — open the dashboard
+  and press _Message next day_; if it's down, use the ClinicCards tomorrow list
+  and call patients"). A **separate `/healthz` uptime check** watches the public
+  confirm page; it is **not** the noon-run heartbeat. (Mechanism + runbook:
+  ADR-013; risks: §6.2.)
+- **Data-retention purge (`pg_cron`):** a second daily `pg_cron` job runs
+  `maintenance.purge_privacy()` to enforce the §4.5 retention windows — delete
+  raw provider/fetch payloads past their cap, anonymize identifiable
+  `reminder_messages` snapshots + token digests past 90 days, drop long-inactive
+  patient rows — and writes a **counts-only** purge-audit row (ADR-016; §5.3,
+  §6.3).
+- **Operational continuity (solo-built, non-technically-operated) — ADR-017:**
+  the bus-factor is one builder + non-technical reception, so continuity rests
+  on a **designed-in manual backstop**, not on the builder's availability. (1)
+  **The clinic can always run the day manually** from the ClinicCards
+  tomorrow-list + phone — the automation is a labor-saver layered on top and
+  **never gates clinic operation**; every failure path (missed run,
+  CRM/SMS/Supabase outage, an API change) degrades to "fall back to the manual
+  list," which _is_ today's process. (2) A **one-step "pause automation"**
+  (disable the schedule / a kill-switch) lets a non-technical operator stop all
+  sends and revert to manual without the builder if anything looks wrong — this
+  is also the **rollback floor for every rung of the §6.6 staged go-live
+  ladder** (ADR-024): each rung is exited by a one-flip
+  `SEND_MODE`/`CRM_WRITE_MODE` change plus this pause switch. (3) A **complaint
+  micro-runbook**: if a patient reports a wrong/odd action, staff show the
+  recorded action + reverse it manually in ClinicCards and escalate to the
+  builder with the `reminder_message_id` (`audit_log` / `consent_events` / the
+  signed render-fingerprint are the evidence — §6.3). (4) An **"if the builder
+  vanishes" handover note** + an owner-controlled **password vault** (logins for
+  TurboSMS, ClinicCards, Supabase, the watchdog; where secrets live; how to
+  pause; the deploy command; the monthly bills; any backup technical contact),
+  kept with the owner outside this repo; plus a **laminated one-page
+  green/amber/red runbook** at the desk and a **monthly 5-minute manual-fallback
+  drill** (pretend the dashboard is down → open tomorrow's ClinicCards list →
+  confirm staff can phone) so the fallback is _practiced_, not theoretical. (5)
+  **Recurring owner ownership** (monthly): SMS balance/top-up, a glance at the
+  value panel, Supabase billing health (your-tasks). **Per-failure no-builder
+  fallback:** _missed run_ → press _Message next day_, else phone from the
+  ClinicCards list; _SMS/provider down_ → phone from ClinicCards; _cancel
+  write-back failed_ → staff cancel manually in ClinicCards (§5.6); _breaker
+  open_ → resolve held cancels (bulk-approve-safe or close without write) after
+  checking ClinicCards; _wrongful-action complaint_ → pause sends + the
+  micro-runbook. API changes / key rotation / infra incidents can wait for the
+  builder because the manual backstop covers operations meanwhile.
 
 ### 4.5 Licensing & Compliance
 
-- **Patient data = health-adjacent / special-category personal data** under Ukraine's *Law on Personal Data Protection* (GDPR-aligned) and GDPR for any EU patients. An identified person linked to a dental-service interaction is **health data** (GDPR Art. 4(15) / Art. 9; UA-DP special category) — *"logistics-only" is a **minimization** control, not a classification escape.* Reminders therefore carry **no diagnosis, procedure, doctor note, treatment plan, or price** — name, date, time, clinic only. Implications: a sound **lawful basis** (below); **opt-out** honored; **data minimization** (incl. **not** storing full phone numbers — ADR-016); **encryption at rest/in transit** (Supabase provides); and a **concrete retention schedule with an automated purge** (below).
-- **Lawful basis (SMS v1) — ADR-015:** appointment reminders are **transactional service messages** for administering an appointment the patient booked. The cleanest framing is **GDPR Art. 6(1)(b) performance of a contract** (or documented **6(1)(f) legitimate interests** if counsel prefers) for the personal-data processing, plus the **Art. 9(2)(h)** healthcare-management condition (under professional-secrecy safeguards) for the health-data aspect; under UA-DP, **transaction/contract execution (Art. 11)** plus the **health-service exception (Art. 7(2)(6))**. So the messaging flag is a **withdrawable communication preference**, *not* the primary lawful basis — renamed `sms_reminders_enabled` (§5.3), with **opt-out honored as a preference** that never blocks contract administration. **Do not rely on a bare, undocumented boolean as the proof model:** keep a minimal **append-only `consent_events`** audit (source, scope, basis, date/version, opt-out history — §5.3). "No platform audits contracts" is true of sender-ID approval but is a **latent liability** if a patient complains — the clinic must be able to show *what was communicated, when, how, and what opt-out path existed*. *(The stricter, channel-named consent wording that Viber/WhatsApp require becomes relevant only if/when those channels are added — see §4.3.)*
-- **Data residency:** host the project in an **EU region** (e.g. Supabase Frankfurt) to keep patient data in-region and ease GDPR alignment — this also directly addresses the "keep it contained and safe" instinct that originally pointed toward a local app.
-- **Don't keep our own copy of the most sensitive field (ADR-016):** ClinicCards is the system of record. `run-reminders` **fetches phone numbers per run, sends in memory, then discards them** — `patients` stores only a **phone HMAC + last-4 + country**, never the full number (staff read the full number live from ClinicCards when they call a Cancelled/No-reply patient). Delivery-status callbacks match on `provider_message_id`, not phone.
-- **Retention schedule + automated purge (ADR-016):** phones are **redacted at write time** (`crm_fetch_log`/`inbound_events` store only redacted payloads — full numbers are never persisted, so these windows govern *redacted debug payloads + anonymization*, not phone storage; Tension 6). Concrete windows, enforced daily by `maintenance.purge_privacy()` (`pg_cron`, scheduled under `dentino_maintenance_runner` / owned by `dentino_maintenance_definer` — §6.3.3): **redacted provider payloads (`inbound_events`) 7-day target / 14-day hard cap; redacted outbound `crm_fetch_log` payloads ≤14 days** (the non-PII **`crm_visit_facts`** reconciliation ledger is kept longer); **delivery summaries 90 days** (id + status, no phone); **identifiable `reminder_messages` snapshots + `tracking_token_digest` anonymized 90 days after `target_date`**; **action/audit events 2 years**, pseudonymized; **`consent_events` for the active relationship + ~3 years**; **inactive `patients` rows pseudonymized after ~180 days** with no future appointment. The purge writes a **counts-only** audit row (§5.3, §6.3).
-- **Log hygiene:** application/Edge/CDN/Sentry/provider-callback logs **must redact** `/r/<token>` path tokens, phone numbers, raw provider payloads, and ClinicCards API tokens; **no PII or raw capability URLs to Sentry** (the heartbeat is already counts-only — §4.4, ADR-013).
-- **App-channel compliance (deferred):** when Viber/WhatsApp are added, each needs **channel-named consent + registered templates** (Viber: Warranty Letter + UA transactional-template mandate; WhatsApp: Utility templates, no PHI, Ukraine not excluded); Telegram opt-in is inherent (patient presses Start). Verified detail in §4.3.
-- All third-party SDKs (the SMS provider's REST/SDK, Supabase, Hono; later the app-channel SDKs) are permissively licensed (MIT/Apache/BSD) — no licensing blockers.
+- **Patient data = health-adjacent / special-category personal data** under
+  Ukraine's _Law on Personal Data Protection_ (GDPR-aligned) and GDPR for any EU
+  patients. An identified person linked to a dental-service interaction is
+  **health data** (GDPR Art. 4(15) / Art. 9; UA-DP special category) —
+  _"logistics-only" is a **minimization** control, not a classification escape._
+  Reminders therefore carry **no diagnosis, procedure, doctor note, treatment
+  plan, or price** — name, date, time, clinic only. Implications: a sound
+  **lawful basis** (below); **opt-out** honored; **data minimization** (incl.
+  **not** storing full phone numbers — ADR-016); **encryption at rest/in
+  transit** (Supabase provides); and a **concrete retention schedule with an
+  automated purge** (below).
+- **Lawful basis (SMS v1) — ADR-015:** appointment reminders are **transactional
+  service messages** for administering an appointment the patient booked. The
+  cleanest framing is **GDPR Art. 6(1)(b) performance of a contract** (or
+  documented **6(1)(f) legitimate interests** if counsel prefers) for the
+  personal-data processing, plus the **Art. 9(2)(h)** healthcare-management
+  condition (under professional-secrecy safeguards) for the health-data aspect;
+  under UA-DP, **transaction/contract execution (Art. 11)** plus the
+  **health-service exception (Art. 7(2)(6))**. So the messaging flag is a
+  **withdrawable communication preference**, _not_ the primary lawful basis —
+  renamed `sms_reminders_enabled` (§5.3), with **opt-out honored as a
+  preference** that never blocks contract administration. **Do not rely on a
+  bare, undocumented boolean as the proof model:** keep a minimal **append-only
+  `consent_events`** audit (source, scope, basis, date/version, opt-out history
+  — §5.3). "No platform audits contracts" is true of sender-ID approval but is a
+  **latent liability** if a patient complains — the clinic must be able to show
+  _what was communicated, when, how, and what opt-out path existed_. _(The
+  stricter, channel-named consent wording that Viber/WhatsApp require becomes
+  relevant only if/when those channels are added — see §4.3.)_
+- **Data residency:** host the project in an **EU region** (e.g. Supabase
+  Frankfurt) to keep patient data in-region and ease GDPR alignment — this also
+  directly addresses the "keep it contained and safe" instinct that originally
+  pointed toward a local app.
+- **Don't keep our own copy of the most sensitive field (ADR-016):** ClinicCards
+  is the system of record. `run-reminders` **fetches phone numbers per run,
+  sends in memory, then discards them** — `patients` stores only a **phone
+  HMAC + last-4 + country**, never the full number (staff read the full number
+  live from ClinicCards when they call a Cancelled/No-reply patient).
+  Delivery-status callbacks match on `provider_message_id`, not phone.
+- **Retention schedule + automated purge (ADR-016):** phones are **redacted at
+  write time** (`crm_fetch_log`/`inbound_events` store only redacted payloads —
+  full numbers are never persisted, so these windows govern _redacted debug
+  payloads + anonymization_, not phone storage; Tension 6). Concrete windows,
+  enforced daily by `maintenance.purge_privacy()` (`pg_cron`, scheduled under
+  `dentino_maintenance_runner` / owned by `dentino_maintenance_definer` —
+  §6.3.3): **redacted provider payloads (`inbound_events`) 7-day target / 14-day
+  hard cap; redacted outbound `crm_fetch_log` payloads ≤14 days** (the non-PII
+  **`crm_visit_facts`** reconciliation ledger is kept longer); **delivery
+  summaries 90 days** (id + status, no phone); **identifiable
+  `reminder_messages` snapshots + `tracking_token_digest` anonymized 90 days
+  after `target_date`**; **action/audit events 2 years**, pseudonymized;
+  **`consent_events` for the active relationship + ~3 years**; **inactive
+  `patients` rows pseudonymized after ~180 days** with no future appointment.
+  The purge writes a **counts-only** audit row (§5.3, §6.3).
+- **Log hygiene:** application/Edge/CDN/Sentry/provider-callback logs **must
+  redact** `/r/<token>` path tokens, phone numbers, raw provider payloads, and
+  ClinicCards API tokens; **no PII or raw capability URLs to Sentry** (the
+  heartbeat is already counts-only — §4.4, ADR-013).
+- **App-channel compliance (deferred):** when Viber/WhatsApp are added, each
+  needs **channel-named consent + registered templates** (Viber: Warranty
+  Letter + UA transactional-template mandate; WhatsApp: Utility templates, no
+  PHI, Ukraine not excluded); Telegram opt-in is inherent (patient presses
+  Start). Verified detail in §4.3.
+- All third-party SDKs (the SMS provider's REST/SDK, Supabase, Hono; later the
+  app-channel SDKs) are permissively licensed (MIT/Apache/BSD) — no licensing
+  blockers.
 
 ---
 
@@ -357,53 +1193,82 @@ SMS is the v1 channel because it is **universally reachable** — every Ukrainia
 ### 5.1 System Context Diagram
 
 ```
-  External scheduler (Cloudflare Workers Cron) OR pg_cron backup — several noon-window firings, each gated on Kyiv local time
-        │
-        ▼
-  ┌──────────────────────────── SUPABASE ────────────────────────────┐
-  │  run-reminders (Edge Fn)                                          │
-  │   1. GET /visits + /patients  ──────────────▶  ClinicCards REST   │
-  │   2. keep remindable statuses; gate on SMS-reminder preference    │
-  │   3. upsert reminder_messages  (ordinary key + notice fingerprint)│
-  │   4. render SMS template (+ confirm link /r/<token>)              │
-  │   5. smsSender  ────────────────────────────▶  UA SMS provider ──▶ patient's phone
-  │                                                                   │
-  │  Postgres: patients · reminder_runs · reminder_days ·             │
-  │            reminder_messages · cliniccards_status_policy ·        │
-  │            consent_events · cancellation_circuits ·               │
-  │            crm_visit_write_locks · audit_log                      │
-  │  Vault (keys) · Dashboard (web, Auth): status board + trust panel │
-  └───────────────────────────────────────────────────────────────-─┘
-                                   ▲  patient taps Confirm / Cancel
-                                   │
-  ┌──────────────────────────── SUPABASE ────────────────────────────┐
-  │  confirm page  /r/<token>  (public Edge Fn)                       │
-  │   → GET renders current facts only; no side effects                │
-  │   → nonce-backed POST records response in reminder_messages        │
-  │   → Cancel: interstitial + circuit breaker + PUT CANCELLED         │
-  │   → Confirm: policy-gated PUT CONFIRMED     ─▶ ClinicCards REST   │
-  └───────────────────────────────────────────────────────────────-─┘
+External scheduler (Cloudflare Workers Cron) OR pg_cron backup — several noon-window firings, each gated on Kyiv local time
+      │
+      ▼
+┌──────────────────────────── SUPABASE ────────────────────────────┐
+│  run-reminders (Edge Fn)                                          │
+│   1. GET /visits + /patients  ──────────────▶  ClinicCards REST   │
+│   2. keep remindable statuses; gate on SMS-reminder preference    │
+│   3. upsert reminder_messages  (ordinary key + notice fingerprint)│
+│   4. render SMS template (+ confirm link /r/<token>)              │
+│   5. smsSender  ────────────────────────────▶  UA SMS provider ──▶ patient's phone
+│                                                                   │
+│  Postgres: patients · reminder_runs · reminder_days ·             │
+│            reminder_messages · cliniccards_status_policy ·        │
+│            consent_events · cancellation_circuits ·               │
+│            crm_visit_write_locks · audit_log                      │
+│  Vault (keys) · Dashboard (web, Auth): status board + trust panel │
+└───────────────────────────────────────────────────────────────-─┘
+                                 ▲  patient taps Confirm / Cancel
+                                 │
+┌──────────────────────────── SUPABASE ────────────────────────────┐
+│  confirm page  /r/<token>  (public Edge Fn)                       │
+│   → GET renders current facts only; no side effects                │
+│   → nonce-backed POST records response in reminder_messages        │
+│   → Cancel: interstitial + circuit breaker + PUT CANCELLED         │
+│   → Confirm: policy-gated PUT CONFIRMED     ─▶ ClinicCards REST   │
+└───────────────────────────────────────────────────────────────-─┘
 ```
 
-> **Reliability overlay (ADR-012/013):** before step 1 the function **claims the `reminder_days(target_date)` lease** (a concurrent firing is a no-op; a later firing resumes a crash); each send is **claimed and committed per-message** (`sent`/`failed`/`send_unknown`, never blind-resent); the run then **reconciles** (the `crm_visit_facts` ledger vs the materialized rows — §5.3/§5.6) and pings an **external dead-man's-switch** (Healthchecks.io/Cronitor — *not* inside Supabase) that pages staff if no success by 12:30 Kyiv. Primary trigger may be an external scheduler (Cloudflare Workers Cron) with `pg_cron` as backup.
+> **Reliability overlay (ADR-012/013):** before step 1 the function **claims the
+> `reminder_days(target_date)` lease** (a concurrent firing is a no-op; a later
+> firing resumes a crash); each send is **claimed and committed per-message**
+> (`sent`/`failed`/`send_unknown`, never blind-resent); the run then
+> **reconciles** (the `crm_visit_facts` ledger vs the materialized rows —
+> §5.3/§5.6) and pings an **external dead-man's-switch**
+> (Healthchecks.io/Cronitor — _not_ inside Supabase) that pages staff if no
+> success by 12:30 Kyiv. Primary trigger may be an external scheduler
+> (Cloudflare Workers Cron) with `pg_cron` as backup.
 
-> **Security overlay (ADR-014):** the confirm page is **not** a one-tap GET cancel. `GET /r/<token>` renders only (side-effect-free — safe for SMS link-previews/scanners); a response is recorded **only** by a nonce-backed `POST /r/<token>/action`, and **Cancel** additionally requires a confirmation interstitial, is **single-use** + **expiring**, and is gated by a **mass-cancel circuit-breaker that halts writes**. The token is stored only as an HMAC digest; the footer opt-out is likewise a nonce-backed `POST`, never a `GET` (§5.4, §5.6, §6.3).
+> **Security overlay (ADR-014):** the confirm page is **not** a one-tap GET
+> cancel. `GET /r/<token>` renders only (side-effect-free — safe for SMS
+> link-previews/scanners); a response is recorded **only** by a nonce-backed
+> `POST /r/<token>/action`, and **Cancel** additionally requires a confirmation
+> interstitial, is **single-use** + **expiring**, and is gated by a
+> **mass-cancel circuit-breaker that halts writes**. The token is stored only as
+> an HMAC digest; the footer opt-out is likewise a nonce-backed `POST`, never a
+> `GET` (§5.4, §5.6, §6.3).
 
 ### 5.2 Component Design
 
-| Component | Responsibility |
-|---|---|
-| **`run-reminders` (Edge Fn, cron + manual)** | Append a run row (execution log, including `pass_kind='initial'|'catchup'|'manual'`); **claim the `reminder_days(target_date)` lease — a concurrent firing that finds a live lease is a no-op; a later firing steals an expired/stale lease and resumes, while a catch-up/manual pass may re-claim a completed day (§4.4, ADR-012/020)**; fetch tomorrow's visits from ClinicCards (all dates computed in **Europe/Kyiv**); **classify each visit's status against `cliniccards_status_policy`** — keep `remindable`, skip terminal/non-remindable, and **fail closed (skip + flag) on an unknown status**; batch-resolve patient name/phone; upsert patients. For each remindable visit compute an **`appointment_fingerprint`** (visit_start/end, status, doctor/cabinet, patient) and decide message kind by looking up prior reminders **for this `visit_id`**: none → `initial_reminder` on an initial/manual pass or `catchup_reminder` on an automatic catch-up pass; a prior *sent* reminder on the **same** `target_date` with a changed fingerprint → **`time_change_notice`**; a prior *sent* reminder on a **different** `target_date` → **`reschedule_notice`** — both **superseding** the stale row **and setting its `token_expires_at = now()` to kill the old SMS link** (the new notice row becomes the sole live capability for the visit, so two valid URLs can never point at one appointment — §5.5/§5.6, ADR-008); a `visit_id` last seen terminal, now remindable → **flag for staff** (`reopened_same_id`, pending C3); record `source_status`. **Always materialize a row** — patients with no `sms_reminders_enabled`, no/invalid mobile, a missing/merged patient, or a changed `patient_id` become `skipped` with a `skip_reason`; sendable rows are materialized **tokenless** (`tracking_token_digest is null`) so a crash before claim never creates an unsendable digest-only capability. **Pre-send revalidation:** immediately before sending, re-fetch the target date once (`GET /visits?from=to=target`) and **skip+flag** any candidate now cancelled, moved out of range, or reassigned. **At the per-message send claim**, generate a 128-bit CSPRNG `tracking_token` in memory, persist only its **HMAC digest** + `token_expires_at`, and keep the raw token only long enough to render the SMS URL (§6.3, ADR-014); also write the minimal **`patient_display_snapshot`** (first name + last initial · date · time, no phone/clinical) used by the confirm page. Render the SMS template (incl. the `/r/<token>` confirm link), **enforce the 2-segment / ≤134 UCS-2-char budget — falling back to the name-overflow (no-name) fallback if a long name overflows** — and send via `smsSender`; on success record `provider_message_id`+`sent`; on a timeout/ambiguous result mark **`send_unknown`** (flag, **do not auto-retry**). Snapshot every outbound fetch **redacted** to `crm_fetch_log` (phones stripped at write — §5.3/Tension 6) and write one `crm_visit_facts` row per fetched visit (the non-PII reconciliation ledger). Skip any row already `sent`/`delivered`/`send_unknown` or already action-locked/has a response; (re)attempt only `pending`/retryable pre-submit `failed`. **Commit ordering (never hold a DB transaction open across a CRM/SMS HTTP call; the batch is never one transaction):** claim one row and commit `status='sending'` + token digest/expiry → send with the raw token still in memory → commit the outcome (`sent`/`failed`/`send_unknown`) before the next. **At the end, reconcile** (`crm_visit_facts` vs the materialized rows — §5.6) → set `reminder_days.status`/health → ping the external heartbeat (success only when green/amber — ADR-013). **The run completes all work — fetch, send, reconcile, and the success ping — within one synchronous invocation; v1 does *not* use `202`/`EdgeRuntime.waitUntil`** (the external heartbeat, not the HTTP status, is the proof of completion — ADR-013; a silently-killed background continuation buys nothing at p95 ≤ 120 s, and genuine wall-clock pressure is instead the §6.4 queue-migration trigger). While processing, the holder **renews `lock_heartbeat_at` at least every ~30 s** (per message and across the CRM fetch/retry phase) so a crashed holder is reclaimable within one steal-grace (~120 s), not one 15-min lease-TTL (§5.7a, ADR-012/018). Safe to run multiple times per day, including the afternoon catch-up (ADR-006); a concurrent firing is a true no-op (lease + claim), a later firing resumes a crash (ADR-012). |
-| **`smsSender`** | Send one SMS via the UA provider (registered alpha sender); return `{providerMessageId, status}` — and an explicit **`unknown`** outcome on timeout/ambiguous response so the caller marks `send_unknown` (never a blind resend — §5.6). Pass the provider's **client idempotency key** keyed on `reminder_message_id`+`appointment_fingerprint` when supported (provider capability is a build-time confirmation, §10; ADR-012). Ingest delivery-status callbacks if offered (`sent`=accepted ≠ `delivered`). The **only** sender in v1; app-channel senders slot in behind the same `send()` interface later (§4.3). |
-| **`confirm` page (Edge Fn, public, app-only origin `r.dentino.com.ua/r/<token>`)** | Resolve the reminder by **HMAC digest** of the path token (never store/log the raw token); **re-fetch the current ClinicCards visit on page open** and render the *current* date/time — if the visit is terminal (cancelled/visited/…) or has moved since the SMS, show a no-action page with the latest facts rather than acting on stale data. **`GET` strictly renders only** (no "opened"/engagement write — safe for SMS link-previews/security scanners, §5.4) and shows **partial detail** (first name + last initial · date · time · clinic) so a shared-phone holder sees *what* they'd act on. **Confirm** = one nonce-backed `POST`; **Cancel** first renders a **confirmation interstitial** and only the second, nonce-backed `POST` records intent → the **guarded** CRM write-back (re-fetch + fingerprint-compare, §5.6). The capability is **single-use** (`action_locked_at`), **expires** at the appointment start, and a Cancel is gated by the **mass-cancel circuit-breaker** (§6.2). The page shows the clinic phone **+380 67 987 6111** and a **footer opt-out** — itself a nonce-backed `POST` (never a `GET`) that writes a `consent_events` row and sets `sms_reminders_enabled=false` (§5.6). No provider inbound webhook needed in v1 (ADR-014, §5.4). **Page-UX design (the engagement surface — §6.2, ADR-014):** the page is the project's trust-and-action surface, so it is designed for a phishing-wary, mixed-age, low-end-Android, Cyrillic-only base, *within* the locked no-third-party-assets rule (§6.3). **Trust:** an **inline-SVG Dentino wordmark + brand-colour header**, explicit clinic identity (*«Стоматологія Dentino, Львів»*), and a one-line **"why you got this"** (*«Ви отримали це, бо у вас запланований запис у Dentino»*), and an explicit **anti-scam line** (*«Ми не просимо оплату, банківські дані, паролі або SMS-коди»* — aligned with NBU anti-fraud guidance; the page reads like a calm bank-confirmation receipt, not a marketing page) — but the strongest anti-phishing signal is the **partial-detail rendering itself** (a page that already shows the patient's real date/time can't be a generic scam). All branding is inline SVG/CSS/base64 + a **system-font stack** (no webfonts — faster, Cyrillic-complete, asset-rule-compliant); **every visual choice — the measured palette/contrast, the system-font stack, the logo treatment, spacing/shape — is locked in §5.8 and `docs/design/design-tokens.json` (ADR-022), with `docs/design/mockups/confirm-page.html` as the build reference + §6.5 Playwright seed.** **Information hierarchy (top→bottom):** clinic identity → the appointment fact (large) → the two actions → "why you got this" → the verifiable clinic phone as a one-tap **`tel:` link**. **Action effort:** **Confirm stays strictly one tap** (no extra step — it is non-destructive and the high-volume action; adding friction sheds completions for zero safety gain); a warm **post-confirm closure page** (*«Дякуємо! Запис підтверджено»*) gives certainty and curbs re-taps. **Cancel interstitial — reschedule-first (a cancel is lost revenue; a reschedule retains it):** the interstitial foregrounds **"call to reschedule"** (the `tel:` clinic phone) *above* the destructive confirm (labelled *«Скасувати запис без перенесення»* so the patient distinguishes reschedule from a final cancel, with a safe *«Ні, залишити запис»* back-out), keeping the second nonce-backed POST as the locked safety gate but converting would-be cancels into reschedules; a **post-cancel page** still offers the reschedule call (full Ukrainian copy in §9.3). **Accessibility / resilience:** **no JavaScript required** — Confirm/Cancel are server-rendered `<form>` POSTs with the nonce as a hidden field, so the flow completes on an old WebView, a JS-disabled browser, or slow mobile data (this *aligns* with the asset rule — a few-KB self-contained HTML doc); real semantic `<button>`s, a single `<h1>`, `lang="uk"`, **≥48 px tap targets** with generous spacing (an older patient must not fat-finger Cancel), **WCAG-AA contrast** with Confirm/Cancel distinguished by **label + position, not colour alone**, and **zoom never disabled** (no `user-scalable=no`; reflows at 200%). The truly **link-averse patient** is caught by the clinic phone in both SMS bodies (§4.2) and the dashboard **no-reply staff call queue** (§5.2 staff row) — the designed path for "I will only call". |
-| **CRM write-back (guarded)** | Claim a short-lived **per-visit CRM write lease** before touching ClinicCards, then re-fetch the visit immediately before writing and **compare it to the facts shown on the page** — if it changed since render or is no longer in an action-allowed status (`cliniccards_status_policy`), **do not write; re-render current facts and flag**. Otherwise build the all-fields `PUT` body **from this immediate re-fetch only**: Cancel → `PUT status=CANCELLED` (**the default — preserves history**; `DELETE` is a staff-approved fallback only, since ClinicCards drops deleted visits from history/reports); Confirm → policy-gated `PUT status=CONFIRMED`. **Re-fetch once more after the `PUT`** to confirm the landed status; record outcome + errors (`crm_writeback_ok`, `audit_log`), then release the lease. Re-fetch-before-write shrinks but cannot fully close the TOCTOU window without a vendor concurrency primitive (C3); the lease serializes our own concurrent writes to one visit without holding a database transaction open across ClinicCards HTTP calls (§5.6, ADR-012). |
-| **Dashboard** (one web page, Supabase Auth) | (1) a single **"Message next day"** button (POST → `run-reminders`; idempotent) that **shows the computed Europe/Kyiv `target_date`** before/after firing; (2) a **live status board of all of tomorrow's appointments** — one row per patient with send state + response, distinguishing **No reply (still active)**, **No reply (moved/cancelled by staff after the message — `superseded`)**, **Confirmed**, **Cancelled (write-back OK)**, and **Confirmed/Cancelled (write-back conflict/failed)** — updating through the day as patients tap the link, **grouped/filterable by status** so staff work the Cancelled (reschedule) and No-reply (chase) lists at end of day; (3) a **needs-attention** list (no number / opted out / write-back failed / `skip_reason` / unresolved `send_unknown` / `reopened_same_id` / **`pending_staff_review`** — a circuit-breaker-held cancel awaiting staff review, resolved by bulk-approve-safe or close-without-write, not forced per-item); (4) a **template editor** that **validates on save** (required placeholders incl. `{{confirm_url}}`; rendered Ukrainian sample; estimated SMS segment count — warn above 2 segments, hard-confirm above 3; test-send to a staff number); (5) a **4-number trust panel** (header shows `target_date` + Kyiv timestamp): **CRM visits / remindable** · **SMS handled (sent + known-skips over remindable)** · **problems (failed · unresolved unknown · unaccounted)** · **responses so far** — **green** only when every current remindable appointment is sendable and every sendable reminder is accepted (no known-skips, failures, pending/sending, unresolved unknowns, or unaccounted visits), **amber** when all current remindable appointments are accounted for but staff action is needed (known-skips such as no phone / disabled preference), **red** on failed/unresolved-unknown/unaccounted or pending-past-deadline, and **red (not yesterday's green) if no `reminder_days` row exists for today's Kyiv `target_date` by 12:30** (ADR-013); a **persistent "current mode" banner** (SHADOW / SEED / CANARY / LIVE, read from `SEND_MODE`/`CRM_WRITE_MODE`, §6.6/ADR-024) in a distinct colour for any non-`full` mode, so staff always know whether real messages and real CRM writes are happening (a non-`full` mode is never silent; shadow/seed run rows are annotated "would have sent" / "sent to staff test number" so a test run is never mistaken for the real thing); (6) an owner **value panel** (separate from the operational trust panel): **no-show & empty-slot rate vs the pre-go-live baseline** · **cancelled-slot refill rate** · **cancel-write-back SLA** (% written ≤5 min) · **delivery + action rate** (action ÷ delivered, *not* scanner-contaminated page views — §5.4) · **estimated staff-min saved** — the owner's "is it working?" view, refreshed per `target_date` (ADR-017, §6.2; some inputs are staff-entered or CRM-derived — wiring deferred to the data-layer/impl owner); and (7) **staff-workflow rules baked into the UI** (the staff-time levers, §6.2/ADR-017): no-reply calls are **batched after the afternoon catch-up** (not monitored continuously), the no-reply queue **sorts by appointment time then slot length**, the **cancelled queue is separate and worked first** when a write-back failed, a **one-click call-list/export** carries patient display + last-4 + ClinicCards link + appointment time + outcome buttons (`confirmed_by_phone` / `cancelled_manually` / `rescheduled` / `could_not_reach`) plus an optional **no-reply reason tag** (`did_not_see_sms` / `distrusts_link` / `site_did_not_open` / `prefers_call` / `did_not_understand_confirm` / `no_longer_attending` / `other` — the engagement-leak diagnostic, §6.2), **confirmed-by-link patients are excluded from call lists by default**, and the **template editor is owner/manager-only** (not a daily reception task). Reads `reminder_runs` + `reminder_days` + `reminder_messages` for the latest `target_date`. **Visual theme:** the dashboard shares the §5.8 brand tokens (navy `#0A3576`, the system-font stack, the Dentino wordmark) for cross-surface consistency — a clean functional admin UI, not the public trust surface, so the no-asset/no-JS rules don't bind it (ADR-022); mock at `docs/design/mockups/dashboard.html`. |
+| Component                                                                          | Responsibility                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`run-reminders` (Edge Fn, cron + manual)**                                       | Append a run row (execution log, including `pass_kind='initial'                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| **`smsSender`**                                                                    | Send one SMS via the UA provider (registered alpha sender); return `{providerMessageId, status}` — and an explicit **`unknown`** outcome on timeout/ambiguous response so the caller marks `send_unknown` (never a blind resend — §5.6). Pass the provider's **client idempotency key** keyed on `reminder_message_id`+`appointment_fingerprint` when supported (provider capability is a build-time confirmation, §10; ADR-012). Ingest delivery-status callbacks if offered (`sent`=accepted ≠ `delivered`). The **only** sender in v1; app-channel senders slot in behind the same `send()` interface later (§4.3).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| **`confirm` page (Edge Fn, public, app-only origin `r.dentino.com.ua/r/<token>`)** | Resolve the reminder by **HMAC digest** of the path token (never store/log the raw token); **re-fetch the current ClinicCards visit on page open** and render the _current_ date/time — if the visit is terminal (cancelled/visited/…) or has moved since the SMS, show a no-action page with the latest facts rather than acting on stale data. **`GET` strictly renders only** (no "opened"/engagement write — safe for SMS link-previews/security scanners, §5.4) and shows **partial detail** (first name + last initial · date · time · clinic) so a shared-phone holder sees _what_ they'd act on. **Confirm** = one nonce-backed `POST`; **Cancel** first renders a **confirmation interstitial** and only the second, nonce-backed `POST` records intent → the **guarded** CRM write-back (re-fetch + fingerprint-compare, §5.6). The capability is **single-use** (`action_locked_at`), **expires** at the appointment start, and a Cancel is gated by the **mass-cancel circuit-breaker** (§6.2). The page shows the clinic phone **+380 67 987 6111** and a **footer opt-out** — itself a nonce-backed `POST` (never a `GET`) that writes a `consent_events` row and sets `sms_reminders_enabled=false` (§5.6). No provider inbound webhook needed in v1 (ADR-014, §5.4). **Page-UX design (the engagement surface — §6.2, ADR-014):** the page is the project's trust-and-action surface, so it is designed for a phishing-wary, mixed-age, low-end-Android, Cyrillic-only base, _within_ the locked no-third-party-assets rule (§6.3). **Trust:** an **inline-SVG Dentino wordmark + brand-colour header**, explicit clinic identity (_«Стоматологія Dentino, Львів»_), and a one-line **"why you got this"** (_«Ви отримали це, бо у вас запланований запис у Dentino»_), and an explicit **anti-scam line** (_«Ми не просимо оплату, банківські дані, паролі або SMS-коди»_ — aligned with NBU anti-fraud guidance; the page reads like a calm bank-confirmation receipt, not a marketing page) — but the strongest anti-phishing signal is the **partial-detail rendering itself** (a page that already shows the patient's real date/time can't be a generic scam). All branding is inline SVG/CSS/base64 + a **system-font stack** (no webfonts — faster, Cyrillic-complete, asset-rule-compliant); **every visual choice — the measured palette/contrast, the system-font stack, the logo treatment, spacing/shape — is locked in §5.8 and `docs/design/design-tokens.json` (ADR-022), with `docs/design/mockups/confirm-page.html` as the build reference + §6.5 Playwright seed.** **Information hierarchy (top→bottom):** clinic identity → the appointment fact (large) → the two actions → "why you got this" → the verifiable clinic phone as a one-tap **`tel:` link**. **Action effort:** **Confirm stays strictly one tap** (no extra step — it is non-destructive and the high-volume action; adding friction sheds completions for zero safety gain); a warm **post-confirm closure page** (_«Дякуємо! Запис підтверджено»_) gives certainty and curbs re-taps. **Cancel interstitial — reschedule-first (a cancel is lost revenue; a reschedule retains it):** the interstitial foregrounds **"call to reschedule"** (the `tel:` clinic phone) _above_ the destructive confirm (labelled _«Скасувати запис без перенесення»_ so the patient distinguishes reschedule from a final cancel, with a safe _«Ні, залишити запис»_ back-out), keeping the second nonce-backed POST as the locked safety gate but converting would-be cancels into reschedules; a **post-cancel page** still offers the reschedule call (full Ukrainian copy in §9.3). **Accessibility / resilience:** **no JavaScript required** — Confirm/Cancel are server-rendered `<form>` POSTs with the nonce as a hidden field, so the flow completes on an old WebView, a JS-disabled browser, or slow mobile data (this _aligns_ with the asset rule — a few-KB self-contained HTML doc); real semantic `<button>`s, a single `<h1>`, `lang="uk"`, **≥48 px tap targets** with generous spacing (an older patient must not fat-finger Cancel), **WCAG-AA contrast** with Confirm/Cancel distinguished by **label + position, not colour alone**, and **zoom never disabled** (no `user-scalable=no`; reflows at 200%). The truly **link-averse patient** is caught by the clinic phone in both SMS bodies (§4.2) and the dashboard **no-reply staff call queue** (§5.2 staff row) — the designed path for "I will only call". |
+| **CRM write-back (guarded)**                                                       | Claim a short-lived **per-visit CRM write lease** before touching ClinicCards, then re-fetch the visit immediately before writing and **compare it to the facts shown on the page** — if it changed since render or is no longer in an action-allowed status (`cliniccards_status_policy`), **do not write; re-render current facts and flag**. Otherwise build the all-fields `PUT` body **from this immediate re-fetch only**: Cancel → `PUT status=CANCELLED` (**the default — preserves history**; `DELETE` is a staff-approved fallback only, since ClinicCards drops deleted visits from history/reports); Confirm → policy-gated `PUT status=CONFIRMED`. **Re-fetch once more after the `PUT`** to confirm the landed status; record outcome + errors (`crm_writeback_ok`, `audit_log`), then release the lease. Re-fetch-before-write shrinks but cannot fully close the TOCTOU window without a vendor concurrency primitive (C3); the lease serializes our own concurrent writes to one visit without holding a database transaction open across ClinicCards HTTP calls (§5.6, ADR-012).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| **Dashboard** (one web page, Supabase Auth)                                        | (1) a single **"Message next day"** button (POST → `run-reminders`; idempotent) that **shows the computed Europe/Kyiv `target_date`** before/after firing; (2) a **live status board of all of tomorrow's appointments** — one row per patient with send state + response, distinguishing **No reply (still active)**, **No reply (moved/cancelled by staff after the message — `superseded`)**, **Confirmed**, **Cancelled (write-back OK)**, and **Confirmed/Cancelled (write-back conflict/failed)** — updating through the day as patients tap the link, **grouped/filterable by status** so staff work the Cancelled (reschedule) and No-reply (chase) lists at end of day; (3) a **needs-attention** list (no number / opted out / write-back failed / `skip_reason` / unresolved `send_unknown` / `reopened_same_id` / **`pending_staff_review`** — a circuit-breaker-held cancel awaiting staff review, resolved by bulk-approve-safe or close-without-write, not forced per-item); (4) a **template editor** that **validates on save** (required placeholders incl. `{{confirm_url}}`; rendered Ukrainian sample; estimated SMS segment count — warn above 2 segments, hard-confirm above 3; test-send to a staff number); (5) a **4-number trust panel** (header shows `target_date` + Kyiv timestamp): **CRM visits / remindable** · **SMS handled (sent + known-skips over remindable)** · **problems (failed · unresolved unknown · unaccounted)** · **responses so far** — **green** only when every current remindable appointment is sendable and every sendable reminder is accepted (no known-skips, failures, pending/sending, unresolved unknowns, or unaccounted visits), **amber** when all current remindable appointments are accounted for but staff action is needed (known-skips such as no phone / disabled preference), **red** on failed/unresolved-unknown/unaccounted or pending-past-deadline, and **red (not yesterday's green) if no `reminder_days` row exists for today's Kyiv `target_date` by 12:30** (ADR-013); a **persistent "current mode" banner** (SHADOW / SEED / CANARY / LIVE, read from `SEND_MODE`/`CRM_WRITE_MODE`, §6.6/ADR-024) in a distinct colour for any non-`full` mode, so staff always know whether real messages and real CRM writes are happening (a non-`full` mode is never silent; shadow/seed run rows are annotated "would have sent" / "sent to staff test number" so a test run is never mistaken for the real thing); (6) an owner **value panel** (separate from the operational trust panel): **no-show & empty-slot rate vs the pre-go-live baseline** · **cancelled-slot refill rate** · **cancel-write-back SLA** (% written ≤5 min) · **delivery + action rate** (action ÷ delivered, _not_ scanner-contaminated page views — §5.4) · **estimated staff-min saved** — the owner's "is it working?" view, refreshed per `target_date` (ADR-017, §6.2; some inputs are staff-entered or CRM-derived — wiring deferred to the data-layer/impl owner); and (7) **staff-workflow rules baked into the UI** (the staff-time levers, §6.2/ADR-017): no-reply calls are **batched after the afternoon catch-up** (not monitored continuously), the no-reply queue **sorts by appointment time then slot length**, the **cancelled queue is separate and worked first** when a write-back failed, a **one-click call-list/export** carries patient display + last-4 + ClinicCards link + appointment time + outcome buttons (`confirmed_by_phone` / `cancelled_manually` / `rescheduled` / `could_not_reach`) plus an optional **no-reply reason tag** (`did_not_see_sms` / `distrusts_link` / `site_did_not_open` / `prefers_call` / `did_not_understand_confirm` / `no_longer_attending` / `other` — the engagement-leak diagnostic, §6.2), **confirmed-by-link patients are excluded from call lists by default**, and the **template editor is owner/manager-only** (not a daily reception task). Reads `reminder_runs` + `reminder_days` + `reminder_messages` for the latest `target_date`. **Visual theme:** the dashboard shares the §5.8 brand tokens (navy `#0A3576`, the system-font stack, the Dentino wordmark) for cross-surface consistency — a clean functional admin UI, not the public trust surface, so the no-asset/no-JS rules don't bind it (ADR-022); mock at `docs/design/mockups/dashboard.html`.                                                                                                                                  |
 
-> **Claim-time token invariant:** the `tracking_token` generation step in `run-reminders` is part of the per-message `pending`/retryable-`failed` → `sending` claim (§5.7b), not durable materialization. A sendable `pending` row has no raw token and normally no digest; the claimer mints the raw 128-bit token in memory, writes only the HMAC digest + expiry in the same committed claim, renders the SMS, and then forgets the raw value. If the process dies after the claim but before/around the provider call, the row is conservatively reaped to `send_unknown` rather than storing a raw token or reconstructing one.
+> **Claim-time token invariant:** the `tracking_token` generation step in
+> `run-reminders` is part of the per-message `pending`/retryable-`failed` →
+> `sending` claim (§5.7b), not durable materialization. A sendable `pending` row
+> has no raw token and normally no digest; the claimer mints the raw 128-bit
+> token in memory, writes only the HMAC digest + expiry in the same committed
+> claim, renders the SMS, and then forgets the raw value. If the process dies
+> after the claim but before/around the provider call, the row is conservatively
+> reaped to `send_unknown` rather than storing a raw token or reconstructing
+> one.
 
 ### 5.3 Data Model Design (Postgres)
 
-> **Schema convention (ADR-019, §6.3):** in production these base tables live in a private **`app`** schema (never the API-exposed `public` schema); public RPCs live in **`api`**, HMAC/secret helpers in **`private`**, the purge/reaper in **`maintenance`**. The unqualified / `public.`-qualified names in the SQL blocks of §5.3 and §5.7 are **shorthand for `app.`** — read `reminder_messages` as `app.reminder_messages`. Only `api` is reachable through PostgREST/the Data API.
+> **Schema convention (ADR-019, §6.3):** in production these base tables live in
+> a private **`app`** schema (never the API-exposed `public` schema); public
+> RPCs live in **`api`**, HMAC/secret helpers in **`private`**, the purge/reaper
+> in **`maintenance`**. The unqualified / `public.`-qualified names in the SQL
+> blocks of §5.3 and §5.7 are **shorthand for `app.`** — read
+> `reminder_messages` as `app.reminder_messages`. Only `api` is reachable
+> through PostgREST/the Data API.
 
 ```sql
 -- Patients (mirrors ClinicCards patient_id; stores the resolved channel)
@@ -507,9 +1372,9 @@ create table reminder_messages (
   send_attempt_count int not null default 0,
   last_attempt_at    timestamptz,
   provider_message_id text,
-  tracking_token_digest text unique,                -- HMAC-SHA256(TOKEN_PEPPER, raw_token); raw 128-bit token rides ONLY in the SMS, never at rest (ADR-014, §6.3)
+  tracking_token_digest bytea unique,               -- HMAC-SHA256(TOKEN_PEPPER, raw_token), bytea+octet_length=32 CHECK (t9x.22 Q1: adopted over text — half the bytes, native compare, enforceable length); raw 128-bit token rides ONLY in the SMS, never at rest (ADR-014, §6.3)
   token_expires_at   timestamptz,                   -- capability expires at appointment start (or earlier); expired links act on nothing
-  action_nonce_digest text,                         -- anti-prefetch + render-fingerprint nonce echoed by POST /action (signed, page-rendered; unifies the §5.6 render-fingerprint)
+  action_nonce_digest bytea,                         -- anti-prefetch + render-fingerprint nonce echoed by POST /action (signed, page-rendered; unifies the §5.6 render-fingerprint) — bytea+octet_length=32 CHECK (t9x.22 Q1)
   action_nonce_expires_at timestamptz,
   patient_display_snapshot text,                    -- minimal page detail at send: "first name + last initial · date · time" (no phone/clinical)
   response           text check (response in ('confirm','cancel')), -- recorded ONLY by a valid nonce-backed POST /action (never by GET)
@@ -561,8 +1426,9 @@ alter table reminder_messages add constraint claimed_or_live_token_required chec
   status not in ('sending','sent','delivered','send_unknown')
   or (tracking_token_digest is not null and token_expires_at is not null)
 );
--- Digest column note: store the HMAC as `bytea` (with `check (octet_length(tracking_token_digest)=32)`) rather than
--- hex `text` — half the bytes and no case/encoding ambiguity; if kept as text, add a 64-char hex-format CHECK.
+-- Digest column note (ADOPTED, t9x.22 Q1): the HMAC is stored as `bytea` with `check (octet_length(...)=32)` —
+-- half the bytes, native compare, no case/encoding ambiguity, enforceable exact length. The schema block above
+-- and 0001_core_schema.sql:153/155 use `bytea`; `private.token_digest()` returns `bytea` and all RPCs compare bytea=bytea.
 
 -- Single-use is IRREVERSIBLE from any path (DB-enforced, not application-hoped — hardens ADR-014/§5.6).
 -- Once a confirm/cancel is recorded, the public surface can never un-lock, reverse, or re-respond:
@@ -753,30 +1619,101 @@ create table crm_visit_facts (
 create index crm_visit_facts_by_target_date on crm_visit_facts (target_date);  -- reconciliation by day
 ```
 
-> **Why these tables:** `reminder_runs` is an append-only execution log that powers run history. **Idempotency lives on `reminder_messages`:** the partial-unique `(visit_id, target_date)` over *ordinary* reminders means cron double-fires, double-clicks, and deliberate re-runs can never duplicate a reminder **row** (a re-run only picks up `pending` / retryable pre-submit `failed` rows) — and the `reminder_days` lease + per-message `sending` claim extend that guarantee to the *outbound SMS* a unique key can't protect (ADR-012; a `send_unknown`, whose outcome we couldn't record, is flagged for staff, **never auto-retried**). A second partial-unique key over `(visit_id, target_date, message_kind, appointment_fingerprint)` lets a **materially changed appointment** (moved day/time) get exactly one explicit *change notice*, superseding the now-stale reminder (ADR-008). `reminder_messages` is the per-patient reminder package (display snapshot, appointment time, send state, response, action) — **one raw capability token per claimed outbound message, minted at send-claim time and stored only as `tracking_token_digest`**, so a patient with two same-day visits gets two separate links and there's zero cross-patient or cross-appointment confusion. `cliniccards_status_policy` makes the **remindable-status mapping data-driven** (a vendor answer or clinic policy change is a **tracked data migration**, decoupled from application code, *not* a Supabase-dashboard hot-edit; unknown statuses fail closed — ADR-011/ADR-003). `message_templates` makes wording **swappable without deploys** and supports UA/RU. `inbound_events` and `crm_fetch_log` keep **write-time-redacted** provider/CRM payloads (phones never persisted — Tension 6, ADR-016) for short-window debug; the durable, non-PII answer to "why did we message X / miss Y?" is the lean **`crm_visit_facts`** ledger (visit id · status · remindable · time), which the run derives once at fetch so reconciliation joins a typed relation instead of re-parsing raw jsonb and the answer outlives the raw-payload purge. `reminder_days` holds the per-target-date **processing lease** (only one firing acts at a time) and the **reconciliation rollup** the trust panel + heartbeat read, computed from `crm_visit_facts` + the always-materialized `reminder_messages` rows. `crm_visit_facts` is the **one** structure added beyond the original lean set, and it is **not** the CRM-mirror / CDC / per-attempt-outbox table ADR-008 rejected — change-detection still keys on `reminder_messages.appointment_fingerprint` (consistent with ADR-008's lean stance; ADR-012/013; §5.7). `consent_events` is the append-only lawful-basis / opt-out audit (ADR-015); `cancellation_circuits` backs the mass-cancel breaker (ADR-014); `crm_visit_write_locks` serializes our own confirm-page write-backs without holding a DB transaction across ClinicCards HTTP calls (ADR-007/012). Per **ADR-016**, full phone numbers are **not** persisted (`patients` keeps only an HMAC + last-4), and a daily `maintenance.purge_privacy()` (`pg_cron`) enforces the §4.5 retention windows, writing a counts-only purge-audit row.
+> **Why these tables:** `reminder_runs` is an append-only execution log that
+> powers run history. **Idempotency lives on `reminder_messages`:** the
+> partial-unique `(visit_id, target_date)` over _ordinary_ reminders means cron
+> double-fires, double-clicks, and deliberate re-runs can never duplicate a
+> reminder **row** (a re-run only picks up `pending` / retryable pre-submit
+> `failed` rows) — and the `reminder_days` lease + per-message `sending` claim
+> extend that guarantee to the _outbound SMS_ a unique key can't protect
+> (ADR-012; a `send_unknown`, whose outcome we couldn't record, is flagged for
+> staff, **never auto-retried**). A second partial-unique key over
+> `(visit_id, target_date, message_kind, appointment_fingerprint)` lets a
+> **materially changed appointment** (moved day/time) get exactly one explicit
+> _change notice_, superseding the now-stale reminder (ADR-008).
+> `reminder_messages` is the per-patient reminder package (display snapshot,
+> appointment time, send state, response, action) — **one raw capability token
+> per claimed outbound message, minted at send-claim time and stored only as
+> `tracking_token_digest`**, so a patient with two same-day visits gets two
+> separate links and there's zero cross-patient or cross-appointment confusion.
+> `cliniccards_status_policy` makes the **remindable-status mapping
+> data-driven** (a vendor answer or clinic policy change is a **tracked data
+> migration**, decoupled from application code, _not_ a Supabase-dashboard
+> hot-edit; unknown statuses fail closed — ADR-011/ADR-003). `message_templates`
+> makes wording **swappable without deploys** and supports UA/RU.
+> `inbound_events` and `crm_fetch_log` keep **write-time-redacted** provider/CRM
+> payloads (phones never persisted — Tension 6, ADR-016) for short-window debug;
+> the durable, non-PII answer to "why did we message X / miss Y?" is the lean
+> **`crm_visit_facts`** ledger (visit id · status · remindable · time), which
+> the run derives once at fetch so reconciliation joins a typed relation instead
+> of re-parsing raw jsonb and the answer outlives the raw-payload purge.
+> `reminder_days` holds the per-target-date **processing lease** (only one
+> firing acts at a time) and the **reconciliation rollup** the trust panel +
+> heartbeat read, computed from `crm_visit_facts` + the always-materialized
+> `reminder_messages` rows. `crm_visit_facts` is the **one** structure added
+> beyond the original lean set, and it is **not** the CRM-mirror / CDC /
+> per-attempt-outbox table ADR-008 rejected — change-detection still keys on
+> `reminder_messages.appointment_fingerprint` (consistent with ADR-008's lean
+> stance; ADR-012/013; §5.7). `consent_events` is the append-only lawful-basis /
+> opt-out audit (ADR-015); `cancellation_circuits` backs the mass-cancel breaker
+> (ADR-014); `crm_visit_write_locks` serializes our own confirm-page write-backs
+> without holding a DB transaction across ClinicCards HTTP calls (ADR-007/012).
+> Per **ADR-016**, full phone numbers are **not** persisted (`patients` keeps
+> only an HMAC + last-4), and a daily `maintenance.purge_privacy()` (`pg_cron`)
+> enforces the §4.5 retention windows, writing a counts-only purge-audit row.
 
 ### 5.4 API Design (our endpoints)
 
-| Method + Path (Edge Fn) | Purpose | Auth |
-|---|---|---|
-| `POST /run-reminders` | Trigger a run (cron/external scheduler calls it; dashboard button calls it). Body: `{trigger, pass_kind?, target_date?}` where `pass_kind` defaults to `initial` for the noon window, `catchup` for the scheduled late-afternoon firing, and `manual` for the dashboard button; if `target_date` is omitted, compute tomorrow in Europe/Kyiv and **return the computed date** (the dashboard shows it before/after the run). **Claims the `reminder_days` lease, then processes synchronously and returns after reconciliation** (v1 does *not* use `202`/`waitUntil`; the external heartbeat — not the HTTP status — proves completion, ADR-013/018, §5.2/§6.4). Idempotent — a concurrent firing is a no-op, a duplicate completed initial firing is a no-op, and catch-up/manual rescans never re-send an already-messaged appointment (lease + claim + ordinary-reminder key `visit_id`+`target_date`); safe to call repeatedly. | service key / dashboard JWT |
-| `GET /r/{token}` · `HEAD /r/{token}` | Public reminder page. **Strictly side-effect-free** — resolves the HMAC digest, renders the page (or a neutral "expired/invalid" page); **no writes** to any table or CRM, no "opened"/engagement counter. Headers: `Cache-Control: no-store`, `Referrer-Policy: no-referrer`, `X-Robots-Tag: noindex,nofollow,noarchive`; no third-party assets. | capability token (digest lookup) |
-| `POST /r/{token}/prepare` | Mints/returns a short-lived, signed **action nonce** (and, for Cancel, the confirmation interstitial). **No** response recorded, **no** CRM call — spammable without effect. **Only an *actionable* row mints a nonce** — `status in ('sent','delivered','send_unknown') and superseded_at is null and token_expires_at > now()`; a superseded/expired/skipped/pending row mints nothing and renders the neutral no-action page (§5.5/§5.6, ADR-008/020). `send_unknown` is intentionally included: if a patient has the link, the ambiguous SMS did land. | capability token |
-| `POST /r/{token}/action` | **The only state-changing endpoint.** Requires a valid+unexpired token digest, a valid+unexpired **action nonce** scoped to the action, same-origin signals (`Origin` / `Sec-Fetch-Site` not cross-site), a `Content-Type` allowlist, **no `_method` override, no `?action=` in the query**, and a compare-and-set on `action_locked_at is null` (single-use) **that re-checks the same actionable-row predicate as `/prepare` inside the CAS — `status in ('sent','delivered','send_unknown') and superseded_at is null and token_expires_at > now()` (§5.7c) — and additionally requires the live re-fetch's *current* CRM appointment start to still be in the future** (a move-*earlier* can outdate the stored `token_expires_at`; §5.6, ADR-008/020). A valid action on a `send_unknown` row promotes the send state to `delivered`/resolved-by-action before CRM write-back, because the tap proves delivery and clears the staff-owned ambiguity. `action=confirm` → policy-gated `PUT CONFIRMED`; `action=cancel` → circuit-breaker check, then guarded `PUT CANCELLED`; **`action=unsubscribe`** → write `consent_events(opted_out)` + `sms_reminders_enabled=false` (footer opt-out; it does **not** set `response`, `action_locked_at`, or `action_taken`, and does not consume the Confirm/Cancel capability). | capability token + action nonce |
-| `POST /webhooks/sms-status` | *(optional)* **TurboSMS** delivery-status (DLR) webhook (delivered/failed). | verify `signature = SHA1(secret + id)` |
-| `GET /board?date=tomorrow` | The dashboard status board **+ the 4-number trust panel** (CRM visits/remindable, SMS handled, problems = failed·unresolved-unknown·unaccounted, responses-so-far), read from the `reminder_days` reconciliation rollup + `reminder_messages`. | dashboard JWT |
-| `GET /patients?needs_attention=1` | The needs-attention list: no number / opted out / failed-or-conflicted write-back / `skipped` with a reason / unresolved `send_unknown` / `reopened_same_id` / `pending_staff_review` (circuit-breaker-held cancel). | dashboard JWT |
-| `GET /healthz` | Public liveness of the confirm-page function (uptime-monitor target) — **distinct from the noon-run heartbeat** (ADR-013). | none |
-| `PUT /templates/{id}` | Edit a template (server re-validates placeholders + segment estimate). | dashboard JWT |
+| Method + Path (Edge Fn)              | Purpose                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | Auth                                   |
+| ------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- |
+| `POST /run-reminders`                | Trigger a run (cron/external scheduler calls it; dashboard button calls it). Body: `{trigger, pass_kind?, target_date?}` where `pass_kind` defaults to `initial` for the noon window, `catchup` for the scheduled late-afternoon firing, and `manual` for the dashboard button; if `target_date` is omitted, compute tomorrow in Europe/Kyiv and **return the computed date** (the dashboard shows it before/after the run). **Claims the `reminder_days` lease, then processes synchronously and returns after reconciliation** (v1 does _not_ use `202`/`waitUntil`; the external heartbeat — not the HTTP status — proves completion, ADR-013/018, §5.2/§6.4). Idempotent — a concurrent firing is a no-op, a duplicate completed initial firing is a no-op, and catch-up/manual rescans never re-send an already-messaged appointment (lease + claim + ordinary-reminder key `visit_id`+`target_date`); safe to call repeatedly.                                                                                                                                                                                                                                                                                                                                                                                        | service key / dashboard JWT            |
+| `GET /r/{token}` · `HEAD /r/{token}` | Public reminder page. **Strictly side-effect-free** — resolves the HMAC digest, renders the page (or a neutral "expired/invalid" page); **no writes** to any table or CRM, no "opened"/engagement counter. Headers: `Cache-Control: no-store`, `Referrer-Policy: no-referrer`, `X-Robots-Tag: noindex,nofollow,noarchive`; no third-party assets.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           | capability token (digest lookup)       |
+| `POST /r/{token}/prepare`            | Mints/returns a short-lived, signed **action nonce** (and, for Cancel, the confirmation interstitial). **No** response recorded, **no** CRM call — spammable without effect. **Only an _actionable_ row mints a nonce** — `status in ('sent','delivered','send_unknown') and superseded_at is null and token_expires_at > now()`; a superseded/expired/skipped/pending row mints nothing and renders the neutral no-action page (§5.5/§5.6, ADR-008/020). `send_unknown` is intentionally included: if a patient has the link, the ambiguous SMS did land.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | capability token                       |
+| `POST /r/{token}/action`             | **The only state-changing endpoint.** Requires a valid+unexpired token digest, a valid+unexpired **action nonce** scoped to the action, same-origin signals (`Origin` / `Sec-Fetch-Site` not cross-site), a `Content-Type` allowlist, **no `_method` override, no `?action=` in the query**, and a compare-and-set on `action_locked_at is null` (single-use) **that re-checks the same actionable-row predicate as `/prepare` inside the CAS — `status in ('sent','delivered','send_unknown') and superseded_at is null and token_expires_at > now()` (§5.7c) — and additionally requires the live re-fetch's _current_ CRM appointment start to still be in the future** (a move-_earlier_ can outdate the stored `token_expires_at`; §5.6, ADR-008/020). A valid action on a `send_unknown` row promotes the send state to `delivered`/resolved-by-action before CRM write-back, because the tap proves delivery and clears the staff-owned ambiguity. `action=confirm` → policy-gated `PUT CONFIRMED`; `action=cancel` → circuit-breaker check, then guarded `PUT CANCELLED`; **`action=unsubscribe`** → write `consent_events(opted_out)` + `sms_reminders_enabled=false` (footer opt-out; it does **not** set `response`, `action_locked_at`, or `action_taken`, and does not consume the Confirm/Cancel capability). | capability token + action nonce        |
+| `POST /webhooks/sms-status`          | _(optional)_ **TurboSMS** delivery-status (DLR) webhook (delivered/failed).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | verify `signature = SHA1(secret + id)` |
+| `GET /board?date=tomorrow`           | The dashboard status board **+ the 4-number trust panel** (CRM visits/remindable, SMS handled, problems = failed·unresolved-unknown·unaccounted, responses-so-far), read from the `reminder_days` reconciliation rollup + `reminder_messages`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | dashboard JWT                          |
+| `GET /patients?needs_attention=1`    | The needs-attention list: no number / opted out / failed-or-conflicted write-back / `skipped` with a reason / unresolved `send_unknown` / `reopened_same_id` / `pending_staff_review` (circuit-breaker-held cancel).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | dashboard JWT                          |
+| `GET /healthz`                       | Public liveness of the confirm-page function (uptime-monitor target) — **distinct from the noon-run heartbeat** (ADR-013).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | none                                   |
+| `PUT /templates/{id}`                | Edit a template (server re-validates placeholders + segment estimate).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | dashboard JWT                          |
 
-ClinicCards calls (server→CRM): `GET /visits?from=&to=`, `GET /patients/{ids}`, `PUT /visits`, (`DELETE /visits`).
+ClinicCards calls (server→CRM): `GET /visits?from=&to=`, `GET /patients/{ids}`,
+`PUT /visits`, (`DELETE /visits`).
 
-**Backing DB roles & RPCs (§6.3, ADR-019).** The public `/r/*` function logs in as the dedicated low-privilege role **`dentino_confirm_api`** (no table grants; `EXECUTE` only on the **four** `api` RPCs `lookup_reminder_by_token` / `prepare_reminder_action` / `record_reminder_action` / **`finish_reminder_action`**) — **not** `service_role`. The fourth RPC records the CRM write-back outcome (`crm_writeback_ok`/error) + releases the write lease *after* the Edge Fn's ClinicCards `PUT`, so the no-table-grant caller never needs `UPDATE` nor `service_role`. `POST /run-reminders` uses **`dentino_run_api`** (or the service key); it is **not** internet-public. The dashboard's `GET /board` & `GET /patients?needs_attention=1` read **`api.v_*` `security_invoker` views** (no token/nonce/claim digests); `PUT /templates/{id}`, **held-cancel resolution**, and **SMS re-enable** are audited `SECURITY DEFINER` admin RPCs (`update_message_template`, `resolve_held_cancels`, `reenable_sms_reminders`) — staff (`authenticated`) get `EXECUTE` on these, never direct base-table writes.
+**Backing DB roles & RPCs (§6.3, ADR-019).** The public `/r/*` function logs in
+as the dedicated low-privilege role **`dentino_confirm_api`** (no table grants;
+`EXECUTE` only on the **four** `api` RPCs `lookup_reminder_by_token` /
+`prepare_reminder_action` / `record_reminder_action` /
+**`finish_reminder_action`**) — **not** `service_role`. The fourth RPC records
+the CRM write-back outcome (`crm_writeback_ok`/error) + releases the write lease
+_after_ the Edge Fn's ClinicCards `PUT`, so the no-table-grant caller never
+needs `UPDATE` nor `service_role`. `POST /run-reminders` uses
+**`dentino_run_api`** (or the service key); it is **not** internet-public. The
+dashboard's `GET /board` & `GET /patients?needs_attention=1` read **`api.v_*`
+`security_invoker` views** (no token/nonce/claim digests);
+`PUT /templates/{id}`, **held-cancel resolution**, and **SMS re-enable** are
+audited `SECURITY DEFINER` admin RPCs (`update_message_template`,
+`resolve_held_cancels`, `reenable_sms_reminders`) — staff (`authenticated`) get
+`EXECUTE` on these, never direct base-table writes.
 
-**Auto-fetch-immune method/state contract (ADR-014).** No business state changes from a URL alone — SMS link-previews and security gateways are *expected* to fetch URLs, so a fetch must never confirm, cancel, unsubscribe, or count as engagement:
-- **Forbidden:** any state change from `GET`/`HEAD`/`OPTIONS`, redirects, image/script loads, or query params; `?action=confirm|cancel|unsubscribe`, `_method=POST`, or auto-submitting forms; any CRM/consent write from a request missing a valid action nonce.
-- **Engagement = only a valid nonce-backed `/action` POST.** Page loads (incl. scanner/preview GETs) never update response/preference status or the cancellation circuit. Any GET access logs are **7-day, token-redacted** security diagnostics (§6.3), not product metrics.
-- The action nonce is **not** proof-of-humanity — a full headless browser that loads the page and clicks can't be distinguished without heavier friction (the accepted limit of login-free SMS links). It *does* make automatic GET/HEAD, preview-fetch, direct POST, URL-rewriting scanners, and form crawlers non-authoritative, and it doubles as the **signed render-fingerprint** the write-back compares (§5.6).
+**Auto-fetch-immune method/state contract (ADR-014).** No business state changes
+from a URL alone — SMS link-previews and security gateways are _expected_ to
+fetch URLs, so a fetch must never confirm, cancel, unsubscribe, or count as
+engagement:
+
+- **Forbidden:** any state change from `GET`/`HEAD`/`OPTIONS`, redirects,
+  image/script loads, or query params; `?action=confirm|cancel|unsubscribe`,
+  `_method=POST`, or auto-submitting forms; any CRM/consent write from a request
+  missing a valid action nonce.
+- **Engagement = only a valid nonce-backed `/action` POST.** Page loads (incl.
+  scanner/preview GETs) never update response/preference status or the
+  cancellation circuit. Any GET access logs are **7-day, token-redacted**
+  security diagnostics (§6.3), not product metrics.
+- The action nonce is **not** proof-of-humanity — a full headless browser that
+  loads the page and clicks can't be distinguished without heavier friction (the
+  accepted limit of login-free SMS links). It _does_ make automatic GET/HEAD,
+  preview-fetch, direct POST, URL-rewriting scanners, and form crawlers
+  non-authoritative, and it doubles as the **signed render-fingerprint** the
+  write-back compares (§5.6).
 
 ### 5.5 State Management
 
@@ -800,69 +1737,402 @@ pending ──claim+commit──▶ sending ──provider accepted──▶ sen
      active reminder → superseded ; new row → reschedule_notice (cross-day) | time_change_notice (same-day)
 ```
 
-Responses arrive asynchronously over hours (whenever the patient taps the link), so the dashboard **status board** is a **live view over the latest `target_date`** (read from `reminder_messages` directly), not a snapshot frozen at run end. A **`superseded`** row (its appointment moved/changed after sending) is shown distinctly from a genuine no-reply, and an **unresolved `send_unknown`** row is surfaced for a staff decision rather than silently retried. Before the provider call the row is **claimed** (`pending → sending`, committed), so a crash mid-send leaves a `sending` row (a later firing resolves a stale claim to `send_unknown`, never a blind re-send), not a silent gap; and **`sent` = provider-accepted, not handset-delivered** — a later delivery receipt confirms `delivered` or, on a failed DLR, marks the row `failed` for staff follow-up (ADR-012). No-response by end of day → shown as such and worked as the **staff call queue**. v1 stays **one ordinary reminder per appointment**, with explicit `reschedule_notice` / `time_change_notice` as the only patient-text exception for materially changed facts; a second-SMS no-reply nudge is a later experiment **only if that policy is explicitly relaxed** (then fired once, a few hours after send, to non-responders only; it does **not** reuse the initial token — the raw token is never stored — but **re-issues** the capability (a fresh token; the prior token killed via I3's `token_expires_at = now()`), so the appointment keeps exactly **one live link and one possible action** — ADR-021/§4.2). **Future two-way scheduling** would add a per-conversation state machine — which fits an app channel (§4.3) far better than one-way SMS.
+Responses arrive asynchronously over hours (whenever the patient taps the link),
+so the dashboard **status board** is a **live view over the latest
+`target_date`** (read from `reminder_messages` directly), not a snapshot frozen
+at run end. A **`superseded`** row (its appointment moved/changed after sending)
+is shown distinctly from a genuine no-reply, and an **unresolved
+`send_unknown`** row is surfaced for a staff decision rather than silently
+retried. Before the provider call the row is **claimed** (`pending → sending`,
+committed), so a crash mid-send leaves a `sending` row (a later firing resolves
+a stale claim to `send_unknown`, never a blind re-send), not a silent gap; and
+**`sent` = provider-accepted, not handset-delivered** — a later delivery receipt
+confirms `delivered` or, on a failed DLR, marks the row `failed` for staff
+follow-up (ADR-012). No-response by end of day → shown as such and worked as the
+**staff call queue**. v1 stays **one ordinary reminder per appointment**, with
+explicit `reschedule_notice` / `time_change_notice` as the only patient-text
+exception for materially changed facts; a second-SMS no-reply nudge is a later
+experiment **only if that policy is explicitly relaxed** (then fired once, a few
+hours after send, to non-responders only; it does **not** reuse the initial
+token — the raw token is never stored — but **re-issues** the capability (a
+fresh token; the prior token killed via I3's `token_expires_at = now()`), so the
+appointment keeps exactly **one live link and one possible action** —
+ADR-021/§4.2). **Future two-way scheduling** would add a per-conversation state
+machine — which fits an app channel (§4.3) far better than one-way SMS.
 
-**Single-use + engagement (ADR-014).** A valid link accepts **at most one successful confirm/cancel** — the first nonce-backed `POST /action` sets `action_locked_at`; later taps render the already-recorded response + the clinic phone (no Confirm-after-Cancel, un-cancel, or reversal from the public link — any change is staff-mediated, §5.6). A `cancel` blocked by the mass-cancel circuit-breaker lands in **`pending_staff_review`** (intent recorded, no CRM write) until staff resolve it via bulk-approve-safe or close it without a CRM write. `GET`/`HEAD` are **not** lifecycle transitions and never touch status, response, preference, or the cancellation circuit; the footer opt-out is a separate preference toggle (its own nonce-backed POST), not an `action_taken` state, and is allowed even after a confirm/cancel action.
+**Single-use + engagement (ADR-014).** A valid link accepts **at most one
+successful confirm/cancel** — the first nonce-backed `POST /action` sets
+`action_locked_at`; later taps render the already-recorded response + the clinic
+phone (no Confirm-after-Cancel, un-cancel, or reversal from the public link —
+any change is staff-mediated, §5.6). A `cancel` blocked by the mass-cancel
+circuit-breaker lands in **`pending_staff_review`** (intent recorded, no CRM
+write) until staff resolve it via bulk-approve-safe or close it without a CRM
+write. `GET`/`HEAD` are **not** lifecycle transitions and never touch status,
+response, preference, or the cancellation circuit; the footer opt-out is a
+separate preference toggle (its own nonce-backed POST), not an `action_taken`
+state, and is allowed even after a confirm/cancel action.
 
-**Canonical state machine (the single authoritative source for `status` × `action_taken` — every state reachable, every state with a defined exit).** A `reminder_messages` row carries two orthogonal lifecycles: a **send `status`** and, once a patient acts, an **`action_taken`** overlay. The §5.2/§5.6 prose and the §5.7 SQL are projections of this table; if they ever disagree, this table wins.
+**Canonical state machine (the single authoritative source for `status` ×
+`action_taken` — every state reachable, every state with a defined exit).** A
+`reminder_messages` row carries two orthogonal lifecycles: a **send `status`**
+and, once a patient acts, an **`action_taken`** overlay. The §5.2/§5.6 prose and
+the §5.7 SQL are projections of this table; if they ever disagree, this table
+wins.
 
-| `status` | entered when | exits to | owner / automated exit | terminal? |
-|---|---|---|---|---|
-| `pending` | row materialized for a sendable visit; no live token yet | `sending` (claim mints token digest/expiry) · `skipped` (pre-send reval fails) · `superseded` (facts moved) | any firing claims it; a later scheduled/manual firing closes materialization gaps | no |
-| `sending` | claimed + token digest/expiry committed *before* the provider call | `sent`/`failed`/`send_unknown` (outcome commit) · `send_unknown` (reaper) | run-reminders; **reaper** (next-firing / on-steal / `pg_cron`) on `send_claim_expires_at < now()` | no |
-| `sent` | provider accepted (`≠` delivered) | `delivered` (positive DLR) · `failed` (failed DLR) — only while `superseded_at is null` | smsSender DLR callback | terminal-OK |
-| `delivered` | positive DLR | — | — | yes |
-| `failed` | send error or failed DLR | `sending` (retryable **only if a proven pre-submit failure** — see the §5.5 phase note) · else terminal-staff | run-reminders / staff | staff-OK |
-| `skipped` | not sendable (`skip_reason`) | — (staff may act in the CRM) | run-reminders; needs-attention | yes |
-| `send_unknown` | ambiguous send, or reaped stale claim | `delivered` (valid nonce-backed patient action proves delivery) · otherwise staff resolution only; **never auto-retried** | confirm page / staff | intended staff-exit unless patient acts |
-| `superseded` | facts moved; replaced by a notice row | — (historical; old token killed) | run-reminders | yes |
+| `status`       | entered when                                                       | exits to                                                                                                                  | owner / automated exit                                                                            | terminal?                               |
+| -------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- | --------------------------------------- |
+| `pending`      | row materialized for a sendable visit; no live token yet           | `sending` (claim mints token digest/expiry) · `skipped` (pre-send reval fails) · `superseded` (facts moved)               | any firing claims it; a later scheduled/manual firing closes materialization gaps                 | no                                      |
+| `sending`      | claimed + token digest/expiry committed _before_ the provider call | `sent`/`failed`/`send_unknown` (outcome commit) · `send_unknown` (reaper)                                                 | run-reminders; **reaper** (next-firing / on-steal / `pg_cron`) on `send_claim_expires_at < now()` | no                                      |
+| `sent`         | provider accepted (`≠` delivered)                                  | `delivered` (positive DLR) · `failed` (failed DLR) — only while `superseded_at is null`                                   | smsSender DLR callback                                                                            | terminal-OK                             |
+| `delivered`    | positive DLR                                                       | —                                                                                                                         | —                                                                                                 | yes                                     |
+| `failed`       | send error or failed DLR                                           | `sending` (retryable **only if a proven pre-submit failure** — see the §5.5 phase note) · else terminal-staff             | run-reminders / staff                                                                             | staff-OK                                |
+| `skipped`      | not sendable (`skip_reason`)                                       | — (staff may act in the CRM)                                                                                              | run-reminders; needs-attention                                                                    | yes                                     |
+| `send_unknown` | ambiguous send, or reaped stale claim                              | `delivered` (valid nonce-backed patient action proves delivery) · otherwise staff resolution only; **never auto-retried** | confirm page / staff                                                                              | intended staff-exit unless patient acts |
+| `superseded`   | facts moved; replaced by a notice row                              | — (historical; old token killed)                                                                                          | run-reminders                                                                                     | yes                                     |
 
-| `action_taken` | entered when | exits to | owner |
-|---|---|---|---|
-| `none` (default) | row created | `confirmed`/`cancelled`/`pending_staff_review`/`error` via a valid `/action` POST | confirm page |
-| `confirmed` | valid Confirm → policy `PUT CONFIRMED` ok | — (single-use lock) | confirm page |
-| `cancelled` | valid Cancel → guarded `PUT CANCELLED` ok | — | confirm page |
-| `pending_staff_review` | Cancel held by the breaker (single-use lock still consumed) | `cancelled` (staff bulk-approve-safe → write) · `staff_closed_no_write` (staff closes without CRM write, audited) | staff dashboard |
-| `staff_closed_no_write` | staff reviewed a held cancel and deliberately did not write it to CRM | — (single-use lock remains consumed; staff note in `audit_log`) | staff |
-| `error` | guarded write-back failed (`crm_writeback_ok=false`) | staff-resolved (idempotent Cancel auto-retries first — §5.6) | staff |
+| `action_taken`          | entered when                                                          | exits to                                                                                                          | owner           |
+| ----------------------- | --------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | --------------- |
+| `none` (default)        | row created                                                           | `confirmed`/`cancelled`/`pending_staff_review`/`error` via a valid `/action` POST                                 | confirm page    |
+| `confirmed`             | valid Confirm → policy `PUT CONFIRMED` ok                             | — (single-use lock)                                                                                               | confirm page    |
+| `cancelled`             | valid Cancel → guarded `PUT CANCELLED` ok                             | —                                                                                                                 | confirm page    |
+| `pending_staff_review`  | Cancel held by the breaker (single-use lock still consumed)           | `cancelled` (staff bulk-approve-safe → write) · `staff_closed_no_write` (staff closes without CRM write, audited) | staff dashboard |
+| `staff_closed_no_write` | staff reviewed a held cancel and deliberately did not write it to CRM | — (single-use lock remains consumed; staff note in `audit_log`)                                                   | staff           |
+| `error`                 | guarded write-back failed (`crm_writeback_ok=false`)                  | staff-resolved (idempotent Cancel auto-retries first — §5.6)                                                      | staff           |
 
 **Invariants (each assertable by a TDD author):**
-- **I1 — Single-use.** At most one `confirmed`/`cancelled` per row, enforced by the `action_locked_at is null` CAS + the `one_action_requires_lock` CHECK + the `reminder_messages_action_lock_guard` trigger (§5.7c, §5.3).
-- **I2 — No human-only-exit state.** Every non-terminal `status` has a defined *automated* exit: `pending` → any firing; `sending` → reaper (next-firing **and** on-steal **and** `pg_cron` backstop); retryable pre-submit `failed` → retry. The **only** deliberately staff-owned send terminal is unresolved `send_unknown`, and that is deliberate safety ("possibly sent" must not be blind-resent), not a stuck state; if the patient later submits a valid action, I4 promotes it to `delivered` (ADR-018).
-- **I3 — Supersede kills the capability.** `superseded ⇒ token_expires_at ≤ now()` **and** `/action` refused (§5.6, §5.7c); a DLR cannot resurrect a superseded row's send-status.
-- **I4 — Confirm/Cancel response implies delivery.** `response is not null ⇒` the row reached the patient. If the row was `send_unknown`, the valid nonce-backed Confirm/Cancel action promotes its send status to `delivered` / resolved-by-action before write-back, because the tap proves the ambiguous send landed and clears it from the unresolved `send_unknown` problem bucket. Footer opt-out is a separate preference lifecycle and does not prove or mutate the Confirm/Cancel `action_taken` overlay.
 
-**Delivery-receipt precedence & `failed` phase (spec precision, v2.13/v2.16).** A late/out-of-order DLR follows fixed precedence: `delivered` is terminal for delivery-status and is **not** downgraded by a later `failed` callback; a DLR **never** overwrites `superseded` (§5.6) or unresolved `send_unknown` (a possibly-sent row stays staff-owned unless strict provider correlation proves the specific message landed). A valid patient action is the other proof path: it promotes `send_unknown → delivered` because the link was received and acted on. `failed` carries a **phase**: a *pre-submit* failure (provider rejected before accepting — proven unsent) is **retryable** by a later firing (`failed → sending`); a *post-accept* DLR failure is **terminal-staff** (don't re-send — it may have reached the handset). The phase rides in `error`/`skip_reason` (no new column; data-layer: reconcile if a typed `failure_phase` is preferred). The **CRM-write reaper** (ADR-020/§5.6) gives the `action_taken` overlay the same totality: `cancelled`/`confirmed` with `crm_writeback_ok is not true` is re-driven to a landed write or `error` — so the write-back path is **no human-only-exit** either.
+- **I1 — Single-use.** At most one `confirmed`/`cancelled` per row, enforced by
+  the `action_locked_at is null` CAS + the `one_action_requires_lock` CHECK +
+  the `reminder_messages_action_lock_guard` trigger (§5.7c, §5.3).
+- **I2 — No human-only-exit state.** Every non-terminal `status` has a defined
+  _automated_ exit: `pending` → any firing; `sending` → reaper (next-firing
+  **and** on-steal **and** `pg_cron` backstop); retryable pre-submit `failed` →
+  retry. The **only** deliberately staff-owned send terminal is unresolved
+  `send_unknown`, and that is deliberate safety ("possibly sent" must not be
+  blind-resent), not a stuck state; if the patient later submits a valid action,
+  I4 promotes it to `delivered` (ADR-018).
+- **I3 — Supersede kills the capability.**
+  `superseded ⇒ token_expires_at ≤ now()` **and** `/action` refused (§5.6,
+  §5.7c); a DLR cannot resurrect a superseded row's send-status.
+- **I4 — Confirm/Cancel response implies delivery.** `response is not null ⇒`
+  the row reached the patient. If the row was `send_unknown`, the valid
+  nonce-backed Confirm/Cancel action promotes its send status to `delivered` /
+  resolved-by-action before write-back, because the tap proves the ambiguous
+  send landed and clears it from the unresolved `send_unknown` problem bucket.
+  Footer opt-out is a separate preference lifecycle and does not prove or mutate
+  the Confirm/Cancel `action_taken` overlay.
+
+**Delivery-receipt precedence & `failed` phase (spec precision, v2.13/v2.16).**
+A late/out-of-order DLR follows fixed precedence: `delivered` is terminal for
+delivery-status and is **not** downgraded by a later `failed` callback; a DLR
+**never** overwrites `superseded` (§5.6) or unresolved `send_unknown` (a
+possibly-sent row stays staff-owned unless strict provider correlation proves
+the specific message landed). A valid patient action is the other proof path: it
+promotes `send_unknown → delivered` because the link was received and acted on.
+`failed` carries a **phase**: a _pre-submit_ failure (provider rejected before
+accepting — proven unsent) is **retryable** by a later firing
+(`failed → sending`); a _post-accept_ DLR failure is **terminal-staff** (don't
+re-send — it may have reached the handset). The phase rides in
+`error`/`skip_reason` (no new column; data-layer: reconcile if a typed
+`failure_phase` is preferred). The **CRM-write reaper** (ADR-020/§5.6) gives the
+`action_taken` overlay the same totality: `cancelled`/`confirmed` with
+`crm_writeback_ok is not true` is re-driven to a landed write or `error` — so
+the write-back path is **no human-only-exit** either.
 
 ### 5.6 Error Handling Strategy
 
-- **ClinicCards down / 429:** retry with backoff (limit 60/min); if the daily fetch fails, mark run `failed`, alert (Sentry), do not partial-send silently.
-- **Send failure (per patient):** mark `failed` + reason (undelivered DLR, invalid/ported number); never block the rest of the batch; surface in the recap's needs-attention list.
-- **Invalid / unmatched / expired token:** show the **same** neutral "link expired or invalid" page for all three (no oracle); `GET` never acts. 128-bit tokens make guessing infeasible and the page is side-effect-free, so scanner/preview fetches are harmless (§6.3, §5.4).
-- **Link scanner / SMS preview / security gateway (ADR-014):** carriers, messaging apps, antivirus, and link-preview services auto-`GET` (sometimes auto-submit) URLs. All `GET`/`HEAD` are side-effect-free and excluded from engagement; the action is a nonce-backed `POST` behind an explicit gesture, so a scan can neither act nor skew metrics nor trip the mass-cancel alarm.
-- **Mass-cancel circuit-breaker — halt a *runaway*, don't false-trip a flu week (ADR-014, recalibrated v2.10):** the breaker is **velocity-first, with a two-level daily anomaly**, and **counts only valid nonce-backed Cancel `POST /action`** (never `GET`/`HEAD`/`prepare`/expired-token/unsubscribe — those are side-effect-free, §5.4), derived from `reminder_messages` where `response='cancel' and action_locked_at is not null`, so **no new column** is needed and breaker-held intents still count. **Hard-open** (hold further cancels in **`pending_staff_review`**, *not* written to ClinicCards) when **≥4 valid cancel POSTs in any rolling 10-min window** *or* **≥6 in any rolling 30-min window** for a `target_date` — this catches a scanner/cascade/leaked-token burst fast. **Daily amber** (warn on the banner, **keep writing**) at **≥ `⌈0.4×sent⌉`** cancels/day (≈8 at 20 sent) — a legitimately high-cancel day stays operational. **Daily hard-ceiling** (require a staff acknowledgement to keep auto-writing) at **> `max(8, ⌈0.6×sent⌉)`** cancels/day (≈12 at 20 sent). While held, the patient sees a graceful *"your cancellation is received — the clinic will confirm"* page (**not** an error — §5.2); staff clear the queue with **bulk-approve-safe** (re-fetch each visit live, write only the still-safe ones, skip conflicts, show a written/skipped/failed summary — never forced per-item) or close an unsafe/withdrawn held cancel as `staff_closed_no_write` with an audit note. The velocity hard-open **auto-resumes** once the 10-/30-min rates fall back under threshold; the daily ceiling clears on **manual ack/close**. (Alerting reuses the §4.4 / ADR-013 path.) Rationale: the old flat daily count (`max(3, ⌈0.25×sent⌉)` ≈ 5) couldn't tell "8 cancels in 30 s by a scanner" from "8 humans over 6 hours in a flu week" and false-tripped on the clinic's worst day; **velocity is the honest discriminator** and halts a true runaway *faster*, preserving the security property (§6.2, ADR-014). *(Rejected for v1 — per-action source-fingerprint tiers: they conflict with the PII-minimization stance (ADR-016) and over-engineer a ~20/day control; revisit only if a real incident shows velocity is insufficient.)* An alert-only threshold remains too weak — by the time staff read it the calendar could be empty.
-- **CRM write-back failure on Cancel — auto-retry (it's idempotent), then escalate hard:** a Cancel the patient confirmed but we couldn't write back leaves the slot **falsely blocked = a lost rebooking** (recurring lost revenue + a silent failure at the system's core job — ranked High in §6.2). Unlike a *send* (not safely re-runnable — could double-text), a **`PUT status=CANCELLED` is an idempotent status set, so it is safe to auto-retry**: re-run the guarded write-back (re-fetch + fingerprint-compare each time) — **at most 2 automatic retries** — before flagging. If it still fails, mark `crm_writeback_ok=false` + `action_taken='error'`, raise a **dedicated immediate alert** during clinic hours (not just a flag — it can't wait for the next reconciliation), and **pin it *above* the no-reply queue** (a blocked refillable slot outranks chasing a no-reply) with the patient's number read live from ClinicCards + a **ClinicCards deep link / `visit_id`** + a one-click *"call to confirm the cancellation & rebook"* action; count it **red** on the live trust panel + the afternoon catch-up reconciliation, and roll unresolved cases into an **end-of-day owner report**. A missed cancellation is the highest-severity *correctness-of-outcome* failure (**SLA: worked before ordinary no-replies**) — see the failure-cost ranking (§6.2). **The action→CRM write is also a fenced outbox (ADR-020):** the patient's intent (`response`, `action_locked_at`, `action_taken='cancelled'/'confirmed'`) commits *before* the `PUT`, so a crash *between* the two is recoverable — a reaper (run-owned at start + before reconcile, plus the `pg_cron` sweep) re-drives any row with `action_taken in ('cancelled','confirmed') and crm_writeback_ok is not true and superseded_at is null` through the **idempotent** guarded write-back, then sets `crm_writeback_ok=true` or escalates as above. Because the `PUT` is idempotent this needs **no `crm_write_pending` state** — `crm_writeback_ok is not true` is the predicate — so the patient-action path has the same no-human-only-exit guarantee as the SMS path (ADR-018/020).
-- **CRM changed since send (write-back guard):** the write-back claims a short-lived per-visit CRM write lease, then re-fetches the visit immediately before writing **and compares it to the facts the page showed** (a render fingerprint) — honor its *current* status: don't re-confirm a visit staff already `CANCELLED`/`VISITED`, and if the visit moved or the status isn't action-allowed (`cliniccards_status_policy`), **refuse to write, re-render current facts, and flag** rather than overwrite. Build the all-fields `PUT` from the immediate re-fetch only, then re-fetch once more to confirm the landed status. (The render fingerprint is **signed into the action nonce** the page renders and the `/action` POST echoes — so the write-back acts only on facts the patient actually saw, and a tampered/forged/prefetched POST is rejected — ADR-014, §5.4. The **per-visit CRM write lease** is specified in the next bullet — ADR-012.) **This same point immediately before the `PUT`/`DELETE` is the `CRM_WRITE_MODE` chokepoint (§6.6/ADR-024):** the fail-closed mode flag (default `off`) + the allowlist guard refuse the external call until the go-live ladder reaches the rung that permits it — so during shadow/seed the guarded write-back computes the would-write but never dispatches it.
-- **Concurrent write-back to one visit (per-visit CRM write lease; ADR-007/§5.2/ADR-012):** serialize our own confirm-page read-modify-write with `crm_visit_write_locks` (`cliniccards_visit_id`, `lock_token`, `lock_expires_at`) claimed before the CRM re-fetch and released after the post-write re-fetch; a live lease makes another action wait/no-op, and a stale lease is stealable after expiry. This deliberately avoids `pg_advisory_xact_lock` across ClinicCards HTTP calls, preserving the "no DB transaction held over network I/O" rule from ADR-012. It prevents two Dentino-originated writes to one visit from interleaving; only a vendor-side race with human staff remains, mitigated by render-fingerprint comparison, post-write re-fetch, and C3 optimistic-concurrency checks if available.
-- **Appointment moved/changed after send (change detection):** if a visit's `appointment_fingerprint` differs from the last sent message, the run **supersedes** the stale reminder and emits exactly one **`reschedule_notice`** (cross-day move) or **`time_change_notice`** (same-day time change) — never a silent duplicate and never a stale-time SMS. `note`-only edits don't change the fingerprint, so a staff note never triggers a patient text. **Superseding kills the old capability (no two-live-tokens race):** the same update sets the stale row's `token_expires_at = now()`, and the single-use CAS refuses any `/action` on a `superseded_at is not null` row (§5.7c) — so the old SMS link already in the patient's phone is dead and the new notice row is the *sole* live capability for the visit (a tap on the old link renders the neutral expired page; it can never record an action that contradicts the live appointment). **Partial-failure rule:** the stale-row supersede and replacement-notice row insertion commit together under the current day lease: old row `superseded` + `token_expires_at=now()` + `superseded_by_message_id`, new row `pending` with the current fingerprint and no token until its send claim. A crash **before** that transaction leaves the stale row active but unable to account for the current fingerprint, so reconciliation stays red and a later firing retries. A crash **after** the transaction but before provider acceptance leaves the replacement `pending`/`sending`/`send_unknown`; the old token is already dead, and heartbeat success remains blocked until the replacement notice is sent, action-proven, or unresolved/red. This is one capability handoff, never two live URLs. A late **delivery-receipt (DLR)** for a now-superseded row must **not** overwrite its terminal state: record the DLR in `audit_log`, but transition `status` (`sent→delivered`/`failed`) **only while `superseded_at is null`** (ADR-008).
-- **Pre-send revalidation:** a single `GET /visits` for the target date immediately before sending; any candidate now cancelled, moved out of range, or reassigned to another `patient_id` is **skipped + flagged** (`cancelled_before_send`/`moved_before_send`/`patient_changed`), so we never message a patient about an appointment that no longer exists as they knew it.
-- **Partial two-call join:** the visit→patient join is partial by design — a missing/merged patient, an invalid/garbage phone, or a `patient_id` that changed between the two reads creates a `skipped` `reminder_messages` row with a `skip_reason` (and a needs-attention flag). The run never crashes and never silently omits an appointment from the board.
-- **Ambiguous send (`send_unknown`):** if the SMS provider call times out or returns an unrecorded result, mark `send_unknown` and **flag for staff — never auto-retry** ("possibly sent" must beat "silently double-sent"). **This no-key path is the spec baseline** — a provider client idempotency key/reference (keyed on `reminder_message_id` + `appointment_fingerprint`; capability is a build-time confirmation, §10) is a *pure optimization* that permits a same-key safe replay where available, not a precondition. If the patient later opens the link and submits a valid nonce-backed action, the action path is allowed and promotes the row out of `send_unknown` to `delivered`/resolved-by-action, because the tap is definitive evidence that this "possibly sent" SMS reached the patient. **A `sending` claim is never human-only-exit (§5.5 totality invariant, ADR-018):** it is reaped to `send_unknown` by **(i)** the next firing, **(ii)** an immediate on-steal sweep when a later firing steals the dead holder's lease (the orphan is provable — the lease admits one processor), and **(iii)** a `pg_cron` `maintenance.reap_stale_sends()` backstop that resolves it *even if the Edge function never fires again* — predicate `status='sending' and send_claim_expires_at < now()` (§5.7b, §9.3).
-- **Unknown / new ClinicCards status:** a status absent from `cliniccards_status_policy` **fails closed** — skip + needs-attention — so a vendor status we've never seen can never silently message or mis-act on a patient.
-- **Reopened same `visit_id` (cancel→rebook):** if a known `visit_id` we recorded as terminal reappears as remindable, **flag for staff** (`reopened_same_id`) rather than auto-message — visit_id reuse on un-cancel is unconfirmed (C3).
-- **Re-tap after a recorded action (single-use, ADR-014):** a valid link accepts **at most one** successful confirm/cancel. Once `action_locked_at` is set, re-opening the link shows the already-recorded response + the clinic phone — **no** Confirm-after-Cancel, un-cancel, or reversal from the public link; any change is **staff-mediated** (re-instating a freed slot is a human call). *(This supersedes the earlier "latest tap wins" rule — a single irreversible capability is safer for a destructive write. It is distinct from a `superseded` row, which is a *message* replaced by a change notice when the appointment's facts move — §5.5.)*
-- **Opt-out (hardened footer, ADR-014/015):** the confirm-page footer carries the opt-out (same token — no second SMS URL). It is a **nonce-backed `POST /action` (`action=unsubscribe`), never a `GET`** (so a scanner/preview can't silently opt a patient out): it sets `sms_reminders_enabled=false` and writes an append-only `consent_events(status='opted_out', source='unsubscribe_link')`. **Re-subscribe is staff-only** (patient asks at reception/by phone/in writing → `consent_events(status='staff_reenabled')`); the public link can't re-enable. **Legal sufficiency of page-only opt-out:** acceptable because the lawful basis is contract / healthcare-management (ADR-015) and opt-out is a *preference*, not the basis — keep dated `consent_events` proof; if counsel wants opt-out wording in the SMS body itself, that's a one-line template change that must still fit the §4.2 2-segment budget.
-- **Whole-invocation failure (timeout/crash mid-batch):** safe because each message is **claimed and committed around its send** (`pending → sending` committed *before* the provider call, outcome committed immediately after) and the batch is **never wrapped in one transaction**. A crash leaves a clean, resumable per-row state; a later noon-window firing (or the ADR-006 catch-up) **steals the expired `reminder_days` lease and resumes** — it does not redo `sent` rows, and a stale `sending` claim becomes `send_unknown` (flagged, not blind-resent) unless the provider supports an idempotency key (ADR-012). The multi-fire window (§4.4) is *retry opportunity*, not the safety mechanism.
-- **Idempotency everywhere:** the partial-unique appointment-day key `(visit_id, target_date)` over *ordinary* reminders makes runs safe to repeat (a `send_unknown` is flagged, not retried), while the fingerprint key `(visit_id, target_date, message_kind, appointment_fingerprint)` admits exactly one change notice per material change; inbound provider retries are deduped by `provider_message_id` / update id. On top of the row-level keys, a **`reminder_days` processing lease** ensures only one firing acts on a day and a **per-message `sending` claim** protects the outbound SMS side effect a DB unique key cannot — concurrent firings are true no-ops, not merely non-duplicating writes (ADR-012).
-- **Missing template** (a language/channel combination wasn't seeded): fall back to the clinic's default language for that channel; never send an empty or half-rendered message.
-- **No silent failures + end-of-run self-reconciliation:** every catch writes a typed error to `reminder_messages.error` / `audit_log` and increments counters; **and** every run reconciles itself before reporting success. Computed from the lean **`crm_visit_facts`** ledger (every current visit the CRM returned, derived once at fetch — a typed join, not a raw-jsonb re-parse, and it outlives the raw-payload purge; §5.3) vs the always-materialized **active** `reminder_messages` rows for the `target_date` (excluding superseded rows once their replacement exists): `unaccounted = current_remindable − active_accounted(sent/delivered + skipped + failed + unresolved_send_unknown + pending/sending)`. **The denominator is pinned, not ambiguous:** `current_remindable` = the remindable visits in the **latest successful target-date `/visits` fetch of the lease-holding firing** (`crm_visit_facts` rows with `purpose='visits_pre_send'`, falling back to `visits_initial`; the catch-up's own pre-send is authoritative for that firing — *not* the noon snapshot). Because the engine **always materializes a row** for every remindable visit it observes, every visit in `visits_initial ∪ pre_send` has an active-or-superseded row in steady state, so `unaccounted` counts only currently-remindable visits with **no** row (a materialization gap from a crash, which a later firing closes) — never a benign staff edit. **Account by *current fingerprint*, not just visit id:** a visit is accounted only by a **non-superseded** row whose `appointment_fingerprint` equals the *current* `crm_visit_facts` fingerprint — a stale `sent` row for a since-moved appointment does **not** account for it (its replacement notice must). **An unresolved disappearance is red, not silently green:** a visit remindable in an earlier snapshot but **absent** from the latest fetch is safe only if the latest snapshot shows it terminal, a Dentino write-back cancelled it, or a visit-by-id / bounded look-around confirms it moved (the cross-day case — §10); otherwise it is flagged **red (vanished-unresolved)**, never silently dropped from the denominator. **Per-status accounting:** `superseded` is excluded (its replacement notice is the active row and must itself be accounted); `pending_staff_review` is an `action_taken` on a row already `sent`/`delivered`, so it counts as handled for the denominator and is a separate amber needs-attention item, never a send-side red; `send_unknown` counts as unresolved/red only while `response is null` and `action_taken='none'` — a valid patient action promotes it to delivered/resolved-by-action and removes it from the problem bucket; `cancelled_before_send`/`moved_before_send`/`non_remindable_status` skips correspond to visits **absent from the latest fetch** → historical rows, neither denominator nor unaccounted. **Walk 1 — `sent` at noon, staff-cancelled at 16:00:** the visit drops out of the catch-up's `current_remindable` (no green drag) yet keeps its `sent` row (not unaccounted) → green, surfaced as a "messaged then cancelled by staff" dashboard note. **Walk 2 — moved-then-superseded:** the replacement `time_change_notice` is `sent` and satisfies the denominator while the superseded row + its now-dead token are excluded → green (ADR-013). **Walk 3 — `send_unknown`, then patient confirms:** the action proves delivery, promotes the row to `delivered`, and the row is no longer red for send ambiguity; the CRM write-back is then handled by the normal fenced path. **Green** only if the CRM fetch succeeded and `unaccounted = pending = sending = unresolved_send_unknown = failed = known_skips = 0` and `sent/delivered = sendable`; **amber** = all current remindable appointments accounted for with no red problems, but known staff-work skips exist (no valid phone / disabled preference / unresolved patient); **red** on CRM-fetch failure, `unaccounted ≠ 0`, anything still `pending`/`sending` after the final firing, unresolved `send_unknown > 0`, or `failed > 0`. Superseded rows remain auditable history, not current unaccounted work. Health + counts roll up into `reminder_days` and feed the trust panel (§5.2) and the heartbeat — which reports **success only when green/amber** (ADR-013) — so "0 exceptions" can never masquerade as "the run was correct".
+- **ClinicCards down / 429:** retry with backoff (limit 60/min); if the daily
+  fetch fails, mark run `failed`, alert (Sentry), do not partial-send silently.
+- **Send failure (per patient):** mark `failed` + reason (undelivered DLR,
+  invalid/ported number); never block the rest of the batch; surface in the
+  recap's needs-attention list.
+- **Invalid / unmatched / expired token:** show the **same** neutral "link
+  expired or invalid" page for all three (no oracle); `GET` never acts. 128-bit
+  tokens make guessing infeasible and the page is side-effect-free, so
+  scanner/preview fetches are harmless (§6.3, §5.4).
+- **Link scanner / SMS preview / security gateway (ADR-014):** carriers,
+  messaging apps, antivirus, and link-preview services auto-`GET` (sometimes
+  auto-submit) URLs. All `GET`/`HEAD` are side-effect-free and excluded from
+  engagement; the action is a nonce-backed `POST` behind an explicit gesture, so
+  a scan can neither act nor skew metrics nor trip the mass-cancel alarm.
+- **Mass-cancel circuit-breaker — halt a _runaway_, don't false-trip a flu week
+  (ADR-014, recalibrated v2.10):** the breaker is **velocity-first, with a
+  two-level daily anomaly**, and **counts only valid nonce-backed Cancel
+  `POST /action`** (never `GET`/`HEAD`/`prepare`/expired-token/unsubscribe —
+  those are side-effect-free, §5.4), derived from `reminder_messages` where
+  `response='cancel' and action_locked_at is not null`, so **no new column** is
+  needed and breaker-held intents still count. **Hard-open** (hold further
+  cancels in **`pending_staff_review`**, _not_ written to ClinicCards) when **≥4
+  valid cancel POSTs in any rolling 10-min window** _or_ **≥6 in any rolling
+  30-min window** for a `target_date` — this catches a
+  scanner/cascade/leaked-token burst fast. **Daily amber** (warn on the banner,
+  **keep writing**) at **≥ `⌈0.4×sent⌉`** cancels/day (≈8 at 20 sent) — a
+  legitimately high-cancel day stays operational. **Daily hard-ceiling**
+  (require a staff acknowledgement to keep auto-writing) at **>
+  `max(8, ⌈0.6×sent⌉)`** cancels/day (≈12 at 20 sent). While held, the patient
+  sees a graceful _"your cancellation is received — the clinic will confirm"_
+  page (**not** an error — §5.2); staff clear the queue with
+  **bulk-approve-safe** (re-fetch each visit live, write only the still-safe
+  ones, skip conflicts, show a written/skipped/failed summary — never forced
+  per-item) or close an unsafe/withdrawn held cancel as `staff_closed_no_write`
+  with an audit note. The velocity hard-open **auto-resumes** once the
+  10-/30-min rates fall back under threshold; the daily ceiling clears on
+  **manual ack/close**. (Alerting reuses the §4.4 / ADR-013 path.) Rationale:
+  the old flat daily count (`max(3, ⌈0.25×sent⌉)` ≈ 5) couldn't tell "8 cancels
+  in 30 s by a scanner" from "8 humans over 6 hours in a flu week" and
+  false-tripped on the clinic's worst day; **velocity is the honest
+  discriminator** and halts a true runaway _faster_, preserving the security
+  property (§6.2, ADR-014). _(Rejected for v1 — per-action source-fingerprint
+  tiers: they conflict with the PII-minimization stance (ADR-016) and
+  over-engineer a ~20/day control; revisit only if a real incident shows
+  velocity is insufficient.)_ An alert-only threshold remains too weak — by the
+  time staff read it the calendar could be empty.
+- **CRM write-back failure on Cancel — auto-retry (it's idempotent), then
+  escalate hard:** a Cancel the patient confirmed but we couldn't write back
+  leaves the slot **falsely blocked = a lost rebooking** (recurring lost
+  revenue + a silent failure at the system's core job — ranked High in §6.2).
+  Unlike a _send_ (not safely re-runnable — could double-text), a
+  **`PUT status=CANCELLED` is an idempotent status set, so it is safe to
+  auto-retry**: re-run the guarded write-back (re-fetch + fingerprint-compare
+  each time) — **at most 2 automatic retries** — before flagging. If it still
+  fails, mark `crm_writeback_ok=false` + `action_taken='error'`, raise a
+  **dedicated immediate alert** during clinic hours (not just a flag — it can't
+  wait for the next reconciliation), and **pin it _above_ the no-reply queue**
+  (a blocked refillable slot outranks chasing a no-reply) with the patient's
+  number read live from ClinicCards + a **ClinicCards deep link / `visit_id`** +
+  a one-click _"call to confirm the cancellation & rebook"_ action; count it
+  **red** on the live trust panel + the afternoon catch-up reconciliation, and
+  roll unresolved cases into an **end-of-day owner report**. A missed
+  cancellation is the highest-severity _correctness-of-outcome_ failure (**SLA:
+  worked before ordinary no-replies**) — see the failure-cost ranking (§6.2).
+  **The action→CRM write is also a fenced outbox (ADR-020):** the patient's
+  intent (`response`, `action_locked_at`,
+  `action_taken='cancelled'/'confirmed'`) commits _before_ the `PUT`, so a crash
+  _between_ the two is recoverable — a reaper (run-owned at start + before
+  reconcile, plus the `pg_cron` sweep) re-drives any row with
+  `action_taken in ('cancelled','confirmed') and crm_writeback_ok is not true and superseded_at is null`
+  through the **idempotent** guarded write-back, then sets
+  `crm_writeback_ok=true` or escalates as above. Because the `PUT` is idempotent
+  this needs **no `crm_write_pending` state** — `crm_writeback_ok is not true`
+  is the predicate — so the patient-action path has the same no-human-only-exit
+  guarantee as the SMS path (ADR-018/020).
+- **CRM changed since send (write-back guard):** the write-back claims a
+  short-lived per-visit CRM write lease, then re-fetches the visit immediately
+  before writing **and compares it to the facts the page showed** (a render
+  fingerprint) — honor its _current_ status: don't re-confirm a visit staff
+  already `CANCELLED`/`VISITED`, and if the visit moved or the status isn't
+  action-allowed (`cliniccards_status_policy`), **refuse to write, re-render
+  current facts, and flag** rather than overwrite. Build the all-fields `PUT`
+  from the immediate re-fetch only, then re-fetch once more to confirm the
+  landed status. (The render fingerprint is **signed into the action nonce** the
+  page renders and the `/action` POST echoes — so the write-back acts only on
+  facts the patient actually saw, and a tampered/forged/prefetched POST is
+  rejected — ADR-014, §5.4. The **per-visit CRM write lease** is specified in
+  the next bullet — ADR-012.) **This same point immediately before the
+  `PUT`/`DELETE` is the `CRM_WRITE_MODE` chokepoint (§6.6/ADR-024):** the
+  fail-closed mode flag (default `off`) + the allowlist guard refuse the
+  external call until the go-live ladder reaches the rung that permits it — so
+  during shadow/seed the guarded write-back computes the would-write but never
+  dispatches it.
+- **Concurrent write-back to one visit (per-visit CRM write lease;
+  ADR-007/§5.2/ADR-012):** serialize our own confirm-page read-modify-write with
+  `crm_visit_write_locks` (`cliniccards_visit_id`, `lock_token`,
+  `lock_expires_at`) claimed before the CRM re-fetch and released after the
+  post-write re-fetch; a live lease makes another action wait/no-op, and a stale
+  lease is stealable after expiry. This deliberately avoids
+  `pg_advisory_xact_lock` across ClinicCards HTTP calls, preserving the "no DB
+  transaction held over network I/O" rule from ADR-012. It prevents two
+  Dentino-originated writes to one visit from interleaving; only a vendor-side
+  race with human staff remains, mitigated by render-fingerprint comparison,
+  post-write re-fetch, and C3 optimistic-concurrency checks if available.
+- **Appointment moved/changed after send (change detection):** if a visit's
+  `appointment_fingerprint` differs from the last sent message, the run
+  **supersedes** the stale reminder and emits exactly one
+  **`reschedule_notice`** (cross-day move) or **`time_change_notice`** (same-day
+  time change) — never a silent duplicate and never a stale-time SMS.
+  `note`-only edits don't change the fingerprint, so a staff note never triggers
+  a patient text. **Superseding kills the old capability (no two-live-tokens
+  race):** the same update sets the stale row's `token_expires_at = now()`, and
+  the single-use CAS refuses any `/action` on a `superseded_at is not null` row
+  (§5.7c) — so the old SMS link already in the patient's phone is dead and the
+  new notice row is the _sole_ live capability for the visit (a tap on the old
+  link renders the neutral expired page; it can never record an action that
+  contradicts the live appointment). **Partial-failure rule:** the stale-row
+  supersede and replacement-notice row insertion commit together under the
+  current day lease: old row `superseded` + `token_expires_at=now()` +
+  `superseded_by_message_id`, new row `pending` with the current fingerprint and
+  no token until its send claim. A crash **before** that transaction leaves the
+  stale row active but unable to account for the current fingerprint, so
+  reconciliation stays red and a later firing retries. A crash **after** the
+  transaction but before provider acceptance leaves the replacement
+  `pending`/`sending`/`send_unknown`; the old token is already dead, and
+  heartbeat success remains blocked until the replacement notice is sent,
+  action-proven, or unresolved/red. This is one capability handoff, never two
+  live URLs. A late **delivery-receipt (DLR)** for a now-superseded row must
+  **not** overwrite its terminal state: record the DLR in `audit_log`, but
+  transition `status` (`sent→delivered`/`failed`) **only while
+  `superseded_at is null`** (ADR-008).
+- **Pre-send revalidation:** a single `GET /visits` for the target date
+  immediately before sending; any candidate now cancelled, moved out of range,
+  or reassigned to another `patient_id` is **skipped + flagged**
+  (`cancelled_before_send`/`moved_before_send`/`patient_changed`), so we never
+  message a patient about an appointment that no longer exists as they knew it.
+- **Partial two-call join:** the visit→patient join is partial by design — a
+  missing/merged patient, an invalid/garbage phone, or a `patient_id` that
+  changed between the two reads creates a `skipped` `reminder_messages` row with
+  a `skip_reason` (and a needs-attention flag). The run never crashes and never
+  silently omits an appointment from the board.
+- **Ambiguous send (`send_unknown`):** if the SMS provider call times out or
+  returns an unrecorded result, mark `send_unknown` and **flag for staff — never
+  auto-retry** ("possibly sent" must beat "silently double-sent"). **This no-key
+  path is the spec baseline** — a provider client idempotency key/reference
+  (keyed on `reminder_message_id` + `appointment_fingerprint`; capability is a
+  build-time confirmation, §10) is a _pure optimization_ that permits a same-key
+  safe replay where available, not a precondition. If the patient later opens
+  the link and submits a valid nonce-backed action, the action path is allowed
+  and promotes the row out of `send_unknown` to `delivered`/resolved-by-action,
+  because the tap is definitive evidence that this "possibly sent" SMS reached
+  the patient. **A `sending` claim is never human-only-exit (§5.5 totality
+  invariant, ADR-018):** it is reaped to `send_unknown` by **(i)** the next
+  firing, **(ii)** an immediate on-steal sweep when a later firing steals the
+  dead holder's lease (the orphan is provable — the lease admits one processor),
+  and **(iii)** a `pg_cron` `maintenance.reap_stale_sends()` backstop that
+  resolves it _even if the Edge function never fires again_ — predicate
+  `status='sending' and send_claim_expires_at < now()` (§5.7b, §9.3).
+- **Unknown / new ClinicCards status:** a status absent from
+  `cliniccards_status_policy` **fails closed** — skip + needs-attention — so a
+  vendor status we've never seen can never silently message or mis-act on a
+  patient.
+- **Reopened same `visit_id` (cancel→rebook):** if a known `visit_id` we
+  recorded as terminal reappears as remindable, **flag for staff**
+  (`reopened_same_id`) rather than auto-message — visit_id reuse on un-cancel is
+  unconfirmed (C3).
+- **Re-tap after a recorded action (single-use, ADR-014):** a valid link accepts
+  **at most one** successful confirm/cancel. Once `action_locked_at` is set,
+  re-opening the link shows the already-recorded response + the clinic phone —
+  **no** Confirm-after-Cancel, un-cancel, or reversal from the public link; any
+  change is **staff-mediated** (re-instating a freed slot is a human call).
+  _(This supersedes the earlier "latest tap wins" rule — a single irreversible
+  capability is safer for a destructive write. It is distinct from a
+  `superseded` row, which is a _message_ replaced by a change notice when the
+  appointment's facts move — §5.5.)_
+- **Opt-out (hardened footer, ADR-014/015):** the confirm-page footer carries
+  the opt-out (same token — no second SMS URL). It is a **nonce-backed
+  `POST /action` (`action=unsubscribe`), never a `GET`** (so a scanner/preview
+  can't silently opt a patient out): it sets `sms_reminders_enabled=false` and
+  writes an append-only
+  `consent_events(status='opted_out', source='unsubscribe_link')`.
+  **Re-subscribe is staff-only** (patient asks at reception/by phone/in writing
+  → `consent_events(status='staff_reenabled')`); the public link can't
+  re-enable. **Legal sufficiency of page-only opt-out:** acceptable because the
+  lawful basis is contract / healthcare-management (ADR-015) and opt-out is a
+  _preference_, not the basis — keep dated `consent_events` proof; if counsel
+  wants opt-out wording in the SMS body itself, that's a one-line template
+  change that must still fit the §4.2 2-segment budget.
+- **Whole-invocation failure (timeout/crash mid-batch):** safe because each
+  message is **claimed and committed around its send** (`pending → sending`
+  committed _before_ the provider call, outcome committed immediately after) and
+  the batch is **never wrapped in one transaction**. A crash leaves a clean,
+  resumable per-row state; a later noon-window firing (or the ADR-006 catch-up)
+  **steals the expired `reminder_days` lease and resumes** — it does not redo
+  `sent` rows, and a stale `sending` claim becomes `send_unknown` (flagged, not
+  blind-resent) unless the provider supports an idempotency key (ADR-012). The
+  multi-fire window (§4.4) is _retry opportunity_, not the safety mechanism.
+- **Idempotency everywhere:** the partial-unique appointment-day key
+  `(visit_id, target_date)` over _ordinary_ reminders makes runs safe to repeat
+  (a `send_unknown` is flagged, not retried), while the fingerprint key
+  `(visit_id, target_date, message_kind, appointment_fingerprint)` admits
+  exactly one change notice per material change; inbound provider retries are
+  deduped by `provider_message_id` / update id. On top of the row-level keys, a
+  **`reminder_days` processing lease** ensures only one firing acts on a day and
+  a **per-message `sending` claim** protects the outbound SMS side effect a DB
+  unique key cannot — concurrent firings are true no-ops, not merely
+  non-duplicating writes (ADR-012).
+- **Missing template** (a language/channel combination wasn't seeded): fall back
+  to the clinic's default language for that channel; never send an empty or
+  half-rendered message.
+- **No silent failures + end-of-run self-reconciliation:** every catch writes a
+  typed error to `reminder_messages.error` / `audit_log` and increments
+  counters; **and** every run reconciles itself before reporting success.
+  Computed from the lean **`crm_visit_facts`** ledger (every current visit the
+  CRM returned, derived once at fetch — a typed join, not a raw-jsonb re-parse,
+  and it outlives the raw-payload purge; §5.3) vs the always-materialized
+  **active** `reminder_messages` rows for the `target_date` (excluding
+  superseded rows once their replacement exists):
+  `unaccounted = current_remindable − active_accounted(sent/delivered + skipped + failed + unresolved_send_unknown + pending/sending)`.
+  **The denominator is pinned, not ambiguous:** `current_remindable` = the
+  remindable visits in the **latest successful target-date `/visits` fetch of
+  the lease-holding firing** (`crm_visit_facts` rows with
+  `purpose='visits_pre_send'`, falling back to `visits_initial`; the catch-up's
+  own pre-send is authoritative for that firing — _not_ the noon snapshot).
+  Because the engine **always materializes a row** for every remindable visit it
+  observes, every visit in `visits_initial ∪ pre_send` has an
+  active-or-superseded row in steady state, so `unaccounted` counts only
+  currently-remindable visits with **no** row (a materialization gap from a
+  crash, which a later firing closes) — never a benign staff edit. **Account by
+  _current fingerprint_, not just visit id:** a visit is accounted only by a
+  **non-superseded** row whose `appointment_fingerprint` equals the _current_
+  `crm_visit_facts` fingerprint — a stale `sent` row for a since-moved
+  appointment does **not** account for it (its replacement notice must). **An
+  unresolved disappearance is red, not silently green:** a visit remindable in
+  an earlier snapshot but **absent** from the latest fetch is safe only if the
+  latest snapshot shows it terminal, a Dentino write-back cancelled it, or a
+  visit-by-id / bounded look-around confirms it moved (the cross-day case —
+  §10); otherwise it is flagged **red (vanished-unresolved)**, never silently
+  dropped from the denominator. **Per-status accounting:** `superseded` is
+  excluded (its replacement notice is the active row and must itself be
+  accounted); `pending_staff_review` is an `action_taken` on a row already
+  `sent`/`delivered`, so it counts as handled for the denominator and is a
+  separate amber needs-attention item, never a send-side red; `send_unknown`
+  counts as unresolved/red only while `response is null` and
+  `action_taken='none'` — a valid patient action promotes it to
+  delivered/resolved-by-action and removes it from the problem bucket;
+  `cancelled_before_send`/`moved_before_send`/`non_remindable_status` skips
+  correspond to visits **absent from the latest fetch** → historical rows,
+  neither denominator nor unaccounted. **Walk 1 — `sent` at noon,
+  staff-cancelled at 16:00:** the visit drops out of the catch-up's
+  `current_remindable` (no green drag) yet keeps its `sent` row (not
+  unaccounted) → green, surfaced as a "messaged then cancelled by staff"
+  dashboard note. **Walk 2 — moved-then-superseded:** the replacement
+  `time_change_notice` is `sent` and satisfies the denominator while the
+  superseded row + its now-dead token are excluded → green (ADR-013). **Walk 3 —
+  `send_unknown`, then patient confirms:** the action proves delivery, promotes
+  the row to `delivered`, and the row is no longer red for send ambiguity; the
+  CRM write-back is then handled by the normal fenced path. **Green** only if
+  the CRM fetch succeeded and
+  `unaccounted = pending = sending = unresolved_send_unknown = failed = known_skips = 0`
+  and `sent/delivered = sendable`; **amber** = all current remindable
+  appointments accounted for with no red problems, but known staff-work skips
+  exist (no valid phone / disabled preference / unresolved patient); **red** on
+  CRM-fetch failure, `unaccounted ≠ 0`, anything still `pending`/`sending` after
+  the final firing, unresolved `send_unknown > 0`, or `failed > 0`. Superseded
+  rows remain auditable history, not current unaccounted work. Health + counts
+  roll up into `reminder_days` and feed the trust panel (§5.2) and the heartbeat
+  — which reports **success only when green/amber** (ADR-013) — so "0
+  exceptions" can never masquerade as "the run was correct".
 
 ### 5.7 Concurrency Control — canonical claim / steal / single-use SQL (ADR-012/014)
 
-§5.6 asserts the lease claim is "atomic", the per-message claim uses `FOR UPDATE SKIP LOCKED`, and the single-use action is `update … where action_locked_at is null`. These are the **actual statements** and why each admits **exactly one winner**. Two Postgres facts do the work, so **no `pg_advisory_xact_lock` is ever held across a ClinicCards/SMS HTTP call** (ADR-012): (i) under READ COMMITTED a blocked `UPDATE … WHERE <pred>` **re-evaluates its predicate against the committed row** (EvalPlanQual), so a CAS loser sees the new value and updates 0 rows; (ii) `INSERT … ON CONFLICT … DO UPDATE … WHERE <stealable>` **serializes** concurrent inserters on the conflict and its `RETURNING` row-count tells the caller whether it won. Every claim/steal **commits**, *then* the HTTP call happens, *then* the outcome commits — the batch is never one transaction.
+§5.6 asserts the lease claim is "atomic", the per-message claim uses
+`FOR UPDATE SKIP LOCKED`, and the single-use action is
+`update … where action_locked_at is null`. These are the **actual statements**
+and why each admits **exactly one winner**. Two Postgres facts do the work, so
+**no `pg_advisory_xact_lock` is ever held across a ClinicCards/SMS HTTP call**
+(ADR-012): (i) under READ COMMITTED a blocked `UPDATE … WHERE <pred>`
+**re-evaluates its predicate against the committed row** (EvalPlanQual), so a
+CAS loser sees the new value and updates 0 rows; (ii)
+`INSERT … ON CONFLICT … DO UPDATE … WHERE <stealable>` **serializes** concurrent
+inserters on the conflict and its `RETURNING` row-count tells the caller whether
+it won. Every claim/steal **commits**, _then_ the HTTP call happens, _then_ the
+outcome commits — the batch is never one transaction.
 
 #### 5.7a `reminder_days` lease — first-claim, expired-steal, and live-lease no-op collapse to one statement
-The naive `UPDATE … WHERE lock_expires_at < now()` is *not* the trap people fear (the row lock + predicate re-evaluation already serialize an existing row); the real gap is the row not existing yet (two firings both `INSERT`). `ON CONFLICT` closes it:
+
+The naive `UPDATE … WHERE lock_expires_at < now()` is _not_ the trap people fear
+(the row lock + predicate re-evaluation already serialize an existing row); the
+real gap is the row not existing yet (two firings both `INSERT`). `ON CONFLICT`
+closes it:
+
 ```sql
 insert into public.reminder_days as rd
   (target_date, status, locked_by_run_id, lock_token, lock_started_at, lock_heartbeat_at, lock_expires_at, updated_at)
@@ -877,10 +2147,31 @@ on conflict (target_date) do update
       or rd.lock_heartbeat_at < now() - interval '120 seconds'  -- holder went silent (killed before TTL) → reclaimable within one ~120 s steal-grace
 returning lock_token;                                -- a returned token == I hold the lease; ZERO rows == someone else does
 ```
-*Exactly one winner:* first firing takes the INSERT branch; a concurrent second is forced onto `DO UPDATE`, where it re-reads the winner's fresh `lock_expires_at >= now()` (and `status='running'`) → `WHERE` false → 0 rows → no-op. A `running` live lease yields 0 rows. A `completed` day yields 0 rows for a duplicate `initial` firing, but exactly one `catchup`/`manual` firing can re-claim it through the explicit `p_pass_kind` branch; any simultaneous catch-up/manual contender then re-reads `status='running'` and loses. Lease **heartbeat** while processing: `update reminder_days set lock_heartbeat_at = now(), lock_expires_at = now() + interval '15 minutes' where target_date = p_target_date and lock_token = p_lock_token;` (the `lock_token` guard means a firing whose lease was already stolen cannot extend it). The holder runs this heartbeat **at least every ~30 s** (per message and across the CRM fetch/retry phase), which is what makes the steal predicate effectively **heartbeat-grace-based**: a holder killed by the Edge wall-clock (≤400 s) stops renewing and is reclaimable within ~120 s, while the 15-min `lock_expires_at` is only the absolute backstop (ADR-012/018).
+
+_Exactly one winner:_ first firing takes the INSERT branch; a concurrent second
+is forced onto `DO UPDATE`, where it re-reads the winner's fresh
+`lock_expires_at >= now()` (and `status='running'`) → `WHERE` false → 0 rows →
+no-op. A `running` live lease yields 0 rows. A `completed` day yields 0 rows for
+a duplicate `initial` firing, but exactly one `catchup`/`manual` firing can
+re-claim it through the explicit `p_pass_kind` branch; any simultaneous
+catch-up/manual contender then re-reads `status='running'` and loses. Lease
+**heartbeat** while processing:
+`update reminder_days set lock_heartbeat_at = now(), lock_expires_at = now() + interval '15 minutes' where target_date = p_target_date and lock_token = p_lock_token;`
+(the `lock_token` guard means a firing whose lease was already stolen cannot
+extend it). The holder runs this heartbeat **at least every ~30 s** (per message
+and across the CRM fetch/retry phase), which is what makes the steal predicate
+effectively **heartbeat-grace-based**: a holder killed by the Edge wall-clock
+(≤400 s) stops renewing and is reclaimable within ~120 s, while the 15-min
+`lock_expires_at` is only the absolute backstop (ADR-012/018).
 
 #### 5.7b per-message claim (`pending → sending`) + stale-claim reaper
-Used both by the single run and the §6.4 `dispatch-pending-reminders` loops. The raw capability token is minted **immediately before** this claim in process memory; only `p_tracking_token_digest` is written. v1 claims one row at a time because a batch claim would otherwise need to persist or reconstruct raw tokens, which ADR-014 forbids:
+
+Used both by the single run and the §6.4 `dispatch-pending-reminders` loops. The
+raw capability token is minted **immediately before** this claim in process
+memory; only `p_tracking_token_digest` is written. v1 claims one row at a time
+because a batch claim would otherwise need to persist or reconstruct raw tokens,
+which ADR-014 forbids:
+
 ```sql
 with claimed as (
   select id from public.reminder_messages
@@ -906,7 +2197,14 @@ update public.reminder_messages m
   from claimed where m.id = claimed.id
 returning m.id, m.cliniccards_visit_id, m.send_claim_token; -- COMMIT this before the provider call (ADR-012)
 ```
-*Exactly one winner per row:* `FOR UPDATE SKIP LOCKED` hands each claimable row to at most one claimer; the status predicate plus the row lock means a `sent`/`sending`/`send_unknown` row is never re-claimed, and only a **proven pre-submit** `failed` row may re-enter `sending` with a fresh token. The provider result is committed only by the holder that still owns the `send_claim_token`:
+
+_Exactly one winner per row:_ `FOR UPDATE SKIP LOCKED` hands each claimable row
+to at most one claimer; the status predicate plus the row lock means a
+`sent`/`sending`/`send_unknown` row is never re-claimed, and only a **proven
+pre-submit** `failed` row may re-enter `sending` with a fresh token. The
+provider result is committed only by the holder that still owns the
+`send_claim_token`:
+
 ```sql
 update public.reminder_messages
    set status = p_outcome,                 -- 'sent' | 'failed' | 'send_unknown'
@@ -924,16 +2222,37 @@ update public.reminder_messages
    and send_claim_token = p_send_claim_token
 returning id;                              -- 0 rows == lease stolen/reaped; stop and do not overwrite
 ```
-A crash mid-send leaves a `sending` row; a later firing **reaps** it to `send_unknown` (flagged, never blind-resent — ADR-012), unless a provider idempotency key permits safe replay:
+
+A crash mid-send leaves a `sending` row; a later firing **reaps** it to
+`send_unknown` (flagged, never blind-resent — ADR-012), unless a provider
+idempotency key permits safe replay:
+
 ```sql
 update public.reminder_messages
    set status='send_unknown', skip_reason='send_ambiguous', error='stale send claim reaped'
  where target_date = p_target_date and status='sending' and send_claim_expires_at < now();
 ```
-**Three reap triggers close the "stuck in `sending` forever" gap (ADR-018).** (i) **Next-firing reap** — the statement above, run by any firing under the lease. (ii) **On-steal reap** — a firing that *steals* a dead holder's lease first reaps **every** `sending` row for the `target_date` (the lease guarantees no live concurrent processor, so they are provably orphaned — the `send_claim_expires_at < now()` clause is dropped here, the holder being known-dead). (iii) **`pg_cron` backstop** — `maintenance.reap_stale_sends()` runs the same predicate independently of the Edge firings (alongside `maintenance.purge_privacy()`, §9.1/§9.3), so a `sending` row resolves to `send_unknown` even if the Edge function **never fires again** — no state is human-only-exit (the §5.5 totality invariant). The **no-idempotency-key path is the baseline** (`send_unknown` → staff-flagged → never auto-retried; "possibly sent" beats "silently double-sent"); a provider client-idempotency key is a *pure optimization* that, where available, permits a same-key safe replay instead (§5.6, §10, ADR-012).
+
+**Three reap triggers close the "stuck in `sending` forever" gap (ADR-018).**
+(i) **Next-firing reap** — the statement above, run by any firing under the
+lease. (ii) **On-steal reap** — a firing that _steals_ a dead holder's lease
+first reaps **every** `sending` row for the `target_date` (the lease guarantees
+no live concurrent processor, so they are provably orphaned — the
+`send_claim_expires_at < now()` clause is dropped here, the holder being
+known-dead). (iii) **`pg_cron` backstop** — `maintenance.reap_stale_sends()`
+runs the same predicate independently of the Edge firings (alongside
+`maintenance.purge_privacy()`, §9.1/§9.3), so a `sending` row resolves to
+`send_unknown` even if the Edge function **never fires again** — no state is
+human-only-exit (the §5.5 totality invariant). The **no-idempotency-key path is
+the baseline** (`send_unknown` → staff-flagged → never auto-retried; "possibly
+sent" beats "silently double-sent"); a provider client-idempotency key is a
+_pure optimization_ that, where available, permits a same-key safe replay
+instead (§5.6, §10, ADR-012).
 
 #### 5.7c single-use action lock (the confirm/cancel CAS, inside `record_reminder_action`)
+
 A pure compare-and-set on the row already located by token digest (§6.3):
+
 ```sql
 update public.reminder_messages
    set action_locked_at = now(), response = p_action, responded_at = now(),
@@ -946,10 +2265,23 @@ update public.reminder_messages
    and superseded_at      is null              -- a superseded row's old link is dead (kill-on-supersede — §5.6, ADR-008)
 returning id;                                  -- 1 row == this POST won; 0 rows == already-acted/expired/superseded → render read-only page
 ```
-*Exactly one winner:* two concurrent POSTs (a double-tap) contend on the same row; the first sets `action_locked_at` and commits, the second blocks then re-evaluates `action_locked_at is null` against the now-locked row → 0 rows → renders the already-recorded response. The `one_action_requires_lock` CHECK (§5.3) makes "a recorded response implies the lock is set" a row invariant, and the `reminder_messages_action_lock_guard` trigger (§5.3) makes the lock **irreversible from any path** — together they enforce single-use in the schema, not just in code. (A breaker-held cancel still consumes the lock with `action_taken='pending_staff_review'` and writes nothing to the CRM — §5.6/§6.2.)
+
+_Exactly one winner:_ two concurrent POSTs (a double-tap) contend on the same
+row; the first sets `action_locked_at` and commits, the second blocks then
+re-evaluates `action_locked_at is null` against the now-locked row → 0 rows →
+renders the already-recorded response. The `one_action_requires_lock` CHECK
+(§5.3) makes "a recorded response implies the lock is set" a row invariant, and
+the `reminder_messages_action_lock_guard` trigger (§5.3) makes the lock
+**irreversible from any path** — together they enforce single-use in the schema,
+not just in code. (A breaker-held cancel still consumes the lock with
+`action_taken='pending_staff_review'` and writes nothing to the CRM —
+§5.6/§6.2.)
 
 #### 5.7d per-visit CRM write-lock steal (`crm_visit_write_locks`, PK = visit_id)
-Same shape as the lease, claimed *around* (never across) the ClinicCards re-fetch→`PUT`→re-fetch:
+
+Same shape as the lease, claimed _around_ (never across) the ClinicCards
+re-fetch→`PUT`→re-fetch:
+
 ```sql
 insert into public.crm_visit_write_locks as wl
   (cliniccards_visit_id, lock_token, locked_by_message_id, locked_at, lock_expires_at)
@@ -960,23 +2292,94 @@ on conflict (cliniccards_visit_id) do update
    where wl.lock_expires_at < now()            -- steal ONLY an expired lease; a live lease → 0 rows → wait/no-op
 returning lock_token;
 ```
-*Exactly one winner:* identical argument to (a). Because a lease is **stealable after expiry**, the write-back must re-confirm it still holds the lease (`exists(select 1 from public.crm_visit_write_locks where cliniccards_visit_id = p_visit_id and lock_token = p_lock_token)`) immediately before the destructive `PUT`, and release with the token guard afterward: `delete from public.crm_visit_write_locks where cliniccards_visit_id = p_visit_id and lock_token = p_lock_token;` (so a firing whose lease was stolen cannot delete the stealer's lease). The post-write re-fetch + render-fingerprint compare (§5.6) catches the only residual case — a vendor-side staff edit in the same window. TTL (≈90 s) must exceed the worst-case re-fetch+PUT+re-fetch round-trip yet be short enough to steal after a crash.
 
-**Test-determinism seam — `app.now()` (no mechanism change — ADR-023/§6.5).** The lease/claim/CAS/breaker predicates above call `app.now()` (a one-line `0001` wrapper) instead of bare `now()`/`clock_timestamp()`: in prod it returns `clock_timestamp()`; under `APP_ENV='test'` it returns the session GUC `app.test_now` when set. This lets a test advance "now" past a lease expiry / token expiry / breaker window **without `pg_sleep`**, so the heartbeat-grace steal (~120 s, §5.7a), token-expiry (§5.7c), and the 10-/30-min breaker windows (§5.6) are tested deterministically. The seam is read-only and inert in prod (the GUC is unset/ignored unless `APP_ENV='test'`); it does **not** alter the one-winner proofs — the row lock + predicate re-evaluation are unchanged, only the time *source* is injectable. The Edge mirror is `_shared/clock.ts` (§8), so a single clock is shared by the Edge function and the DB predicates.
+_Exactly one winner:_ identical argument to (a). Because a lease is **stealable
+after expiry**, the write-back must re-confirm it still holds the lease
+(`exists(select 1 from public.crm_visit_write_locks where cliniccards_visit_id = p_visit_id and lock_token = p_lock_token)`)
+immediately before the destructive `PUT`, and release with the token guard
+afterward:
+`delete from public.crm_visit_write_locks where cliniccards_visit_id = p_visit_id and lock_token = p_lock_token;`
+(so a firing whose lease was stolen cannot delete the stealer's lease). The
+post-write re-fetch + render-fingerprint compare (§5.6) catches the only
+residual case — a vendor-side staff edit in the same window. TTL (≈90 s) must
+exceed the worst-case re-fetch+PUT+re-fetch round-trip yet be short enough to
+steal after a crash.
+
+**Test-determinism seam — `app.now()` (no mechanism change — ADR-023/§6.5).**
+The lease/claim/CAS/breaker predicates above call `app.now()` (a one-line `0001`
+wrapper) instead of bare `now()`/`clock_timestamp()`: in prod it returns
+`clock_timestamp()`; under `APP_ENV='test'` it returns the session GUC
+`app.test_now` when set. This lets a test advance "now" past a lease expiry /
+token expiry / breaker window **without `pg_sleep`**, so the heartbeat-grace
+steal (~120 s, §5.7a), token-expiry (§5.7c), and the 10-/30-min breaker windows
+(§5.6) are tested deterministically. The seam is read-only and inert in prod
+(the GUC is unset/ignored unless `APP_ENV='test'`); it does **not** alter the
+one-winner proofs — the row lock + predicate re-evaluation are unchanged, only
+the time _source_ is injectable. The Edge mirror is `_shared/clock.ts` (§8), so
+a single clock is shared by the Edge function and the DB predicates.
 
 ### 5.8 Visual Design & Brand System
 
-**Visual source of truth:** `docs/design/dentino-design-system.md` + `docs/design/design-tokens.json` (machine-readable tokens with measured contrast), with reviewable mockups at `docs/design/mockups/{confirm-page.html, dashboard.html}` and the re-traced wordmark at `docs/design/assets/logo.svg`. The brand was captured from the live clinic site (`dentino.com.ua` — WordPress, `lang="uk"`) via `getComputedStyle` extraction + in-browser WCAG measurement on 2026-06-18, and **re-implemented inline** under **ADR-022**. The confirm page (§5.2) and the dashboard theme from the **same tokens**.
+**Visual source of truth:** `docs/design/dentino-design-system.md` +
+`docs/design/design-tokens.json` (machine-readable tokens with measured
+contrast), with reviewable mockups at
+`docs/design/mockups/{confirm-page.html, dashboard.html}` and the re-traced
+wordmark at `docs/design/assets/logo.svg`. The brand was captured from the live
+clinic site (`dentino.com.ua` — WordPress, `lang="uk"`) via `getComputedStyle`
+extraction + in-browser WCAG measurement on 2026-06-18, and **re-implemented
+inline** under **ADR-022**. The confirm page (§5.2) and the dashboard theme from
+the **same tokens**.
 
-**Extract-not-link (ADR-022, builds on ADR-014/§6.3):** the public confirm page honours the brand by **extracting its design language into tokens and re-implementing it inline** (inline `<style>`, inline `<svg>`, system fonts, `data:`/base64) — it **never** imports the live site's CSS, fonts, or CDN. A cross-origin asset would both break the no-third-party-asset rule **and** re-open the very referrer/history/log/preview **token-leak** surface the dedicated `r.dentino.com.ua` origin exists to close (§6.3). Brand colours are **contrast-adjusted to WCAG-AA**; the page stays a calm single-purpose bank-confirmation receipt — faithful ≠ literal.
+**Extract-not-link (ADR-022, builds on ADR-014/§6.3):** the public confirm page
+honours the brand by **extracting its design language into tokens and
+re-implementing it inline** (inline `<style>`, inline `<svg>`, system fonts,
+`data:`/base64) — it **never** imports the live site's CSS, fonts, or CDN. A
+cross-origin asset would both break the no-third-party-asset rule **and**
+re-open the very referrer/history/log/preview **token-leak** surface the
+dedicated `r.dentino.com.ua` origin exists to close (§6.3). Brand colours are
+**contrast-adjusted to WCAG-AA**; the page stays a calm single-purpose
+bank-confirmation receipt — faithful ≠ literal.
 
-**Locked tokens (summary; full table, ratios, and the compliance-adaptations audit trail in the design system):**
-- **Palette (measured on white):** navy primary **`#0A3576`** (11.77:1 — wordmark, headings, the large date/time, Confirm fill, links); ink **`#14213A`** (16.05:1 — body); muted **`#51606F`** (6.46:1 — helper text, **darkened** from the site's sub-AA `#8B8D8F`/3.33:1); rose accent **`#F23A5B`** kept **decorative-only** (3.80:1 — fails AA text); surfaces white `#FFFFFF` / subtle `#EBEDEF` / border `#D7DCE3`; destructive `#B3261E` (6.54:1, interstitial only); success `#0F5132` (9.36:1). **Confirm vs Cancel are distinguished by fill + position + label, never colour alone.**
-- **Type:** Cyrillic-complete **system-font stack** (`system-ui, -apple-system, "Segoe UI", Roboto, …`) substituting the site's self-hosted **Gotham Pro** webfonts; 18 px base, 1.5 line-height, scale `14·16·18·22·28·32`, the **date/time the largest element (32 px, real text)**.
-- **Logo:** the clinic provided the **official vector logo in white and black** (`docs/design/assets/Dentino-logo-{white,black}.{ai,eps,pdf}`, 2026-06-19) — a **two-tooth line-art mark** over the wide-tracked **DENTINO** wordmark with «СТОМАТОЛОГІЧНА СТУДІЯ» + "BY RAK & RAK" sub-lines, **monochrome (no rose in the mark)**. At build time the confirm page **extracts inline-SVG paths and renders the black mark as-is on white surfaces** (and the **white** version on dark surfaces) — **the brand/clinic colours are black & white, and the logo is always black & white, never recoloured or tinted** — **superseding** the re-traced `logo.svg` (kept as a fallback; its single-tooth + rose sparkle was an approximation). Production serves a **same-origin** favicon, never a third-party asset.
-- **Spacing/shape:** scale `4·8·12·16·24·32`; radius card 12 / button 8; **≥48 px** tap targets (56 px primary); flat (one soft card shadow).
+**Locked tokens (summary; full table, ratios, and the compliance-adaptations
+audit trail in the design system):**
 
-**The seven hard confirm-page constraints (ADR-014/§6.3/§6.5; the mockup passes all):** (1) zero third-party assets; (2) Cyrillic-complete system fonts; (3) ≤50 KB gzipped (the mockup is ≈4.4 KB); (4) works with JavaScript disabled (server-rendered `<form>` POST + hidden nonce; the mockup contains **zero** script); (5) WCAG-AA contrast (every shipped text/Confirm/Cancel pair ≥4.5:1, measured min **6.46:1**); (6) ≥48 px tap targets, full-width on narrow; (7) `lang="uk"`, ≥18 px body / ≥1.4 line-height, date/time largest, 200 % zoom usable (no `user-scalable=no`), visible focus ring, no modal-only flow, no countdowns. **`mockups/confirm-page.html` is the reference the real `supabase/functions/confirm` page is built from and the seed for the §6.5 Playwright tests (§8).**
+- **Palette (measured on white):** navy primary **`#0A3576`** (11.77:1 —
+  wordmark, headings, the large date/time, Confirm fill, links); ink
+  **`#14213A`** (16.05:1 — body); muted **`#51606F`** (6.46:1 — helper text,
+  **darkened** from the site's sub-AA `#8B8D8F`/3.33:1); rose accent
+  **`#F23A5B`** kept **decorative-only** (3.80:1 — fails AA text); surfaces
+  white `#FFFFFF` / subtle `#EBEDEF` / border `#D7DCE3`; destructive `#B3261E`
+  (6.54:1, interstitial only); success `#0F5132` (9.36:1). **Confirm vs Cancel
+  are distinguished by fill + position + label, never colour alone.**
+- **Type:** Cyrillic-complete **system-font stack**
+  (`system-ui, -apple-system, "Segoe UI", Roboto, …`) substituting the site's
+  self-hosted **Gotham Pro** webfonts; 18 px base, 1.5 line-height, scale
+  `14·16·18·22·28·32`, the **date/time the largest element (32 px, real text)**.
+- **Logo:** the clinic provided the **official vector logo in white and black**
+  (`docs/design/assets/Dentino-logo-{white,black}.{ai,eps,pdf}`, 2026-06-19) — a
+  **two-tooth line-art mark** over the wide-tracked **DENTINO** wordmark with
+  «СТОМАТОЛОГІЧНА СТУДІЯ» + "BY RAK & RAK" sub-lines, **monochrome (no rose in
+  the mark)**. At build time the confirm page **extracts inline-SVG paths and
+  renders the black mark as-is on white surfaces** (and the **white** version on
+  dark surfaces) — **the brand/clinic colours are black & white, and the logo is
+  always black & white, never recoloured or tinted** — **superseding** the
+  re-traced `logo.svg` (kept as a fallback; its single-tooth + rose sparkle was
+  an approximation). Production serves a **same-origin** favicon, never a
+  third-party asset.
+- **Spacing/shape:** scale `4·8·12·16·24·32`; radius card 12 / button 8; **≥48
+  px** tap targets (56 px primary); flat (one soft card shadow).
+
+**The seven hard confirm-page constraints (ADR-014/§6.3/§6.5; the mockup passes
+all):** (1) zero third-party assets; (2) Cyrillic-complete system fonts; (3) ≤50
+KB gzipped (the mockup is ≈4.4 KB); (4) works with JavaScript disabled
+(server-rendered `<form>` POST + hidden nonce; the mockup contains **zero**
+script); (5) WCAG-AA contrast (every shipped text/Confirm/Cancel pair ≥4.5:1,
+measured min **6.46:1**); (6) ≥48 px tap targets, full-width on narrow; (7)
+`lang="uk"`, ≥18 px body / ≥1.4 line-height, date/time largest, 200 % zoom
+usable (no `user-scalable=no`), visible focus ring, no modal-only flow, no
+countdowns. **`mockups/confirm-page.html` is the reference the real
+`supabase/functions/confirm` page is built from and the seed for the §6.5
+Playwright tests (§8).**
 
 ---
 
@@ -984,109 +2387,340 @@ returning lock_token;
 
 ### 6.1 Complexity Analysis
 
-| Area | Complexity | Notes |
-|---|---|---|
-| ClinicCards client | Low–Med | 4 endpoints, simple auth, 2-call join; now also data-driven status policy, fingerprint change-detection, pre-send revalidation, and guarded re-fetch-before-`PUT` write-back. |
-| SMS sender (UA provider) | Low | One REST call; alpha sender-ID registration (~1 wk) is the only lead time. |
-| Confirm/cancel page (Edge Fn) | Low–Med | Tiny web page + token lookup + write-back; the integration-test-heavy part. |
-| Scheduler + idempotency/outbox | Low–Med | `pg_cron`/external multi-fire + Kyiv gate + `reminder_days` lease (heartbeat-grace steal) + per-message claim + **stale-send reaper (next-firing/on-steal/`pg_cron` backstop)** + end-of-run reconciliation (pinned denominator) + external heartbeat; partial-unique keys (ordinary + change-notice); the afternoon catch-up reuses the same dedup. All standard Postgres/SQL + one free monitor, no new infra (ADR-012/013/018). |
-| Dashboard | Low | Two screens. |
-| **Overall** | **Low–Medium** | Few integrations (ClinicCards + one SMS provider + confirm page); no scale/real-time pressure. |
+| Area                           | Complexity     | Notes                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| ------------------------------ | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ClinicCards client             | Low–Med        | 4 endpoints, simple auth, 2-call join; now also data-driven status policy, fingerprint change-detection, pre-send revalidation, and guarded re-fetch-before-`PUT` write-back.                                                                                                                                                                                                                                                      |
+| SMS sender (UA provider)       | Low            | One REST call; alpha sender-ID registration (~1 wk) is the only lead time.                                                                                                                                                                                                                                                                                                                                                         |
+| Confirm/cancel page (Edge Fn)  | Low–Med        | Tiny web page + token lookup + write-back; the integration-test-heavy part.                                                                                                                                                                                                                                                                                                                                                        |
+| Scheduler + idempotency/outbox | Low–Med        | `pg_cron`/external multi-fire + Kyiv gate + `reminder_days` lease (heartbeat-grace steal) + per-message claim + **stale-send reaper (next-firing/on-steal/`pg_cron` backstop)** + end-of-run reconciliation (pinned denominator) + external heartbeat; partial-unique keys (ordinary + change-notice); the afternoon catch-up reuses the same dedup. All standard Postgres/SQL + one free monitor, no new infra (ADR-012/013/018). |
+| Dashboard                      | Low            | Two screens.                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| **Overall**                    | **Low–Medium** | Few integrations (ClinicCards + one SMS provider + confirm page); no scale/real-time pressure.                                                                                                                                                                                                                                                                                                                                     |
 
 ### 6.1a Architectural Coherence Verdict (post-iteration-1)
 
-The architecture now composes around one spine: the data layer owns the durable facts and invariants; the run flow, confirm page, dashboard, and maintenance jobs are projections of that state; the external heartbeat sits outside Supabase and is pinged only after reconciliation. Complexity is concentrated on the failures with the highest business cost: wrongful mass-cancel, missed run, ambiguous outbound send, stale appointment action, and lost cancel write-back. The design does not spend a separate queue, daemon, CRM mirror, raw-token store, or per-attempt outbox on a ~20/day workload.
+The architecture now composes around one spine: the data layer owns the durable
+facts and invariants; the run flow, confirm page, dashboard, and maintenance
+jobs are projections of that state; the external heartbeat sits outside Supabase
+and is pinged only after reconciliation. Complexity is concentrated on the
+failures with the highest business cost: wrongful mass-cancel, missed run,
+ambiguous outbound send, stale appointment action, and lost cancel write-back.
+The design does not spend a separate queue, daemon, CRM mirror, raw-token store,
+or per-attempt outbox on a ~20/day workload.
 
-**Ordinary appointment trace:** a scheduled/manual firing computes `target_date` in Europe/Kyiv, wins the `reminder_days` lease, fetches CRM facts into `crm_visit_facts`, and materializes one `reminder_messages` row per observed remindable appointment. A sendable row is claimed with `FOR UPDATE SKIP LOCKED`, the raw token is minted only in the claimer's memory, the digest/expiry and `sending` claim commit, the SMS is submitted, and the outcome is fenced by `send_claim_token`. The patient link resolves by digest; `GET` renders only; `/prepare` mints a nonce; `/action` CAS-locks the response, revalidates live CRM facts, claims the per-visit write lease, writes the allowed `CONFIRMED`/`CANCELLED` status, re-fetches, records `crm_writeback_ok`, and releases the lease. Reconciliation compares current CRM facts to active rows by current fingerprint, then the heartbeat success ping fires only on green/amber. A crash gap has a named exit: `sending` becomes `send_unknown`, unwritten CRM actions are re-driven by the fenced write-back reaper, and a stolen owner cannot commit stale outcomes.
+**Ordinary appointment trace:** a scheduled/manual firing computes `target_date`
+in Europe/Kyiv, wins the `reminder_days` lease, fetches CRM facts into
+`crm_visit_facts`, and materializes one `reminder_messages` row per observed
+remindable appointment. A sendable row is claimed with `FOR UPDATE SKIP LOCKED`,
+the raw token is minted only in the claimer's memory, the digest/expiry and
+`sending` claim commit, the SMS is submitted, and the outcome is fenced by
+`send_claim_token`. The patient link resolves by digest; `GET` renders only;
+`/prepare` mints a nonce; `/action` CAS-locks the response, revalidates live CRM
+facts, claims the per-visit write lease, writes the allowed
+`CONFIRMED`/`CANCELLED` status, re-fetches, records `crm_writeback_ok`, and
+releases the lease. Reconciliation compares current CRM facts to active rows by
+current fingerprint, then the heartbeat success ping fires only on green/amber.
+A crash gap has a named exit: `sending` becomes `send_unknown`, unwritten CRM
+actions are re-driven by the fenced write-back reaper, and a stolen owner cannot
+commit stale outcomes.
 
-**Changed appointment + partial failure trace:** a later pass sees a changed `appointment_fingerprint`. Supersede + replacement-notice insertion commit together: the old row is historical and its token is dead, while the new `time_change_notice`/`reschedule_notice` is the only active row for the current facts. If the process dies before that transaction, the old stale row cannot satisfy current-fingerprint accounting, so reconciliation is red and a later pass retries. If it dies after the transaction but before the replacement SMS is accepted, the replacement is `pending`/`sending`/`send_unknown` and heartbeat success remains blocked until it is handled; the old link cannot act. This trace has no stale action, no double live capability, and no false green.
+**Changed appointment + partial failure trace:** a later pass sees a changed
+`appointment_fingerprint`. Supersede + replacement-notice insertion commit
+together: the old row is historical and its token is dead, while the new
+`time_change_notice`/`reschedule_notice` is the only active row for the current
+facts. If the process dies before that transaction, the old stale row cannot
+satisfy current-fingerprint accounting, so reconciliation is red and a later
+pass retries. If it dies after the transaction but before the replacement SMS is
+accepted, the replacement is `pending`/`sending`/`send_unknown` and heartbeat
+success remains blocked until it is handled; the old link cannot act. This trace
+has no stale action, no double live capability, and no false green.
 
-This is ready for `research-to-spec` → `spec-to-tdd`: the state machine in §5.5 is authoritative, §5.7 gives one-winner SQL for the hard races, and §6.5 names the validation gates. The single weakest point has not moved; it is sharper: **patient action rate after delivery, plus staff adoption of the no-reply policy**. The technical system can prove selection, send, action safety, and reconciliation, but value still depends on patients acting and staff not continuing the old call-everyone workflow.
+This is ready for `research-to-spec` → `spec-to-tdd`: the state machine in §5.5
+is authoritative, §5.7 gives one-winner SQL for the hard races, and §6.5 names
+the validation gates. The single weakest point has not moved; it is sharper:
+**patient action rate after delivery, plus staff adoption of the no-reply
+policy**. The technical system can prove selection, send, action safety, and
+reconciliation, but value still depends on patients acting and staff not
+continuing the old call-everyone workflow.
 
-**Iteration-2 coherence note (test + lifecycle layers).** Iteration 2 added two layers that compose cleanly with the spine above without re-opening any locked decision. The **hermetic test harness** (§6.5/ADR-023) routes all outbound HTTP through one `_shared/http.ts` chokepoint that, in dev/test/CI, becomes a cassette player that *throws* on any unrecorded request, with an `APP_ENV` boot guard and a CI egress-deny ring behind it — so "no dev/test/CI run can touch a real patient" is a *tested* invariant, and `app.now()` makes the §5.7 lease/expiry/breaker races deterministically testable without `pg_sleep`. The **live-clinic lifecycle layer** (§6.6/ADR-024) puts two fail-closed mode flags — `SEND_MODE` at the `smsSender` chokepoint, `CRM_WRITE_MODE` at the §5.6 write-back chokepoint — and a code-level allowlist guard at exactly those two side-effect points, climbed via the `shadow → seed → canary → full` ladder. **The two layers are one chokepoint seen from two angles:** the harness denies *egress* in CI; the mode flags deny the *side effect* in prod-until-go-live, and they share the `SEND_MODE`/`CRM_WRITE_MODE`/`APP_ENV` vocabulary. The net effect is that the two irreversible, patient-visible failures (a wrongful Cancel/Confirm write; an errant or wrong-time SMS) are now defended at **both** the runtime layer (guarded write-back, breaker, fenced side effects, single-use capability — existing) **and** the lifecycle layer (off-by-default/fail-closed flags, the allowlist, the staged ladder, the hermetic harness — new), with the §4.4/ADR-017 manual backstop unchanged as the rollback floor and the 12:30 heartbeat untouched. Complexity stays proportionate: no new infra, no new service, no patient PII anywhere — just a chokepoint, five env flags, two allowlists, and discipline made mechanical.
+**Iteration-2 coherence note (test + lifecycle layers).** Iteration 2 added two
+layers that compose cleanly with the spine above without re-opening any locked
+decision. The **hermetic test harness** (§6.5/ADR-023) routes all outbound HTTP
+through one `_shared/http.ts` chokepoint that, in dev/test/CI, becomes a
+cassette player that _throws_ on any unrecorded request, with an `APP_ENV` boot
+guard and a CI egress-deny ring behind it — so "no dev/test/CI run can touch a
+real patient" is a _tested_ invariant, and `app.now()` makes the §5.7
+lease/expiry/breaker races deterministically testable without `pg_sleep`. The
+**live-clinic lifecycle layer** (§6.6/ADR-024) puts two fail-closed mode flags —
+`SEND_MODE` at the `smsSender` chokepoint, `CRM_WRITE_MODE` at the §5.6
+write-back chokepoint — and a code-level allowlist guard at exactly those two
+side-effect points, climbed via the `shadow → seed → canary → full` ladder.
+**The two layers are one chokepoint seen from two angles:** the harness denies
+_egress_ in CI; the mode flags deny the _side effect_ in prod-until-go-live, and
+they share the `SEND_MODE`/`CRM_WRITE_MODE`/`APP_ENV` vocabulary. The net effect
+is that the two irreversible, patient-visible failures (a wrongful
+Cancel/Confirm write; an errant or wrong-time SMS) are now defended at **both**
+the runtime layer (guarded write-back, breaker, fenced side effects, single-use
+capability — existing) **and** the lifecycle layer (off-by-default/fail-closed
+flags, the allowlist, the staged ladder, the hermetic harness — new), with the
+§4.4/ADR-017 manual backstop unchanged as the rollback floor and the 12:30
+heartbeat untouched. Complexity stays proportionate: no new infra, no new
+service, no patient PII anywhere — just a chokepoint, five env flags, two
+allowlists, and discipline made mechanical.
 
 ### 6.2 Risk Assessment
 
-> **Single weakest remaining point:** patient action rate after delivery. The rest of the architecture can prove that messages were selected, sent, reconciled, and safely written back; it cannot force patients to tap. If delivered-but-no-tap is high, the system still works as an audit trail and staff call queue, but the automated calendar-sync value is weaker. That is why engagement telemetry, reception priming, send-time tuning, and the no-reply staff workflow are first-class controls, not nice-to-have analytics.
+> **Single weakest remaining point:** patient action rate after delivery. The
+> rest of the architecture can prove that messages were selected, sent,
+> reconciled, and safely written back; it cannot force patients to tap. If
+> delivered-but-no-tap is high, the system still works as an audit trail and
+> staff call queue, but the automated calendar-sync value is weaker. That is why
+> engagement telemetry, reception priming, send-time tuning, and the no-reply
+> staff workflow are first-class controls, not nice-to-have analytics.
 >
-> **The funnel and its biggest leak (Patient-Experience review, v2.7).** The path is five gates, each shedding people: **(a) receive** → **(b) trust it enough to tap** → **(c) the link opens** → **(d) the page reads as legitimately the clinic and is clear** → **(e) pick and complete an action**. For *this* base (Ukrainian, mobile-first, mixed-age, smishing-trained), the **dominant leak is (b) trust-to-tap**: an unexpected clinic link reads as the bank/parcel-fraud SMS patients are trained to ignore — not effort, which is already minimal (Confirm = one tap). The two highest-lift moves are therefore **(1) priming** (making the message *expected* — a near-free behavioral lever; promote it from the soft D3 note to a first-class rollout artifact, §9.3) and **(2) designing gate (d), the page** (previously undesigned — trust + clarity + accessibility, §5.2/§9.3), which multiplies everyone who taps. The single strongest *on-page* trust signal is the partial-detail rendering — a page already showing the patient's real appointment cannot be a generic scam. **After priming, the controllable leak shifts** to page-clarity + *motivation* (a patient who plans to come anyway may not see why to confirm) — so the page frames confirming as *preserving your reserved time*, and the action ÷ delivered KPI is segmented (template × send-hour) to reveal where it actually breaks.
+> **The funnel and its biggest leak (Patient-Experience review, v2.7).** The
+> path is five gates, each shedding people: **(a) receive** → **(b) trust it
+> enough to tap** → **(c) the link opens** → **(d) the page reads as
+> legitimately the clinic and is clear** → **(e) pick and complete an action**.
+> For _this_ base (Ukrainian, mobile-first, mixed-age, smishing-trained), the
+> **dominant leak is (b) trust-to-tap**: an unexpected clinic link reads as the
+> bank/parcel-fraud SMS patients are trained to ignore — not effort, which is
+> already minimal (Confirm = one tap). The two highest-lift moves are therefore
+> **(1) priming** (making the message _expected_ — a near-free behavioral lever;
+> promote it from the soft D3 note to a first-class rollout artifact, §9.3) and
+> **(2) designing gate (d), the page** (previously undesigned — trust +
+> clarity + accessibility, §5.2/§9.3), which multiplies everyone who taps. The
+> single strongest _on-page_ trust signal is the partial-detail rendering — a
+> page already showing the patient's real appointment cannot be a generic scam.
+> **After priming, the controllable leak shifts** to page-clarity + _motivation_
+> (a patient who plans to come anyway may not see why to confirm) — so the page
+> frames confirming as _preserving your reserved time_, and the action ÷
+> delivered KPI is segmented (template × send-hour) to reveal where it actually
+> breaks.
 
-> **Two values, two *risk* profiles (this is about action rate dependence, not € size — ROI sizing is §1).** The system delivers (a) a **no-show-reduction effect** and (b) **calendar-sync / early slot-reuse** from active Confirm/Cancel — and they differ in how they lean on action rate. **(a) accrues mostly from the reminder being delivered and seen** (a remembered appointment is kept), so it is **robust even at a low action rate**; **(b) is conditional on action rate** (only an actual Cancel frees a slot early; only a Confirm auto-syncs the calendar). So the weakest-point caveat above bounds **(b)**, not (a) — a clinic with mediocre action rate still keeps the delivery-driven effect. **Honest sizing (§1):** measured against the clinic's *current phone calls* (not "no reminders"), the *incremental* no-show drop may be **modest** (SMS ≈ phone for attendance — Cochrane CD007458); the **reliable** incremental wins are **lower staff cost** + **earlier, more reliable cancellation capture → refillable slots**. Action rate is the lever that *adds* slot-reuse and *removes* confirm-calls (the staff-time win below, ADR-017).
+> **Two values, two _risk_ profiles (this is about action rate dependence, not €
+> size — ROI sizing is §1).** The system delivers (a) a **no-show-reduction
+> effect** and (b) **calendar-sync / early slot-reuse** from active
+> Confirm/Cancel — and they differ in how they lean on action rate. **(a)
+> accrues mostly from the reminder being delivered and seen** (a remembered
+> appointment is kept), so it is **robust even at a low action rate**; **(b) is
+> conditional on action rate** (only an actual Cancel frees a slot early; only a
+> Confirm auto-syncs the calendar). So the weakest-point caveat above bounds
+> **(b)**, not (a) — a clinic with mediocre action rate still keeps the
+> delivery-driven effect. **Honest sizing (§1):** measured against the clinic's
+> _current phone calls_ (not "no reminders"), the _incremental_ no-show drop may
+> be **modest** (SMS ≈ phone for attendance — Cochrane CD007458); the
+> **reliable** incremental wins are **lower staff cost** + **earlier, more
+> reliable cancellation capture → refillable slots**. Action rate is the lever
+> that _adds_ slot-reuse and _removes_ confirm-calls (the staff-time win below,
+> ADR-017).
 >
-> **Action rate, not page views.** Because `GET` is strictly side-effect-free and scanner-contaminated (ADR-014/§5.4), page *views* are **not** a trustworthy metric — do not try to count them as engagement. The clean, security-compatible KPI is **action rate = recorded Confirm/Cancel (the nonce-backed POST, a real human gesture) ÷ delivered**, segmented by **template (named vs name-overflow fallback)** and **send hour**. Track delivered-but-no-action as the staff call-queue input.
+> **Action rate, not page views.** Because `GET` is strictly side-effect-free
+> and scanner-contaminated (ADR-014/§5.4), page _views_ are **not** a
+> trustworthy metric — do not try to count them as engagement. The clean,
+> security-compatible KPI is **action rate = recorded Confirm/Cancel (the
+> nonce-backed POST, a real human gesture) ÷ delivered**, segmented by
+> **template (named vs name-overflow fallback)** and **send hour**. Track
+> delivered-but-no-action as the staff call-queue input.
 >
-> **The reschedule lever (turn the scariest action into retained revenue).** The doc treats Cancel as terminal loss, but a *reschedule* keeps the appointment and the care. The Cancel interstitial and the post-cancel page **foreground "call to reschedule"** (a one-tap `tel:` link) before/after the destructive confirm — without weakening the locked safety gate (still a second nonce-backed POST) — so a cancel intent is offered a retention path at the exact decision moment (§5.2, §9.3, ADR-014).
+> **The reschedule lever (turn the scariest action into retained revenue).** The
+> doc treats Cancel as terminal loss, but a _reschedule_ keeps the appointment
+> and the care. The Cancel interstitial and the post-cancel page **foreground
+> "call to reschedule"** (a one-tap `tel:` link) before/after the destructive
+> confirm — without weakening the locked safety gate (still a second
+> nonce-backed POST) — so a cancel intent is offered a retention path at the
+> exact decision moment (§5.2, §9.3, ADR-014).
 
-| Risk | Likelihood | Impact | Mitigation |
-|---|---|---|---|
-| ClinicCards API gated behind a paid plan / key unavailable | Med | **Critical** (kills API approach) | **Confirm with vendor first (C3)**; fallback = browser automation (template exists) only if forced. |
-| Patients don't tap the confirm link (engagement) | Med | **High** | **The dominant risk to the value prop** (a delivered-but-untapped SMS yields no confirm/cancel and no sync). **Biggest leak = trust-to-tap (gate b);** ranked levers: **(1) reception priming** — now a first-class rollout artifact (booking-desk script, §9.3): a *expected* SMS beats smishing suspicion more than any on-page change; **(2) a trust-and-accessibility-designed page** (inline-SVG branding, "why you got this", partial-detail as anti-phishing proof, ≥48 px targets, no-JS form POST — §5.2/§9.3); **(3)** trusted branded sender + recognizable domain + tight *named* copy; **(4)** clinic phone in both SMS bodies + the no-reply **staff call queue** as the designed path for the link-averse. **Reschedule conversion:** the Cancel interstitial + post-cancel page foreground a one-tap `tel:` reschedule call, turning lost cancels into retained appointments (§5.2, §9.3). **Send-time:** default **12:00** is kept (it agrees with the §4.4 noon-window + the 12:30 heartbeat and the same-day staff working window — the external reviewer's 13:00 move isn't worth the cross-cutting churn given the weak timing evidence); for a *next-day* reminder the same-day window (refill cancelled slots) outweighs a marginal evening tap lift, and **cancels are the action you most want surfaced early**. If A/B'd, test **12:00 vs ~15:30** with the success metric = **same-day-*actionable* completion** (action by evening **and** staff-recoverable cancel by ~17:30, by template + hour), not raw views (GET is scanner-contaminated, §5.4). **Locating the leak (without unsafe GET telemetry):** when staff work the no-reply queue, capture a one-tap **reason tag** (`did_not_see_sms` · `distrusts_link` · `site_did_not_open` · `prefers_call` · `did_not_understand_confirm` · `no_longer_attending` · `other`, §5.2/§9.3) — far cheaper than scanner-prone page-view counts for telling trust vs open vs clarity vs motivation apart. **No-reply nudge:** still no second SMS in v1, but it is now **pre-designed as a safe v1.1 lever** (own `message_kind='no_reply_nudge'`, own partial-unique key; it **mints a new token and re-issues** the capability — it cannot reuse the unstored raw token — so it adds no second live link and can't re-arm double-send — §4.2/§5.5/ADR-021); enable it early if the measured action rate sits below the **~55–65% healthy band** (the value-red line is owned by §2.3 #10 / ADR-017, **not** a separate failure threshold). |
-| Cyrillic SMS = 2–3 segments inflates cost | High | Low | Expected (≈€0.05–0.08/reminder; €30–45/mo at ~20/day); enforce the **2-segment / ≤134-char** budget; still no monthly floor. Revisit Viber (§4.3) only past the **~100–130/day** 2-segment crossover (lower, ~67–90/day, if templates drift to 3 segments). |
-| Alpha sender-ID not registered / overwritten / not preserved cross-network, or no per-message DLR | Med | **High** | Register `Dentino` (~1–14 days; needs ЄДРПОУ/ІПН); in the §6.5 seed test verify it **delivers and is preserved across Kyivstar, Vodafone UA, lifecell, and ported (MNP) numbers** (not replaced by "Info"/"Msg" or billed international) **and that per-message delivery status is available**; fall back to a UA-native aggregator if a route rewrites the sender or hides DLRs (ADR-005). |
-| Carrier filters/de-ranks the SMS URL | Med | **High** | **Go-live gate.** Pre-clear sender + templates + the exact `https://r.dentino.com.ua/r/*` pattern with the provider; one branded HTTPS domain, no shorteners/redirects/rotating hosts; explicit `https://`; complete the **3-day cross-operator seed validation (§6.5)** with **0 URL-specific blocks** before first patient traffic. |
-| Token weakened to save SMS segments | Med | **High** | The token stays **128-bit** (stored only as an HMAC digest — §6.3, ADR-014); hit the 2-segment budget via tight copy + the name-overflow fallback, never by shortening the token. |
-| SMS delivered stale after handset offline | Med | Med | Confirm the provider's **TTL / default storage** behaviour; if configurable, expire the reminder SMS by the **evening before** the appointment (or before it starts) so a very-late delivery can't mislead. |
-| Missed cancellation write-back → **lost rebooking** | Low–Med | **High** | **Auto-retry the idempotent `PUT CANCELLED`** (≤2 tries, re-fetch each) → **dedicated alert + pin *above* the no-reply queue** (a blocked refillable slot outranks a no-reply) with ClinicCards deep link/`visit_id` + one-click call-to-rebook; **red** on live panel + afternoon reconciliation; **end-of-day owner report** of unresolved; staff manual fallback (§5.6, §6.2 ranking). |
-| Forged / stray / stale-token / scanner-fetched confirm-page action → **wrongful cancellation** | Low | **High** | Cancel is a destructive external CRM write, so the token is necessary but **not sufficient** (ADR-014): side-effect-free `GET`/`HEAD`, **confirmation interstitial**, **POST-only + signed action nonce** (= the render-fingerprint), **single-use lock**, **expiry** at appointment start, **re-fetch + fingerprint-compare before write** (§5.6), and a **velocity-first mass-cancel circuit-breaker that halts writes** (hard-open ≥4 cancels/10 min or ≥6/30 min; daily amber ≥`⌈0.4×sent⌉`, hard-ceiling > `max(8, ⌈0.6×sent⌉)`; counts only valid nonce-backed cancel POSTs where `response='cancel' and action_locked_at is not null` — recalibrated as an ops control, §5.6/ADR-014). Tokens are 128-bit, stored only as HMAC digests; `/r/<token>` redacted in logs; scanner/preview GETs can't act or trip the breaker. |
-| Link scanner / SMS preview / security gateway auto-fetch | Med | **High** | A *more likely* vector than a hand-forged POST: `GET`/`HEAD` strictly side-effect-free and excluded from engagement (§5.4); state change only via nonce-backed `POST /action`; Cancel needs the interstitial — so an auto-fetch can't act, skew metrics, or trip the breaker (ADR-014). |
-| Double-send (cron double-fire / double-click / re-run) — incl. the **outbound SMS**, not just the row | Med | Med | Partial-unique `(visit_id, target_date)` over ordinary reminders **+ `reminder_days` lease (one firing/day) + per-message `sending` claim** so concurrent firings can't double-send the text; a `send_unknown` is flagged, not retried (ADR-012). |
-| **Appointment moved / time-changed after send → stale SMS** | Med | Med | `appointment_fingerprint` change detection → supersede + one `reschedule_notice`/`time_change_notice`; pre-send revalidation skips a candidate already moved (§5.6, ADR-008). |
-| **Write-back clobbers a concurrent staff edit (TOCTOU)** | Low–Med | **High** | Short-lived per-visit CRM write lease serializes Dentino-originated writes; re-fetch + render-fingerprint compare immediately before `PUT`; refuse + flag if changed/terminal; `PUT` default (`DELETE` staff-only, loses history); post-write re-fetch. No DB transaction is held across ClinicCards HTTP calls; only a vendor-side race with human staff remains (C3 optimistic-concurrency checks if available). |
-| **Change/cancel/late-booking after the noon fetch (poll staleness)** | Med | Med | Pre-send revalidation + an automatic late-afternoon catch-up run for the same `target_date` (ADR-006). |
-| **Unknown / new ClinicCards status mis-messages** | Low | **High** | Data-driven `cliniccards_status_policy`; an unknown status fails closed (skip + needs-attention) — ADR-011. |
-| **SMS sent but record lost → duplicate** | Low | Med | Claim the row (`sending`) **before** the provider call so a crash mid-send is caught as `send_unknown`, not silently re-sent; never auto-retry an ambiguous send (flag for staff); provider client idempotency key if available (§10, ADR-012). |
-| **Partial visit→patient join silently omits an appointment** | Med | Med | Always materialize a `skipped` row with `skip_reason` + needs-attention; never crash the run; raw fetches snapshotted to `crm_fetch_log`. |
-| DST drift of noon send | Annual | Low | Multi-fire UTC window + **gate the handler on Europe/Kyiv local time** + per-run `kyiv_now`/`target_date_kyiv` logging (fail on mismatch); the lease makes repeat firings no-ops — drift eliminated, no twice-a-year cron edits (§4.4). **Backstop:** a mistimed/missed run never pings the external dead-man's-switch by 12:30 Kyiv → a human is paged (ADR-013). |
-| Supabase Free pauses / region degraded → **silent** missed run | Med | **High** | **Pro mandatory** (Free forbidden — pausing not preventable by internal `pg_cron`); the detector is an **external** dead-man's-switch (Healthchecks.io/Cronitor), independent of Supabase, that pages a human if no *success* ping (post-reconciliation) by 12:30 Kyiv (ADR-003, ADR-013). |
-| `pg_cron`/`pg_net` shows a scheduled call, but the Edge Fn failed / timed out / never reconciled | Med | **High** | `pg_net` is async — "request queued" ≠ "function completed"; truth = the external heartbeat's **post-reconciliation success** ping (ADR-013); inspect `net._http_response` only as a diagnostic. |
-| SMS provider **balance/quota exhausted** → every send fails, no code bug | Med | **High** | Pre-run balance/quota check where the provider exposes it; low-balance alert at ~7-day projected usage; reconciliation treats mass provider-rejects as **red** (§5.6). |
-| Edge Function deploy / dashboard-editor **drift** (untracked change) | Low–Med | Med | Deploy functions + migrations from **git CI/CLI only — no dashboard hot-edits** (ADR-003). |
-| Dashboard shows **stale green** (yesterday read as today) | Low | Med | Trust panel keys on the current Kyiv `target_date`; **red** if no `reminder_days` row by 12:30 (§5.2, ADR-013). |
-| Existing patients lack a documented lawful-basis / notice record | Med | **High** (policy/legal) | Rely on **contract performance + healthcare-management** (ADR-015), not a bare boolean; for the existing base write a minimal `consent_events` row per patient (`source='legacy_import'`, with batch/version/proof_ref) and have staff attest the source rather than misrepresent it as captured consent; honor opt-out as a preference. |
-| Phone-format mismatches (380 vs +380 vs 0XX) | High | Med | Normalize to E.164 on ingest; ClinicCards accepts both forms. |
-| ClinicCards datetime timezone differs from our assumption | Med | **High** | If `visit_start` isn't Kyiv-local, reminders show the **wrong appointment time** (and near-midnight slots could map to the wrong day). **Confirm the TZ of `visit_start` + `from`/`to` with the vendor (C3)** and validate against a known appointment before launch. |
-| Response tied to wrong appointment | — | — | **Resolved by design:** the per-appointment **unguessable confirm link** pins the exact visit — no phone-matching, so the multi-channel "shared family phone / free-text reply" ambiguity does not arise in SMS v1. |
-| Patient data exposure | Low | High | Minimize (don't persist phones — HMAC + last-4 only, ADR-016); RLS + **no `anon` grants on base tables**; the public Edge Fn calls only fixed single-token RPCs (no table scans, §6.3); encrypt; no clinical content; token URLs redacted in logs; no PII to Sentry. |
-| **System frees staff or just relocates the chores** (net staff-time) | Med | Med | Staff-time model below + a **staff-load success bar** (§2.3 #10): keep the exception queue to minutes/day; lower the breakeven via "don't chase no-replies" policy + one-click call-list + bulk approvals (ADR-017). |
-| **Business case never validated** (no-show ROI unmeasured) | Med | Med | Measure baseline no-show rate pre-go-live + a small owner **value panel** post (§2.3 #11, ADR-017); ROI is overwhelmingly positive at any plausible inputs (§1 Value & ROI). |
+| Risk                                                                                                  | Likelihood | Impact                            | Mitigation                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| ----------------------------------------------------------------------------------------------------- | ---------- | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| ClinicCards API gated behind a paid plan / key unavailable                                            | Med        | **Critical** (kills API approach) | **Confirm with vendor first (C3)**; fallback = browser automation (template exists) only if forced.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Patients don't tap the confirm link (engagement)                                                      | Med        | **High**                          | **The dominant risk to the value prop** (a delivered-but-untapped SMS yields no confirm/cancel and no sync). **Biggest leak = trust-to-tap (gate b);** ranked levers: **(1) reception priming** — now a first-class rollout artifact (booking-desk script, §9.3): a _expected_ SMS beats smishing suspicion more than any on-page change; **(2) a trust-and-accessibility-designed page** (inline-SVG branding, "why you got this", partial-detail as anti-phishing proof, ≥48 px targets, no-JS form POST — §5.2/§9.3); **(3)** trusted branded sender + recognizable domain + tight _named_ copy; **(4)** clinic phone in both SMS bodies + the no-reply **staff call queue** as the designed path for the link-averse. **Reschedule conversion:** the Cancel interstitial + post-cancel page foreground a one-tap `tel:` reschedule call, turning lost cancels into retained appointments (§5.2, §9.3). **Send-time:** default **12:00** is kept (it agrees with the §4.4 noon-window + the 12:30 heartbeat and the same-day staff working window — the external reviewer's 13:00 move isn't worth the cross-cutting churn given the weak timing evidence); for a _next-day_ reminder the same-day window (refill cancelled slots) outweighs a marginal evening tap lift, and **cancels are the action you most want surfaced early**. If A/B'd, test **12:00 vs ~15:30** with the success metric = **same-day-_actionable_ completion** (action by evening **and** staff-recoverable cancel by ~17:30, by template + hour), not raw views (GET is scanner-contaminated, §5.4). **Locating the leak (without unsafe GET telemetry):** when staff work the no-reply queue, capture a one-tap **reason tag** (`did_not_see_sms` · `distrusts_link` · `site_did_not_open` · `prefers_call` · `did_not_understand_confirm` · `no_longer_attending` · `other`, §5.2/§9.3) — far cheaper than scanner-prone page-view counts for telling trust vs open vs clarity vs motivation apart. **No-reply nudge:** still no second SMS in v1, but it is now **pre-designed as a safe v1.1 lever** (own `message_kind='no_reply_nudge'`, own partial-unique key; it **mints a new token and re-issues** the capability — it cannot reuse the unstored raw token — so it adds no second live link and can't re-arm double-send — §4.2/§5.5/ADR-021); enable it early if the measured action rate sits below the **~55–65% healthy band** (the value-red line is owned by §2.3 #10 / ADR-017, **not** a separate failure threshold). |
+| Cyrillic SMS = 2–3 segments inflates cost                                                             | High       | Low                               | Expected (≈€0.05–0.08/reminder; €30–45/mo at ~20/day); enforce the **2-segment / ≤134-char** budget; still no monthly floor. Revisit Viber (§4.3) only past the **~100–130/day** 2-segment crossover (lower, ~67–90/day, if templates drift to 3 segments).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| Alpha sender-ID not registered / overwritten / not preserved cross-network, or no per-message DLR     | Med        | **High**                          | Register `Dentino` (~1–14 days; needs ЄДРПОУ/ІПН); in the §6.5 seed test verify it **delivers and is preserved across Kyivstar, Vodafone UA, lifecell, and ported (MNP) numbers** (not replaced by "Info"/"Msg" or billed international) **and that per-message delivery status is available**; fall back to a UA-native aggregator if a route rewrites the sender or hides DLRs (ADR-005).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| Carrier filters/de-ranks the SMS URL                                                                  | Med        | **High**                          | **Go-live gate.** Pre-clear sender + templates + the exact `https://r.dentino.com.ua/r/*` pattern with the provider; one branded HTTPS domain, no shorteners/redirects/rotating hosts; explicit `https://`; complete the **3-day cross-operator seed validation (§6.5)** with **0 URL-specific blocks** before first patient traffic.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| Token weakened to save SMS segments                                                                   | Med        | **High**                          | The token stays **128-bit** (stored only as an HMAC digest — §6.3, ADR-014); hit the 2-segment budget via tight copy + the name-overflow fallback, never by shortening the token.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| SMS delivered stale after handset offline                                                             | Med        | Med                               | Confirm the provider's **TTL / default storage** behaviour; if configurable, expire the reminder SMS by the **evening before** the appointment (or before it starts) so a very-late delivery can't mislead.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| Missed cancellation write-back → **lost rebooking**                                                   | Low–Med    | **High**                          | **Auto-retry the idempotent `PUT CANCELLED`** (≤2 tries, re-fetch each) → **dedicated alert + pin _above_ the no-reply queue** (a blocked refillable slot outranks a no-reply) with ClinicCards deep link/`visit_id` + one-click call-to-rebook; **red** on live panel + afternoon reconciliation; **end-of-day owner report** of unresolved; staff manual fallback (§5.6, §6.2 ranking).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| Forged / stray / stale-token / scanner-fetched confirm-page action → **wrongful cancellation**        | Low        | **High**                          | Cancel is a destructive external CRM write, so the token is necessary but **not sufficient** (ADR-014): side-effect-free `GET`/`HEAD`, **confirmation interstitial**, **POST-only + signed action nonce** (= the render-fingerprint), **single-use lock**, **expiry** at appointment start, **re-fetch + fingerprint-compare before write** (§5.6), and a **velocity-first mass-cancel circuit-breaker that halts writes** (hard-open ≥4 cancels/10 min or ≥6/30 min; daily amber ≥`⌈0.4×sent⌉`, hard-ceiling > `max(8, ⌈0.6×sent⌉)`; counts only valid nonce-backed cancel POSTs where `response='cancel' and action_locked_at is not null` — recalibrated as an ops control, §5.6/ADR-014). Tokens are 128-bit, stored only as HMAC digests; `/r/<token>` redacted in logs; scanner/preview GETs can't act or trip the breaker.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| Link scanner / SMS preview / security gateway auto-fetch                                              | Med        | **High**                          | A _more likely_ vector than a hand-forged POST: `GET`/`HEAD` strictly side-effect-free and excluded from engagement (§5.4); state change only via nonce-backed `POST /action`; Cancel needs the interstitial — so an auto-fetch can't act, skew metrics, or trip the breaker (ADR-014).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| Double-send (cron double-fire / double-click / re-run) — incl. the **outbound SMS**, not just the row | Med        | Med                               | Partial-unique `(visit_id, target_date)` over ordinary reminders **+ `reminder_days` lease (one firing/day) + per-message `sending` claim** so concurrent firings can't double-send the text; a `send_unknown` is flagged, not retried (ADR-012).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| **Appointment moved / time-changed after send → stale SMS**                                           | Med        | Med                               | `appointment_fingerprint` change detection → supersede + one `reschedule_notice`/`time_change_notice`; pre-send revalidation skips a candidate already moved (§5.6, ADR-008).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| **Write-back clobbers a concurrent staff edit (TOCTOU)**                                              | Low–Med    | **High**                          | Short-lived per-visit CRM write lease serializes Dentino-originated writes; re-fetch + render-fingerprint compare immediately before `PUT`; refuse + flag if changed/terminal; `PUT` default (`DELETE` staff-only, loses history); post-write re-fetch. No DB transaction is held across ClinicCards HTTP calls; only a vendor-side race with human staff remains (C3 optimistic-concurrency checks if available).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| **Change/cancel/late-booking after the noon fetch (poll staleness)**                                  | Med        | Med                               | Pre-send revalidation + an automatic late-afternoon catch-up run for the same `target_date` (ADR-006).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| **Unknown / new ClinicCards status mis-messages**                                                     | Low        | **High**                          | Data-driven `cliniccards_status_policy`; an unknown status fails closed (skip + needs-attention) — ADR-011.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| **SMS sent but record lost → duplicate**                                                              | Low        | Med                               | Claim the row (`sending`) **before** the provider call so a crash mid-send is caught as `send_unknown`, not silently re-sent; never auto-retry an ambiguous send (flag for staff); provider client idempotency key if available (§10, ADR-012).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| **Partial visit→patient join silently omits an appointment**                                          | Med        | Med                               | Always materialize a `skipped` row with `skip_reason` + needs-attention; never crash the run; raw fetches snapshotted to `crm_fetch_log`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| DST drift of noon send                                                                                | Annual     | Low                               | Multi-fire UTC window + **gate the handler on Europe/Kyiv local time** + per-run `kyiv_now`/`target_date_kyiv` logging (fail on mismatch); the lease makes repeat firings no-ops — drift eliminated, no twice-a-year cron edits (§4.4). **Backstop:** a mistimed/missed run never pings the external dead-man's-switch by 12:30 Kyiv → a human is paged (ADR-013).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| Supabase Free pauses / region degraded → **silent** missed run                                        | Med        | **High**                          | **Pro mandatory** (Free forbidden — pausing not preventable by internal `pg_cron`); the detector is an **external** dead-man's-switch (Healthchecks.io/Cronitor), independent of Supabase, that pages a human if no _success_ ping (post-reconciliation) by 12:30 Kyiv (ADR-003, ADR-013).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `pg_cron`/`pg_net` shows a scheduled call, but the Edge Fn failed / timed out / never reconciled      | Med        | **High**                          | `pg_net` is async — "request queued" ≠ "function completed"; truth = the external heartbeat's **post-reconciliation success** ping (ADR-013); inspect `net._http_response` only as a diagnostic.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| SMS provider **balance/quota exhausted** → every send fails, no code bug                              | Med        | **High**                          | Pre-run balance/quota check where the provider exposes it; low-balance alert at ~7-day projected usage; reconciliation treats mass provider-rejects as **red** (§5.6).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| Edge Function deploy / dashboard-editor **drift** (untracked change)                                  | Low–Med    | Med                               | Deploy functions + migrations from **git CI/CLI only — no dashboard hot-edits** (ADR-003).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| Dashboard shows **stale green** (yesterday read as today)                                             | Low        | Med                               | Trust panel keys on the current Kyiv `target_date`; **red** if no `reminder_days` row by 12:30 (§5.2, ADR-013).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Existing patients lack a documented lawful-basis / notice record                                      | Med        | **High** (policy/legal)           | Rely on **contract performance + healthcare-management** (ADR-015), not a bare boolean; for the existing base write a minimal `consent_events` row per patient (`source='legacy_import'`, with batch/version/proof_ref) and have staff attest the source rather than misrepresent it as captured consent; honor opt-out as a preference.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| Phone-format mismatches (380 vs +380 vs 0XX)                                                          | High       | Med                               | Normalize to E.164 on ingest; ClinicCards accepts both forms.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| ClinicCards datetime timezone differs from our assumption                                             | Med        | **High**                          | If `visit_start` isn't Kyiv-local, reminders show the **wrong appointment time** (and near-midnight slots could map to the wrong day). **Confirm the TZ of `visit_start` + `from`/`to` with the vendor (C3)** and validate against a known appointment before launch.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| Response tied to wrong appointment                                                                    | —          | —                                 | **Resolved by design:** the per-appointment **unguessable confirm link** pins the exact visit — no phone-matching, so the multi-channel "shared family phone / free-text reply" ambiguity does not arise in SMS v1.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| Patient data exposure                                                                                 | Low        | High                              | Minimize (don't persist phones — HMAC + last-4 only, ADR-016); RLS + **no `anon` grants on base tables**; the public Edge Fn calls only fixed single-token RPCs (no table scans, §6.3); encrypt; no clinical content; token URLs redacted in logs; no PII to Sentry.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| **System frees staff or just relocates the chores** (net staff-time)                                  | Med        | Med                               | Staff-time model below + a **staff-load success bar** (§2.3 #10): keep the exception queue to minutes/day; lower the breakeven via "don't chase no-replies" policy + one-click call-list + bulk approvals (ADR-017).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| **Business case never validated** (no-show ROI unmeasured)                                            | Med        | Med                               | Measure baseline no-show rate pre-go-live + a small owner **value panel** post (§2.3 #11, ADR-017); ROI is overwhelmingly positive at any plausible inputs (§1 Value & ROI).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 
-**Net staff-time model & the action rate breakeven (Business-Viability review, v2.8 / external-reviewer reconciliation v2.10 — Tension 1).** Model: `old = N × M_old`; `new = O + N × (1−A) × M_no_reply`, with `N=20`, `M_old` = manual confirm-call minutes (**placeholder 2.25 min until measured** — your-tasks A5), `M_no_reply ≈ 2.25 min` (chasing a no-reply is the same call, later), and `O ≈ 10 min/day` fixed overhead (≈5 min dashboard triage + ~3 min cancelled-patient reschedule work + ~1.5 min exceptions + ~0.5 min admin). So `old ≈ 45` and `new ≈ 10 + 45(1−A)`; the safety machinery's exception queue is *small* (~1.5 min) — **not** what flips the sign. Each patient who *taps* removes one confirm-call; each no-reply the clinic still phones is a call the baseline made anyway.
+**Net staff-time model & the action rate breakeven (Business-Viability review,
+v2.8 / external-reviewer reconciliation v2.10 — Tension 1).** Model:
+`old = N × M_old`; `new = O + N × (1−A) × M_no_reply`, with `N=20`, `M_old` =
+manual confirm-call minutes (**placeholder 2.25 min until measured** —
+your-tasks A5), `M_no_reply ≈ 2.25 min` (chasing a no-reply is the same call,
+later), and `O ≈ 10 min/day` fixed overhead (≈5 min dashboard triage + ~3 min
+cancelled-patient reschedule work + ~1.5 min exceptions + ~0.5 min admin). So
+`old ≈ 45` and `new ≈ 10 + 45(1−A)`; the safety machinery's exception queue is
+_small_ (~1.5 min) — **not** what flips the sign. Each patient who _taps_
+removes one confirm-call; each no-reply the clinic still phones is a call the
+baseline made anyway.
 
-| Action rate `A` | No-replies still phoned (of ~20) | New staff-min/day* | vs ~45-min baseline |
-|---|---|---|---|
-| 30% | ~14 | 10 + 45×0.70 ≈ **41.5** | saves ~3.5 min — positive but **operationally weak** (one bad day erases it) |
-| 55% | ~9 | 10 + 45×0.45 ≈ **30** | saves ~14.75 min (~33%) — **real win** |
-| 80% | ~4 | 10 + 45×0.20 ≈ **19** | saves ~26 min (~58%) — **strong win** |
+| Action rate `A` | No-replies still phoned (of ~20) | New staff-min/day*      | vs ~45-min baseline                                                          |
+| --------------- | -------------------------------- | ----------------------- | ---------------------------------------------------------------------------- |
+| 30%             | ~14                              | 10 + 45×0.70 ≈ **41.5** | saves ~3.5 min — positive but **operationally weak** (one bad day erases it) |
+| 55%             | ~9                               | 10 + 45×0.45 ≈ **30**   | saves ~14.75 min (~33%) — **real win**                                       |
+| 80%             | ~4                               | 10 + 45×0.20 ≈ **19**   | saves ~26 min (~58%) — **strong win**                                        |
 
-*assumes the clinic phones **every** no-reply. **Breakeven ≈ 22% action rate** under that policy, and it is *sensitive to the (unmeasured) manual-call time*: at `M_old=2.0` it rises to ~33%, at `M_old=3.0` it falls toward 0% (net-positive at any action rate) — hence the pre-go-live measurement (A5). **Operating thresholds: <35% = danger, 35–50% = marginal, ≥55% = the first "yes, this frees staff time" target.** The exception queues are *not* what makes it net-negative — the risk is the **no-reply chase policy**: the single biggest lever is **making "no-reply" safe to *not* chase** (measure whether no-reply patients show at an acceptable rate; then chase only high-value/long slots — driving the no-reply term toward zero and savings toward the full ~45 min). Cheap supporting levers: a **one-click call-list export** (`tel:` links) for the no-reply + cancelled queues; **bulk** (not per-item) actions on `pending_staff_review`; **batch** no-reply chasing once after the afternoon catch-up (not continuous monitoring); a staff rule that **confirmed-by-link patients are not called**; and the engagement levers (branded sender, priming, send-time) that raise the rate directly (§5.2). **Verdict:** at ~20/day the safety machinery does **not** create a part-time triage job (a few minutes/day); the system is net staff-time-positive above ~22% action rate even if every no-reply is phoned, and decisively positive once the clinic stops chasing no-replies it doesn't need to. **But the dominant value-failure is behavioral, not technical — see "silent staff non-adoption" below.**
+*assumes the clinic phones **every** no-reply. **Breakeven ≈ 22% action rate**
+under that policy, and it is _sensitive to the (unmeasured) manual-call time_:
+at `M_old=2.0` it rises to ~33%, at `M_old=3.0` it falls toward 0% (net-positive
+at any action rate) — hence the pre-go-live measurement (A5). **Operating
+thresholds: <35% = danger, 35–50% = marginal, ≥55% = the first "yes, this frees
+staff time" target.** The exception queues are _not_ what makes it net-negative
+— the risk is the **no-reply chase policy**: the single biggest lever is
+**making "no-reply" safe to _not_ chase** (measure whether no-reply patients
+show at an acceptable rate; then chase only high-value/long slots — driving the
+no-reply term toward zero and savings toward the full ~45 min). Cheap supporting
+levers: a **one-click call-list export** (`tel:` links) for the no-reply +
+cancelled queues; **bulk** (not per-item) actions on `pending_staff_review`;
+**batch** no-reply chasing once after the afternoon catch-up (not continuous
+monitoring); a staff rule that **confirmed-by-link patients are not called**;
+and the engagement levers (branded sender, priming, send-time) that raise the
+rate directly (§5.2). **Verdict:** at ~20/day the safety machinery does **not**
+create a part-time triage job (a few minutes/day); the system is net
+staff-time-positive above ~22% action rate even if every no-reply is phoned, and
+decisively positive once the clinic stops chasing no-replies it doesn't need to.
+**But the dominant value-failure is behavioral, not technical — see "silent
+staff non-adoption" below.**
 
-**Failure-mode cost ranking (Business-Viability review, v2.8 — Tension 4): does complexity follow business cost?**
+**Failure-mode cost ranking (Business-Viability review, v2.8 — Tension 4): does
+complexity follow business cost?**
 
-| Failure mode | Likelihood | €/incident (revenue + staff + trust) | Mitigation effort | Match? |
-|---|---|---|---|---|
-| **Silent staff non-adoption** (system works, staff keep phoning everyone) | Med | **Highest *expected*** (the whole value thesis dies — staff cost unchanged *and* they now run software) | *named, not budgeted before this review* | ⚠️ **the biggest missed mode** → staff-load budget (§2.3 #10) + operating rules (§5.2) + the **§11 stop-loss** |
-| Wrongful mass-cancel (calendar emptied) | Low (now) | **Catastrophic** | Very high (ADR-014) | ✅ correctly the most-defended; low likelihood *because* of the spend |
-| **Missed-cancel write-back → lost rebooking** | Low–Med | **High** (a re-bookable slot lost + silent core-job failure) | *was a single flag* | ⚠️ **was under-invested → fixed** (≤2 idempotent auto-retries; dedicated alert; top-of-needs-attention; red in live/afternoon reconciliation — §5.6) **+ the ADR-020 fenced-outbox reaper** re-drives any unwritten cancel ⇒ no human-only-exit |
-| False breaker-trip (flu/snow day) | Med | Med (stranded cancels + staff load on the worst day) | velocity-first recalibration | ✅ velocity + daily-ceiling + bulk held-cancel resolution (§5.6, ADR-014) |
-| Missed noon run (~20 un-reminded) | Low | Med (worse no-show day; recoverable manually) | High (external heartbeat + manual button + catch-up + manual backstop) | ✅ well-matched |
-| Low action rate (value erosion) | Med | Med (degrades to audit-trail + call queue) | engagement levers + measurement | ✅ the managed weakest point (above) |
-| Provider sender-rewrite / URL-block / balance | Med (pre-launch) | High | go-live gate + balance alert | ✅ well-matched |
+| Failure mode                                                              | Likelihood       | €/incident (revenue + staff + trust)                                                                    | Mitigation effort                                                      | Match?                                                                                                                                                                                                                                          |
+| ------------------------------------------------------------------------- | ---------------- | ------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Silent staff non-adoption** (system works, staff keep phoning everyone) | Med              | **Highest _expected_** (the whole value thesis dies — staff cost unchanged _and_ they now run software) | _named, not budgeted before this review_                               | ⚠️ **the biggest missed mode** → staff-load budget (§2.3 #10) + operating rules (§5.2) + the **§11 stop-loss**                                                                                                                                  |
+| Wrongful mass-cancel (calendar emptied)                                   | Low (now)        | **Catastrophic**                                                                                        | Very high (ADR-014)                                                    | ✅ correctly the most-defended; low likelihood _because_ of the spend                                                                                                                                                                           |
+| **Missed-cancel write-back → lost rebooking**                             | Low–Med          | **High** (a re-bookable slot lost + silent core-job failure)                                            | _was a single flag_                                                    | ⚠️ **was under-invested → fixed** (≤2 idempotent auto-retries; dedicated alert; top-of-needs-attention; red in live/afternoon reconciliation — §5.6) **+ the ADR-020 fenced-outbox reaper** re-drives any unwritten cancel ⇒ no human-only-exit |
+| False breaker-trip (flu/snow day)                                         | Med              | Med (stranded cancels + staff load on the worst day)                                                    | velocity-first recalibration                                           | ✅ velocity + daily-ceiling + bulk held-cancel resolution (§5.6, ADR-014)                                                                                                                                                                       |
+| Missed noon run (~20 un-reminded)                                         | Low              | Med (worse no-show day; recoverable manually)                                                           | High (external heartbeat + manual button + catch-up + manual backstop) | ✅ well-matched                                                                                                                                                                                                                                 |
+| Low action rate (value erosion)                                           | Med              | Med (degrades to audit-trail + call queue)                                                              | engagement levers + measurement                                        | ✅ the managed weakest point (above)                                                                                                                                                                                                            |
+| Provider sender-rewrite / URL-block / balance                             | Med (pre-launch) | High                                                                                                    | go-live gate + balance alert                                           | ✅ well-matched                                                                                                                                                                                                                                 |
 
-Two corrections this review surfaced: **(1) the highest *expected* cost is behavioral — silent staff non-adoption** (a perfectly green system the front desk quietly routes around: dashboard green, SMS delivered, CRM reconciled, yet the business case is dead because reception kept phoning everyone), countered by the staff-load budget, the operating rules (§5.2), and the §11 stop-loss; and **(2) the missed-cancel-write-back / lost-rebooking** path was technically under-invested (fixed in §5.6 — the clinic *actively* losing a re-bookable slot, the inverse of the no-show the system exists to prevent). Nothing in the lean design is *over*-invested enough to remove — complexity now tracks business cost.
+Two corrections this review surfaced: **(1) the highest _expected_ cost is
+behavioral — silent staff non-adoption** (a perfectly green system the front
+desk quietly routes around: dashboard green, SMS delivered, CRM reconciled, yet
+the business case is dead because reception kept phoning everyone), countered by
+the staff-load budget, the operating rules (§5.2), and the §11 stop-loss; and
+**(2) the missed-cancel-write-back / lost-rebooking** path was technically
+under-invested (fixed in §5.6 — the clinic _actively_ losing a re-bookable slot,
+the inverse of the no-show the system exists to prevent). Nothing in the lean
+design is _over_-invested enough to remove — complexity now tracks business
+cost.
 
 ### 6.3 Security Considerations
 
-- **Secrets** (ClinicCards `Token`, provider keys, bot token) in **Supabase Vault / env**, never in DB rows or git.
-- **Webhook authenticity:** for v1 SMS delivery-status callbacks, verify the provider signature/secret where offered; for deferred app channels, verify Telegram `secret_token`, Meta signature / verify-token, and aggregator signatures; reject unsigned.
-- **Capability tokens (`tracking_token`) — ADR-014:** generate with a CSPRNG, **128-bit, base64url (~22 chars)**, never sequential or shortened-for-segments (the prior "~6-char" idea is rejected in §4.2). Store **only** `HMAC-SHA256(TOKEN_PEPPER, raw_token)`; the raw token rides only in the SMS and is never persisted or logged. The token is a **bearer capability scoped to one reminder flow — not proof of patient identity**: it may render the page and (for Confirm) submit a response, but **Cancel additionally requires** a confirmation interstitial + signed action nonce + single-use lock + expiry + the CRM re-fetch/fingerprint check (§5.6) + the mass-cancel circuit-breaker.
-- **Auto-fetch immunity & URL-leak controls (ADR-014):** `GET`/`HEAD` on `/r` are strictly side-effect-free; actions are nonce-backed `POST` behind an explicit gesture (§5.4). Serve token pages with `Cache-Control: no-store`, `Referrer-Policy: no-referrer`, `X-Robots-Tag: noindex,nofollow,noarchive`, and **no third-party scripts/pixels/fonts/images/redirects** (a token in a URL otherwise leaks via referrer, history, logs, previews). **Redact** `/r/<token>` path tokens, phone numbers, raw provider payloads, and ClinicCards tokens in Edge/CDN/proxy/Sentry/app logs. Serve the capability flow from the **dedicated, app-only origin (`r.dentino.com.ua`)**, never a shared CMS/marketing origin (an XSS there would become same-origin with the token page); the same subdomain also isolates SMS link reputation (§4.2). The final origin + its URL pre-clearance (§4.2/§6.5) must match `APP_BASE_URL`; a path on the bare domain is an acceptable fallback **only** if provider testing forces it and that origin hosts no CMS/user-editable content. DNS/host is a deploy task (§9). **Trust within the asset rule (Patient-Experience external review, v2.14):** the page must read like a *calm bank-confirmation receipt, not a marketing landing page* — inline SVG/system fonts only, plus an explicit anti-scam line *«Ми не просимо оплату, банківські дані, паролі або SMS-коди»* (aligns with NBU anti-fraud guidance); no marketing copy, prices, or clinical detail that would dilute the single-purpose, single-action card (§5.2/§9.3).
-- **Public function privilege boundary — a dedicated low-privilege DB role, NOT `service_role` (Tension 1; ADR-019; supersedes the earlier "the function disciplines itself" stance).** `service_role` **bypasses RLS** (it carries `BYPASSRLS`), so handing it to an internet-public endpoint makes RLS decorative for the system's single highest-risk surface: one stray `select`, one too-wide RPC projection, and the whole patient table is reachable. Discipline-as-security fails the moment a line of code slips. **Schema separation:** base tables live in a private **`app`** schema (never the API-exposed `public` schema), public RPCs in **`api`**, HMAC/secret helpers in **`private`**, the purge in **`maintenance`** — so only `api` is ever reachable through PostgREST/the Data API. **Caller vs definer split:** the public confirm Edge Function logs in as **`dentino_confirm_api`** (`LOGIN NOINHERIT NOBYPASSRLS`, **no** table privileges, `EXECUTE` on exactly the token/action RPCs); those RPCs are `SECURITY DEFINER` owned by a **non-login, non-superuser `dentino_confirm_definer`** that holds only the column-scoped grants the RPC bodies need. A coding bug physically cannot enumerate patients — the caller has no `SELECT`. **`service_role` is reserved for CI/admin break-glass only — never the internet-public route;** the non-public `run-reminders` logs in as its own role **`dentino_run_api`** (least-privilege DML + RLS policies for that role; `service_role` acceptable as a v1 shortcut since it is not internet-public). **Per-Edge-Function role convention:** every Edge Function gets its own least-privilege role named for it (`dentino_confirm_api`, `dentino_run_api`, optional `dentino_sms_webhook_api`, `dentino_maintenance_runner`); internet-public functions get `EXECUTE`-on-named-RPCs and zero table grants. RLS stays enabled (and `FORCE`d) on every `app` table as defense-in-depth.
-- **Dashboard** behind Supabase Auth (clinic staff only); **`authenticated` gets NO base-table grants.** **Staff reads** go through `security_invoker` views that exclude token/nonce/claim digests (`api.v_board`, `api.v_needs_attention`); **staff writes** (template edit, held-cancel resolution, SMS re-enable) go through audited `SECURITY DEFINER` admin RPCs — never direct base-table `INSERT/UPDATE`. The staff/admin authorization claim is read from the **immutable `app_metadata` (`raw_app_meta_data`)**, never user-editable `user_metadata`. Audit-log all write-backs and consent/preference changes; rotate keys.
-- **PII minimization & retention (ADR-016):** don't persist full phone numbers (HMAC + last-4 only); **redact phones at write time** in `crm_fetch_log`/`inbound_events` so no full number is ever persisted (continuous minimization, Tension 6 — not "eventual" after the purge); enforce the §4.5 retention windows via the daily `maintenance.purge_privacy()` `pg_cron` job; **send no PII or raw capability URLs to Sentry/logs** (the §4.4 heartbeat is already counts-only).
+- **Secrets** (ClinicCards `Token`, provider keys, bot token) in **Supabase
+  Vault / env**, never in DB rows or git.
+- **Webhook authenticity:** for v1 SMS delivery-status callbacks, verify the
+  provider signature/secret where offered; for deferred app channels, verify
+  Telegram `secret_token`, Meta signature / verify-token, and aggregator
+  signatures; reject unsigned.
+- **Capability tokens (`tracking_token`) — ADR-014:** generate with a CSPRNG,
+  **128-bit, base64url (~22 chars)**, never sequential or shortened-for-segments
+  (the prior "~6-char" idea is rejected in §4.2). Store **only**
+  `HMAC-SHA256(TOKEN_PEPPER, raw_token)`; the raw token rides only in the SMS
+  and is never persisted or logged. The token is a **bearer capability scoped to
+  one reminder flow — not proof of patient identity**: it may render the page
+  and (for Confirm) submit a response, but **Cancel additionally requires** a
+  confirmation interstitial + signed action nonce + single-use lock + expiry +
+  the CRM re-fetch/fingerprint check (§5.6) + the mass-cancel circuit-breaker.
+- **Auto-fetch immunity & URL-leak controls (ADR-014):** `GET`/`HEAD` on `/r`
+  are strictly side-effect-free; actions are nonce-backed `POST` behind an
+  explicit gesture (§5.4). Serve token pages with `Cache-Control: no-store`,
+  `Referrer-Policy: no-referrer`, `X-Robots-Tag: noindex,nofollow,noarchive`,
+  and **no third-party scripts/pixels/fonts/images/redirects** (a token in a URL
+  otherwise leaks via referrer, history, logs, previews). **Redact**
+  `/r/<token>` path tokens, phone numbers, raw provider payloads, and
+  ClinicCards tokens in Edge/CDN/proxy/Sentry/app logs. Serve the capability
+  flow from the **dedicated, app-only origin (`r.dentino.com.ua`)**, never a
+  shared CMS/marketing origin (an XSS there would become same-origin with the
+  token page); the same subdomain also isolates SMS link reputation (§4.2). The
+  final origin + its URL pre-clearance (§4.2/§6.5) must match `APP_BASE_URL`; a
+  path on the bare domain is an acceptable fallback **only** if provider testing
+  forces it and that origin hosts no CMS/user-editable content. DNS/host is a
+  deploy task (§9). **Trust within the asset rule (Patient-Experience external
+  review, v2.14):** the page must read like a _calm bank-confirmation receipt,
+  not a marketing landing page_ — inline SVG/system fonts only, plus an explicit
+  anti-scam line _«Ми не просимо оплату, банківські дані, паролі або SMS-коди»_
+  (aligns with NBU anti-fraud guidance); no marketing copy, prices, or clinical
+  detail that would dilute the single-purpose, single-action card (§5.2/§9.3).
+- **Public function privilege boundary — a dedicated low-privilege DB role, NOT
+  `service_role` (Tension 1; ADR-019; supersedes the earlier "the function
+  disciplines itself" stance).** `service_role` **bypasses RLS** (it carries
+  `BYPASSRLS`), so handing it to an internet-public endpoint makes RLS
+  decorative for the system's single highest-risk surface: one stray `select`,
+  one too-wide RPC projection, and the whole patient table is reachable.
+  Discipline-as-security fails the moment a line of code slips. **Schema
+  separation:** base tables live in a private **`app`** schema (never the
+  API-exposed `public` schema), public RPCs in **`api`**, HMAC/secret helpers in
+  **`private`**, the purge in **`maintenance`** — so only `api` is ever
+  reachable through PostgREST/the Data API. **Caller vs definer split:** the
+  public confirm Edge Function logs in as **`dentino_confirm_api`**
+  (`LOGIN NOINHERIT NOBYPASSRLS`, **no** table privileges, `EXECUTE` on exactly
+  the token/action RPCs); those RPCs are `SECURITY DEFINER` owned by a
+  **non-login, non-superuser `dentino_confirm_definer`** that holds only the
+  column-scoped grants the RPC bodies need. A coding bug physically cannot
+  enumerate patients — the caller has no `SELECT`. **`service_role` is reserved
+  for CI/admin break-glass only — never the internet-public route;** the
+  non-public `run-reminders` logs in as its own role **`dentino_run_api`**
+  (least-privilege DML + RLS policies for that role; `service_role` acceptable
+  as a v1 shortcut since it is not internet-public). **Per-Edge-Function role
+  convention:** every Edge Function gets its own least-privilege role named for
+  it (`dentino_confirm_api`, `dentino_run_api`, optional
+  `dentino_sms_webhook_api`, `dentino_maintenance_runner`); internet-public
+  functions get `EXECUTE`-on-named-RPCs and zero table grants. RLS stays enabled
+  (and `FORCE`d) on every `app` table as defense-in-depth.
+- **Dashboard** behind Supabase Auth (clinic staff only); **`authenticated` gets
+  NO base-table grants.** **Staff reads** go through `security_invoker` views
+  that exclude token/nonce/claim digests (`api.v_board`,
+  `api.v_needs_attention`); **staff writes** (template edit, held-cancel
+  resolution, SMS re-enable) go through audited `SECURITY DEFINER` admin RPCs —
+  never direct base-table `INSERT/UPDATE`. The staff/admin authorization claim
+  is read from the **immutable `app_metadata` (`raw_app_meta_data`)**, never
+  user-editable `user_metadata`. Audit-log all write-backs and
+  consent/preference changes; rotate keys.
+- **PII minimization & retention (ADR-016):** don't persist full phone numbers
+  (HMAC + last-4 only); **redact phones at write time** in
+  `crm_fetch_log`/`inbound_events` so no full number is ever persisted
+  (continuous minimization, Tension 6 — not "eventual" after the purge); enforce
+  the §4.5 retention windows via the daily `maintenance.purge_privacy()`
+  `pg_cron` job; **send no PII or raw capability URLs to Sentry/logs** (the §4.4
+  heartbeat is already counts-only).
 
 #### 6.3.1 RPC security contract (the public surface, as enforceable SQL — Tension 1)
 
-The peppers live in **Supabase Vault**, never in a table or a GUC. HMAC is computed by a `private` helper inside the `SECURITY DEFINER` boundary (owner `dentino_confirm_definer`, a non-login non-superuser that can read the one Vault secret and holds only the column-scoped grants the RPC bodies need); `dentino_confirm_api` can reach neither Vault nor any table. Computing the digest in the Edge Function (pepper in env) and passing it in is an acceptable alternative that keeps the pepper off the DB entirely. **There are FOUR RPCs, not three** (Tension 1 corrected): a no-table-grant caller cannot record the CRM write-back outcome after its ClinicCards HTTP call without either reintroducing `service_role` or a fourth **`finish_reminder_action`** RPC — so it is part of the contract.
+The peppers live in **Supabase Vault**, never in a table or a GUC. HMAC is
+computed by a `private` helper inside the `SECURITY DEFINER` boundary (owner
+`dentino_confirm_definer`, a non-login non-superuser that can read the one Vault
+secret and holds only the column-scoped grants the RPC bodies need);
+`dentino_confirm_api` can reach neither Vault nor any table. Computing the
+digest in the Edge Function (pepper in env) and passing it in is an acceptable
+alternative that keeps the pepper off the DB entirely. **There are FOUR RPCs,
+not three** (Tension 1 corrected): a no-table-grant caller cannot record the CRM
+write-back outcome after its ClinicCards HTTP call without either reintroducing
+`service_role` or a fourth **`finish_reminder_action`** RPC — so it is part of
+the contract.
+
 ```sql
 -- Vault-backed HMAC helper (private schema; bytea digest — prefer bytea over hex text).
 create function private.token_digest(p_raw_token text) returns bytea
@@ -1132,328 +2766,1627 @@ grant   execute on function api.lookup_reminder_by_token(text) to dentino_confir
 -- All four: SECURITY DEFINER, search_path='', owner dentino_confirm_definer, EXECUTE revoked from PUBLIC then granted
 -- only to dentino_confirm_api; alter default privileges revoke execute on functions from public (before any CREATE).
 ```
-**Fail-closed role limits** (the public surface must error, not hang): `alter role dentino_confirm_api set statement_timeout='2000ms'; set lock_timeout='250ms'; set idle_in_transaction_session_timeout='2000ms';`.
-Contract invariants (UBS SQL "critical" list): `search_path = ''` + schema-qualified; parameter is the **token only** (no column names / filters / ids / ranges); **no dynamic SQL**; fixed `returns table(...)` projection (never the row type); identical neutral return for invalid/not-found/expired; single-use via `… where action_locked_at is null`. **Proof the surface can't return a second row:** the only table read is keyed by `tracking_token_digest = <one digest>` on a `unique` index → at most one row; the projection is a fixed column list, not the row type; `dentino_confirm_api` has `SELECT` on nothing, so a future stray `select * from app.patients` simply has no privilege to run.
+
+**Fail-closed role limits** (the public surface must error, not hang):
+`alter role dentino_confirm_api set statement_timeout='2000ms'; set lock_timeout='250ms'; set idle_in_transaction_session_timeout='2000ms';`.
+Contract invariants (UBS SQL "critical" list): `search_path = ''` +
+schema-qualified; parameter is the **token only** (no column names / filters /
+ids / ranges); **no dynamic SQL**; fixed `returns table(...)` projection (never
+the row type); identical neutral return for invalid/not-found/expired;
+single-use via `… where action_locked_at is null`. **Proof the surface can't
+return a second row:** the only table read is keyed by
+`tracking_token_digest = <one digest>` on a `unique` index → at most one row;
+the projection is a fixed column list, not the row type; `dentino_confirm_api`
+has `SELECT` on nothing, so a future stray `select * from app.patients` simply
+has no privilege to run.
 
 #### 6.3.2 Role × table × operation grant/RLS matrix (Tension 5)
 
-Default-deny first, then grant back narrowly: `revoke all on schema app, private, maintenance from public, anon, authenticated;` + `alter default privileges in schema app revoke all on tables from anon, authenticated;` and `alter default privileges revoke execute on functions from public;` (before any RPC is created). `alter table app.… enable row level security; … force row level security;` on **every** `app` table (FORCE so even a table owner obeys policy; the engine/maintenance roles get explicit per-role policies, the human/public roles get none → default-deny). The columns below are **direct** privileges; `dentino_confirm_api` and `authenticated` reach data **only** through `api` RPCs/views, never base tables.
+Default-deny first, then grant back narrowly:
+`revoke all on schema app, private, maintenance from public, anon, authenticated;` +
+`alter default privileges in schema app revoke all on tables from anon, authenticated;`
+and `alter default privileges revoke execute on functions from public;` (before
+any RPC is created).
+`alter table app.… enable row level security; … force row level security;` on
+**every** `app` table (FORCE so even a table owner obeys policy; the
+engine/maintenance roles get explicit per-role policies, the human/public roles
+get none → default-deny). The columns below are **direct** privileges;
+`dentino_confirm_api` and `authenticated` reach data **only** through `api`
+RPCs/views, never base tables.
 
-| `app` table | `anon` | `dentino_confirm_api` (public fn) | `authenticated` (staff) | `dentino_run_api` (run-reminders) | `dentino_maintenance_runner` (pg_cron) |
-|---|---|---|---|---|---|
-| patients | — | — | via `api.v_*` + re-enable RPC | SELECT/INSERT/UPDATE | UPDATE/DELETE (pseudonymize) |
-| reminder_runs | — | — | via `api.v_board` | INSERT/UPDATE | — |
-| reminder_days | — | — | via `api.v_board` | INSERT/UPDATE (lease) | — |
-| reminder_messages | — | — | via `api.v_*` (no digests) + admin RPC | full | UPDATE (anonymize ≥90 d) |
-| crm_visit_facts | — | — | via `api.v_board` | INSERT/SELECT | DELETE (old) |
-| message_templates | — | — | via `api.update_message_template` RPC | SELECT | — |
-| cliniccards_status_policy | — | — | SELECT (read-only) | SELECT | — |
-| consent_events | — | — | via admin RPCs | INSERT | UPDATE (pseudonymize req_meta) |
-| cancellation_circuits | — | — | via held-cancel resolution RPCs | INSERT/UPDATE | — |
-| crm_visit_write_locks | — | — | — | INSERT/UPDATE/DELETE | DELETE (stale GC, optional) |
-| inbound_events | — | — | — | INSERT/SELECT | DELETE (purge) |
-| crm_fetch_log | — | — | — | INSERT/SELECT | UPDATE(null raw_redacted)/DELETE (purge) |
-| audit_log | — | — | via `api.v_*` | INSERT | INSERT (counts-only purge row) |
+| `app` table               | `anon` | `dentino_confirm_api` (public fn) | `authenticated` (staff)                | `dentino_run_api` (run-reminders) | `dentino_maintenance_runner` (pg_cron)   |
+| ------------------------- | ------ | --------------------------------- | -------------------------------------- | --------------------------------- | ---------------------------------------- |
+| patients                  | —      | —                                 | via `api.v_*` + re-enable RPC          | SELECT/INSERT/UPDATE              | UPDATE/DELETE (pseudonymize)             |
+| reminder_runs             | —      | —                                 | via `api.v_board`                      | INSERT/UPDATE                     | —                                        |
+| reminder_days             | —      | —                                 | via `api.v_board`                      | INSERT/UPDATE (lease)             | —                                        |
+| reminder_messages         | —      | —                                 | via `api.v_*` (no digests) + admin RPC | full                              | UPDATE (anonymize ≥90 d)                 |
+| crm_visit_facts           | —      | —                                 | via `api.v_board`                      | INSERT/SELECT                     | DELETE (old)                             |
+| message_templates         | —      | —                                 | via `api.update_message_template` RPC  | SELECT                            | —                                        |
+| cliniccards_status_policy | —      | —                                 | SELECT (read-only)                     | SELECT                            | —                                        |
+| consent_events            | —      | —                                 | via admin RPCs                         | INSERT                            | UPDATE (pseudonymize req_meta)           |
+| cancellation_circuits     | —      | —                                 | via held-cancel resolution RPCs        | INSERT/UPDATE                     | —                                        |
+| crm_visit_write_locks     | —      | —                                 | —                                      | INSERT/UPDATE/DELETE              | DELETE (stale GC, optional)              |
+| inbound_events            | —      | —                                 | —                                      | INSERT/SELECT                     | DELETE (purge)                           |
+| crm_fetch_log             | —      | —                                 | —                                      | INSERT/SELECT                     | UPDATE(null raw_redacted)/DELETE (purge) |
+| audit_log                 | —      | —                                 | via `api.v_*`                          | INSERT                            | INSERT (counts-only purge row)           |
 
-The `dentino_confirm_api` column is **entirely "—"**: its *only* privilege is `EXECUTE` on the four `api` RPCs of §6.3.1, which run as the definer `dentino_confirm_definer` (holding only column-scoped grants — e.g. `SELECT`/`UPDATE` on the specific `reminder_messages` columns, `INSERT` on `consent_events`/`audit_log`, claim/release on `crm_visit_write_locks`, `SELECT`/`UPDATE` on `cancellation_circuits`) strictly inside those fixed bodies. That column being empty is the whole point of Tension 1. (`dentino_sms_webhook_api`, if the DLR callback is built, similarly gets `EXECUTE` on one `api.record_sms_status` RPC and no table grants.)
+The `dentino_confirm_api` column is **entirely "—"**: its _only_ privilege is
+`EXECUTE` on the four `api` RPCs of §6.3.1, which run as the definer
+`dentino_confirm_definer` (holding only column-scoped grants — e.g.
+`SELECT`/`UPDATE` on the specific `reminder_messages` columns, `INSERT` on
+`consent_events`/`audit_log`, claim/release on `crm_visit_write_locks`,
+`SELECT`/`UPDATE` on `cancellation_circuits`) strictly inside those fixed
+bodies. That column being empty is the whole point of Tension 1.
+(`dentino_sms_webhook_api`, if the DLR callback is built, similarly gets
+`EXECUTE` on one `api.record_sms_status` RPC and no table grants.)
 
 #### 6.3.3 `pg_cron` maintenance role (Tension 5)
 
-`maintenance.purge_privacy()` (and the ADR-018 `maintenance.reap_stale_sends()` backstop) are `SECURITY DEFINER` owned by a dedicated **non-login, non-superuser `dentino_maintenance_definer`**, `set search_path = ''`, schema-qualified. The definer is granted exactly the purge privileges — `DELETE` on `inbound_events`/`crm_fetch_log` (or `UPDATE` to null `raw_redacted`), `UPDATE` (anonymize) on `reminder_messages`, `UPDATE/DELETE` (pseudonymize) on `patients`/`consent_events`, `DELETE` on old `crm_visit_facts`, `INSERT` on `audit_log` — and **nothing else** (so it touches all rows by ownership/grant, intentionally regardless of RLS; a purge must sweep everything). **`pg_cron` jobs run as the role that scheduled them** (its metadata defaults `username = current_user`), so the job must NOT silently run as `postgres`/superuser: schedule it under a dedicated **`dentino_maintenance_runner`** (login, `EXECUTE` on the two maintenance functions only, no base-table DML) via `cron.schedule_in_database('dentino-privacy-purge','17 2 * * *', $$select maintenance.purge_privacy();$$, current_database(), 'dentino_maintenance_runner')`. **Build-time check (§10):** confirm this Supabase project exposes `cron.schedule_in_database(… username …)`; if it does not, fall back to an **external scheduler calling a maintenance Edge Function** that connects as `dentino_maintenance_runner` — do not accept `postgres` as the normal purge runtime. Both functions write a **counts-only** audit row (no PII) — §4.5/ADR-016/018.
+`maintenance.purge_privacy()` (and the ADR-018 `maintenance.reap_stale_sends()`
+backstop) are `SECURITY DEFINER` owned by a dedicated **non-login, non-superuser
+`dentino_maintenance_definer`**, `set search_path = ''`, schema-qualified. The
+definer is granted exactly the purge privileges — `DELETE` on
+`inbound_events`/`crm_fetch_log` (or `UPDATE` to null `raw_redacted`), `UPDATE`
+(anonymize) on `reminder_messages`, `UPDATE/DELETE` (pseudonymize) on
+`patients`/`consent_events`, `DELETE` on old `crm_visit_facts`, `INSERT` on
+`audit_log` — and **nothing else** (so it touches all rows by ownership/grant,
+intentionally regardless of RLS; a purge must sweep everything). **`pg_cron`
+jobs run as the role that scheduled them** (its metadata defaults
+`username = current_user`), so the job must NOT silently run as
+`postgres`/superuser: schedule it under a dedicated
+**`dentino_maintenance_runner`** (login, `EXECUTE` on the two maintenance
+functions only, no base-table DML) via
+`cron.schedule_in_database('dentino-privacy-purge','17 2 * * *', $$select maintenance.purge_privacy();$$, current_database(), 'dentino_maintenance_runner')`.
+**Build-time check (§10):** confirm this Supabase project exposes
+`cron.schedule_in_database(… username …)`; if it does not, fall back to an
+**external scheduler calling a maintenance Edge Function** that connects as
+`dentino_maintenance_runner` — do not accept `postgres` as the normal purge
+runtime. Both functions write a **counts-only** audit row (no PII) —
+§4.5/ADR-016/018.
 
 ### 6.4 Performance Considerations
 
-Volume is tiny (tens/day). No performance pressure. Watch only: ClinicCards 60 req/min — the hardened run is ~3 calls (initial `/visits`, `/patients` batch, pre-send `/visits` revalidation) plus ~3 for the afternoon catch-up, well under budget. **Batch/chunk patient lookups defensively:** dedupe IDs; chunk by ≤50 IDs or ~1800-char URL (whichever first); on a `414`/`400`, split the chunk and retry; cap at ~1 req/s; **fail closed** if a `/visits` response looks truncated/malformed (don't message from a partial list). Per-chat send rate limits (small inter-message delay) and the **Edge Function budget** (paid: 400 s wall-clock, 150 s request idle, bounded CPU) are fine for tens/day; because each message commits independently (§5.2), a mid-batch timeout is resumable — **watch the budget, not a theoretical scale number.** The **lease lifecycle is reconciled to this budget** (§5.7a, ADR-012/018): the holder renews `lock_heartbeat_at` every ≤30 s and a later firing steals on a **120 s heartbeat-grace** — comfortably longer than any single send (p95 ≤ 3 s) yet far under the 15-min `lock_expires_at` backstop, so a wall-clock kill (≤400 s) is reclaimed in ~120 s, not ~15 min. The run is **synchronous** (no `202`/`EdgeRuntime.waitUntil`): at p95 ≤ 120 s it finishes well within the 150 s idle / 400 s wall caps, so the silently-killed-background-continuation risk of `202`+`waitUntil` buys nothing in v1 and is revisited only at the queue-migration trigger below.
+Volume is tiny (tens/day). No performance pressure. Watch only: ClinicCards 60
+req/min — the hardened run is ~3 calls (initial `/visits`, `/patients` batch,
+pre-send `/visits` revalidation) plus ~3 for the afternoon catch-up, well under
+budget. **Batch/chunk patient lookups defensively:** dedupe IDs; chunk by ≤50
+IDs or ~1800-char URL (whichever first); on a `414`/`400`, split the chunk and
+retry; cap at ~1 req/s; **fail closed** if a `/visits` response looks
+truncated/malformed (don't message from a partial list). Per-chat send rate
+limits (small inter-message delay) and the **Edge Function budget** (paid: 400 s
+wall-clock, 150 s request idle, bounded CPU) are fine for tens/day; because each
+message commits independently (§5.2), a mid-batch timeout is resumable — **watch
+the budget, not a theoretical scale number.** The **lease lifecycle is
+reconciled to this budget** (§5.7a, ADR-012/018): the holder renews
+`lock_heartbeat_at` every ≤30 s and a later firing steals on a **120 s
+heartbeat-grace** — comfortably longer than any single send (p95 ≤ 3 s) yet far
+under the 15-min `lock_expires_at` backstop, so a wall-clock kill (≤400 s) is
+reclaimed in ~120 s, not ~15 min. The run is **synchronous** (no
+`202`/`EdgeRuntime.waitUntil`): at p95 ≤ 120 s it finishes well within the 150 s
+idle / 400 s wall caps, so the silently-killed-background-continuation risk of
+`202`+`waitUntil` buys nothing in v1 and is revisited only at the
+queue-migration trigger below.
 
-**Stay with one invocation while ALL hold:** `sendable_total ≤ 50`; 7-day **p95 run duration ≤ 120 s** (margin under the 150 s idle / 400 s wall-clock caps); p95 SMS-submit latency ≤ 3 s; **zero** Edge `WallClockTime` shutdowns; **zero** runs that exit with `pending` messages after the final scheduled firing.
-**Absolute run deadline (ADR-020):** the run starts a wall-clock timer and **stops claiming new sends by ~330–360 s**, leaving margin to reconcile/fail before the **400 s** Edge cap; on breach it leaves remaining rows `pending`, marks the day `partial`/red, and lets the next *fenced* firing resume — `waitUntil` is never used to cross the cap.
-**Migrate to a queue/worker dispatcher when ANY holds:** `sendable_total > 100`; 7-day p95 run duration > 180 s; **any** `WallClockTime` shutdown; **any** run leaves `pending` work past the 12:30 heartbeat deadline (a run-budget alert — ADR-013 — fires on these leading indicators first).
-**Queue shape (no daemon, no always-on loop):** `run-reminders` creates all `pending` `reminder_messages` first; a `dispatch-pending-reminders` function loops over the same single-row token-minting claim (§5.7b) up to a small cap (≤10 sends/invocation) and is fired every few minutes across the noon window; reconciliation still expects the whole `target_date` green by 12:30. Scheduled/bounded work — not Kubernetes, not a worker loop.
+**Stay with one invocation while ALL hold:** `sendable_total ≤ 50`; 7-day **p95
+run duration ≤ 120 s** (margin under the 150 s idle / 400 s wall-clock caps);
+p95 SMS-submit latency ≤ 3 s; **zero** Edge `WallClockTime` shutdowns; **zero**
+runs that exit with `pending` messages after the final scheduled firing.
+**Absolute run deadline (ADR-020):** the run starts a wall-clock timer and
+**stops claiming new sends by ~330–360 s**, leaving margin to reconcile/fail
+before the **400 s** Edge cap; on breach it leaves remaining rows `pending`,
+marks the day `partial`/red, and lets the next _fenced_ firing resume —
+`waitUntil` is never used to cross the cap. **Migrate to a queue/worker
+dispatcher when ANY holds:** `sendable_total > 100`; 7-day p95 run duration >
+180 s; **any** `WallClockTime` shutdown; **any** run leaves `pending` work past
+the 12:30 heartbeat deadline (a run-budget alert — ADR-013 — fires on these
+leading indicators first). **Queue shape (no daemon, no always-on loop):**
+`run-reminders` creates all `pending` `reminder_messages` first; a
+`dispatch-pending-reminders` function loops over the same single-row
+token-minting claim (§5.7b) up to a small cap (≤10 sends/invocation) and is
+fired every few minutes across the noon window; reconciliation still expects the
+whole `target_date` green by 12:30. Scheduled/bounded work — not Kubernetes, not
+a worker loop.
 
-**The real scaling constraint at ~20/day is human, not computational (Business-Viability review, v2.8).** Compute is a non-issue at tens/day; what actually bounds the system's *value* is **staff-load and action rate** (the net-staff-time model, §6.2) and **no-show realization** (ADR-017). Watch those as the leading operational indicators — a creeping no-reply-chase load or a falling action rate erodes the value long before any throughput limit is approached. The migration trigger above protects *throughput*; the **staff-load budget (§2.3 #10) and the value panel (ADR-017) protect the *value*.**
+**The real scaling constraint at ~20/day is human, not computational
+(Business-Viability review, v2.8).** Compute is a non-issue at tens/day; what
+actually bounds the system's _value_ is **staff-load and action rate** (the
+net-staff-time model, §6.2) and **no-show realization** (ADR-017). Watch those
+as the leading operational indicators — a creeping no-reply-chase load or a
+falling action rate erodes the value long before any throughput limit is
+approached. The migration trigger above protects _throughput_; the **staff-load
+budget (§2.3 #10) and the value panel (ADR-017) protect the _value_.**
 
 ### 6.5 Testing Strategy
 
-- **Unit:** template rendering (incl. confirm link + Cyrillic segment count); phone normalization to E.164; status mapping; token generation (unguessable).
-- **Contract tests** with **recorded cassettes** (ClinicCards `/visits` + `/patients`; the SMS provider's send + delivery-status responses) — the `testproject1` cassette pattern.
-- **Integration:** local Supabase (CLI); the SMS provider's test balance for a real send to a staff phone; the confirm page exercised end-to-end (tap → DB → ClinicCards write-back).
-- **Idempotency tests:** double-fire the cron / **two concurrent firings on the same `target_date`** / double-POST the button → exactly one send (lease + claim no-op); a crash after send-before-commit resolves to `send_unknown`/`sent`, **never a second SMS**.
-- **Failure-injection:** CRM 500, SMS send failure, **SMS timeout → `send_unknown`**, **provider balance exhausted**, invalid token, write-back failure → correct flags + alerts; a valid nonce-backed patient action on a `send_unknown` row promotes it to `delivered`/resolved-by-action and removes it from the unresolved send-unknown problem bucket before the normal CRM write-back path runs; **reconciliation catches an induced shortfall** — drop one send so its row stays `pending` (or delete the materialized row): assert `reminder_days.health = 'red'`, `unaccounted ≥ 1` (or `pending > 0`), and that the **success heartbeat URL was *not* pinged** (the fail URL was) — the deterministic expected-state, not just "catches it".
-- **State-machine totality (ADR-018, §5.5):** kill the *only* firing mid-send (row left `sending`) with **no** later firing → the `pg_cron` `maintenance.reap_stale_sends()` backstop transitions it to `send_unknown` within one sweep (never blind-resent); a firing that **steals** a dead lease reaps that run's `sending` rows immediately; assert no `reminder_messages` row can sit in a non-terminal status with no automated exit.
-- **Lease heartbeat-grace steal (§5.7a, ADR-012):** a holder that stops renewing `lock_heartbeat_at` is steal-able after ~120 s (not ~15 min) while a *live* holder renewing every ≤30 s is **never** stolen; two firings never both process the same `target_date`.
-- **Claim-time token minting (ADR-014/§5.7b):** a sendable materialized `pending` row starts with no raw token and no live capability digest; the `pending`/retryable-`failed` → `sending` claim writes exactly one token digest + expiry while the raw token exists only in process memory for the SMS URL. Crash after materialization-before-claim leaves a normal claimable `pending` row; crash after claim-before-provider leaves `sending` that reaps to `send_unknown`, not a digest-only row the system tries to reconstruct or resend.
-- **Superseded-token kill (ADR-008, §5.6):** after a supersede, a `POST /action` on the **old** token returns 0 rows / renders the neutral expired page (the CAS rejects `superseded_at is not null` and `token_expires_at` is now past), and a late DLR on the superseded row does **not** change its `status`; only the new notice's token can act.
-- **Changed-appointment partial failure (ADR-008/013/020, §5.6):** induce a moved appointment and crash (a) before supersede+replacement insertion, then assert current-fingerprint reconciliation is red and a later firing retries; and (b) after insertion but before replacement send outcome, then assert the old token is dead, the replacement row is `pending`/`sending`/`send_unknown`, and the success heartbeat is not pinged until the replacement notice is handled.
-- **E2E dry-run vs the go-live ladder (one mode vocabulary — §6.6/ADR-024):** the **hermetic dry-run** is `SEND_MODE='off'` + `CRM_WRITE_MODE='off'` (stub sender records would-send intent, zero egress — the §6.5 harness / ladder rung 0, ADR-023), not a separate "test mode" switch. The "real send to a staff number, no CRM write" rehearsal is **not** a test mode but the ladder's **seed rung** (`SEND_MODE='seed'` + `CRM_WRITE_MODE='off'`, allowlisted to staff numbers — the deliverability seed test below). The same two flags govern both, so there is one ladder (`off→seed→canary→full`), never two overlapping "test mode" schemes.
-- **Accessibility & page-resilience acceptance (Patient-Experience external review, v2.14 — the confirm page is the engagement surface, §5.2):** `lang="uk"`; body text ≥18 px / line-height ≥1.4 with the date/time the largest element (28–32 px, real text not an image); all primary controls **≥48 px** and full-width on narrow screens; **WCAG-AA contrast**, Confirm/Cancel distinguished by **label + position, never colour alone**; usable at **200% zoom** with no horizontal scroll (no `user-scalable=no`); **the Confirm / Cancel / opt-out flow completes with JavaScript disabled** (server-rendered `<form>` POST, nonce in a hidden field); visible focus ring; no modal-only flow and no countdowns; **zero external font/image/script/pixel**; HTML+CSS **≤50 KB** compressed; verified on **one low-end Android over mobile data (Wi-Fi off)** alongside the deliverability seed test below. **Concrete pass values (§5.8 / `design-tokens.json`, ADR-022):** ink `#14213A`-on-white **16.05:1**, navy `#0A3576` **11.77:1**, muted `#51606F` **6.46:1**, destructive `#B3261E` **6.54:1** — every shipped text/Confirm/Cancel pair ≥4.5:1, **min 6.46:1**; base **18 px** / date-time **32 px** / line-height **1.5**; tap targets **≥48 px (56 px primary)**. The reference fixture `docs/design/mockups/confirm-page.html` measures **≈4.4 KB gzipped** with **zero** external requests and **zero** script — the seed these Playwright/axe-core assertions run against.
-- **Browser-E2E tooling — which tool for which surface.** Both web surfaces are tested with a deliberate split. **Playwright (`@playwright/test`, in CI)** is the deterministic regression + accessibility harness for *both* the public `/r/<token>` page and the staff dashboard — the right tool for the acceptance criteria above because it runs a **JavaScript-disabled context** (proving the no-JS server-rendered `<form>` POST still records an action), **throttles network + CPU** (the low-end-Android-over-mobile-data case), **emulates devices** (≥48 px targets, 200 % zoom), and asserts **WCAG-AA contrast via axe-core**. The security go-live gate's HTTP-level invariants (GET = zero writes, nonce-less POST fails, double-POST = one action, expired/superseded token can't act) live **below the browser** as HTTP/contract tests + the pgTAP gate (below). An **agentic browser** (the `agent-browser` skill / Claude or Codex computer-use) is reserved for **exploratory QA and the qualitative trust review** ("does the page read like a calm bank-confirmation receipt, not a scam?"), *not* CI regression; **Playwright MCP** is the dev inner loop.
-- **Security go-live gate (ADR-014/015/016) — must pass before production:** token is 128-bit base64url and only its HMAC digest is stored; `GET`/`HEAD` on `/r` produce **zero** business writes; a direct `POST /action` without a nonce fails; Cancel requires the interstitial; a double `POST` yields exactly one recorded action and ≤1 CRM write; an expired token can't act; a CRM-moved appointment can't be cancelled by a stale token (§5.6); the circuit-breaker **hard-opens** on a velocity burst (≥4 cancels/10 min **or** ≥6/30 min) and on the daily hard-ceiling, **warns (amber, keeps writing) on a moderate day** (≥`⌈0.4×sent⌉`), and a **slow legitimate drip of cancels does *not* hard-open it** (no false-trip on a flu-day distribution); only **valid nonce-backed cancel POSTs** are counted (`response='cancel' and action_locked_at is not null`; not GET/prepare/expired/unsubscribe); held cancels land in `pending_staff_review` and clear via bulk-approve-safe or `staff_closed_no_write`; a footer-opt-out `GET` can't opt out; full phone numbers aren't stored at rest; `consent_events` exists with source/scope/version on every legacy-import/opt-out/re-enable; the public Edge Fn returns only sanitized fields and can't enumerate rows; token URLs are redacted in logs and served with `Referrer-Policy: no-referrer` + `Cache-Control: no-store` + no third-party assets; **and the §6.6 live-clinic guard holds (ADR-024):** a send to a non-allowlisted number under `SEND_MODE≠full` is refused with **zero** provider calls; a write to a non-allowlisted `visit_id` under `CRM_WRITE_MODE≠full` is refused with **zero** `PUT`/`DELETE`; an empty allowlist under a non-`full` mode refuses **all**; `full` (and only `full`) lifts the recipient allowlist; a `full` mode under `APP_ENV ∈ {test,dev}` **hard-fails at boot**.
-- **Data-layer regression gate (pgTAP / SQL — must pass before production, Tension 1/3/5; ADR-019).** Make the grant matrix and the concurrency SQL *tested*, not just documented, on the local Supabase stack: (1) **least-privilege** — `dentino_confirm_api` and `anon` can `SELECT` **no** `app` table and can `EXECUTE` **only** the four `api` RPCs (`set role dentino_confirm_api; select * from app.patients` must throw `42501`); `authenticated` cannot read token/nonce/claim digests (only the `api.v_*` views); **no `app` base table is exposed** through the Data API (only `api`). (2) **definer hygiene** — every `SECURITY DEFINER` function has `search_path = ''` and a non-superuser, non-login owner; `EXECUTE` is revoked from `PUBLIC`; the public role carries the fail-closed `statement_timeout`/`lock_timeout`/`idle_in_transaction_session_timeout`. (3) **single-winner concurrency** — two concurrent lease claims yield one holder; a double `POST /action` yields exactly one `action_locked_at`; the `reminder_messages_action_lock_guard` trigger rejects any un-lock/re-respond; two write-lock steals yield one winner. (4) **RLS on (and forced)** for every `app` table. Run as a CI step alongside `supabase db lint`; regenerate `database.types.ts` and assert no drift (AGENTS.md schema↔types contract).
-- **Deliverability validation (pre-launch go-live gate):** seed **≥3 Kyivstar + 3 Vodafone UA + 3 lifecell** numbers (+ ≥2 ported/MNP if available); iOS + Android incl. one low-end Android; check **page load on mobile data with Wi-Fi off**. Send four variants — **no-URL control**, **production URL template**, **name-overflow fallback template**, **expired/invalid token** — repeated on **3 separate days at the production send time**. Measure: handset receipt, sender shown as `Dentino`, delivery time, **per-message provider status**, URL auto-linkification, page load, DB write, CRM dry-run write-back. **Pass = 0 sender overwrites, 0 URL-specific blocks, 0 unexplained Rejected/Undelivered/Expired**, and a working link→page→action on every received message. **Any** cross-operator sender rewrite, URL block, or missing per-message DLR is a **launch blocker** (resolve, or switch to an aggregator route — ADR-005). **(This is the seed/§6.6 rung-2 gate — a *real* send to allowlisted staff numbers only, never the inner-loop CI suite; ADR-024.)**
+- **Unit:** template rendering (incl. confirm link + Cyrillic segment count);
+  phone normalization to E.164; status mapping; token generation (unguessable).
+- **Contract tests** with **recorded cassettes** (ClinicCards `/visits` +
+  `/patients`; the SMS provider's send + delivery-status responses) — the
+  `testproject1` cassette pattern.
+- **Integration:** local Supabase (CLI); the SMS provider's test balance for a
+  real send to a staff phone; the confirm page exercised end-to-end (tap → DB →
+  ClinicCards write-back).
+- **Idempotency tests:** double-fire the cron / **two concurrent firings on the
+  same `target_date`** / double-POST the button → exactly one send (lease +
+  claim no-op); a crash after send-before-commit resolves to
+  `send_unknown`/`sent`, **never a second SMS**.
+- **Failure-injection:** CRM 500, SMS send failure, **SMS timeout →
+  `send_unknown`**, **provider balance exhausted**, invalid token, write-back
+  failure → correct flags + alerts; a valid nonce-backed patient action on a
+  `send_unknown` row promotes it to `delivered`/resolved-by-action and removes
+  it from the unresolved send-unknown problem bucket before the normal CRM
+  write-back path runs; **reconciliation catches an induced shortfall** — drop
+  one send so its row stays `pending` (or delete the materialized row): assert
+  `reminder_days.health = 'red'`, `unaccounted ≥ 1` (or `pending > 0`), and that
+  the **success heartbeat URL was _not_ pinged** (the fail URL was) — the
+  deterministic expected-state, not just "catches it".
+- **State-machine totality (ADR-018, §5.5):** kill the _only_ firing mid-send
+  (row left `sending`) with **no** later firing → the `pg_cron`
+  `maintenance.reap_stale_sends()` backstop transitions it to `send_unknown`
+  within one sweep (never blind-resent); a firing that **steals** a dead lease
+  reaps that run's `sending` rows immediately; assert no `reminder_messages` row
+  can sit in a non-terminal status with no automated exit.
+- **Lease heartbeat-grace steal (§5.7a, ADR-012):** a holder that stops renewing
+  `lock_heartbeat_at` is steal-able after ~120 s (not ~15 min) while a _live_
+  holder renewing every ≤30 s is **never** stolen; two firings never both
+  process the same `target_date`.
+- **Claim-time token minting (ADR-014/§5.7b):** a sendable materialized
+  `pending` row starts with no raw token and no live capability digest; the
+  `pending`/retryable-`failed` → `sending` claim writes exactly one token
+  digest + expiry while the raw token exists only in process memory for the SMS
+  URL. Crash after materialization-before-claim leaves a normal claimable
+  `pending` row; crash after claim-before-provider leaves `sending` that reaps
+  to `send_unknown`, not a digest-only row the system tries to reconstruct or
+  resend.
+- **Superseded-token kill (ADR-008, §5.6):** after a supersede, a `POST /action`
+  on the **old** token returns 0 rows / renders the neutral expired page (the
+  CAS rejects `superseded_at is not null` and `token_expires_at` is now past),
+  and a late DLR on the superseded row does **not** change its `status`; only
+  the new notice's token can act.
+- **Changed-appointment partial failure (ADR-008/013/020, §5.6):** induce a
+  moved appointment and crash (a) before supersede+replacement insertion, then
+  assert current-fingerprint reconciliation is red and a later firing retries;
+  and (b) after insertion but before replacement send outcome, then assert the
+  old token is dead, the replacement row is `pending`/`sending`/`send_unknown`,
+  and the success heartbeat is not pinged until the replacement notice is
+  handled.
+- **E2E dry-run vs the go-live ladder (one mode vocabulary — §6.6/ADR-024):**
+  the **hermetic dry-run** is `SEND_MODE='off'` + `CRM_WRITE_MODE='off'` (stub
+  sender records would-send intent, zero egress — the §6.5 harness / ladder rung
+  0, ADR-023), not a separate "test mode" switch. The "real send to a staff
+  number, no CRM write" rehearsal is **not** a test mode but the ladder's **seed
+  rung** (`SEND_MODE='seed'` + `CRM_WRITE_MODE='off'`, allowlisted to staff
+  numbers — the deliverability seed test below). The same two flags govern both,
+  so there is one ladder (`off→seed→canary→full`), never two overlapping "test
+  mode" schemes.
+- **Accessibility & page-resilience acceptance (Patient-Experience external
+  review, v2.14 — the confirm page is the engagement surface, §5.2):**
+  `lang="uk"`; body text ≥18 px / line-height ≥1.4 with the date/time the
+  largest element (28–32 px, real text not an image); all primary controls **≥48
+  px** and full-width on narrow screens; **WCAG-AA contrast**, Confirm/Cancel
+  distinguished by **label + position, never colour alone**; usable at **200%
+  zoom** with no horizontal scroll (no `user-scalable=no`); **the Confirm /
+  Cancel / opt-out flow completes with JavaScript disabled** (server-rendered
+  `<form>` POST, nonce in a hidden field); visible focus ring; no modal-only
+  flow and no countdowns; **zero external font/image/script/pixel**; HTML+CSS
+  **≤50 KB** compressed; verified on **one low-end Android over mobile data
+  (Wi-Fi off)** alongside the deliverability seed test below. **Concrete pass
+  values (§5.8 / `design-tokens.json`, ADR-022):** ink `#14213A`-on-white
+  **16.05:1**, navy `#0A3576` **11.77:1**, muted `#51606F` **6.46:1**,
+  destructive `#B3261E` **6.54:1** — every shipped text/Confirm/Cancel pair
+  ≥4.5:1, **min 6.46:1**; base **18 px** / date-time **32 px** / line-height
+  **1.5**; tap targets **≥48 px (56 px primary)**. The reference fixture
+  `docs/design/mockups/confirm-page.html` measures **≈4.4 KB gzipped** with
+  **zero** external requests and **zero** script — the seed these
+  Playwright/axe-core assertions run against.
+- **Browser-E2E tooling — which tool for which surface.** Both web surfaces are
+  tested with a deliberate split. **Playwright (`@playwright/test`, in CI)** is
+  the deterministic regression + accessibility harness for _both_ the public
+  `/r/<token>` page and the staff dashboard — the right tool for the acceptance
+  criteria above because it runs a **JavaScript-disabled context** (proving the
+  no-JS server-rendered `<form>` POST still records an action), **throttles
+  network + CPU** (the low-end-Android-over-mobile-data case), **emulates
+  devices** (≥48 px targets, 200 % zoom), and asserts **WCAG-AA contrast via
+  axe-core**. The security go-live gate's HTTP-level invariants (GET = zero
+  writes, nonce-less POST fails, double-POST = one action, expired/superseded
+  token can't act) live **below the browser** as HTTP/contract tests + the pgTAP
+  gate (below). An **agentic browser** (the `agent-browser` skill / Claude or
+  Codex computer-use) is reserved for **exploratory QA and the qualitative trust
+  review** ("does the page read like a calm bank-confirmation receipt, not a
+  scam?"), _not_ CI regression; **Playwright MCP** is the dev inner loop.
+- **Security go-live gate (ADR-014/015/016) — must pass before production:**
+  token is 128-bit base64url and only its HMAC digest is stored; `GET`/`HEAD` on
+  `/r` produce **zero** business writes; a direct `POST /action` without a nonce
+  fails; Cancel requires the interstitial; a double `POST` yields exactly one
+  recorded action and ≤1 CRM write; an expired token can't act; a CRM-moved
+  appointment can't be cancelled by a stale token (§5.6); the circuit-breaker
+  **hard-opens** on a velocity burst (≥4 cancels/10 min **or** ≥6/30 min) and on
+  the daily hard-ceiling, **warns (amber, keeps writing) on a moderate day**
+  (≥`⌈0.4×sent⌉`), and a **slow legitimate drip of cancels does _not_ hard-open
+  it** (no false-trip on a flu-day distribution); only **valid nonce-backed
+  cancel POSTs** are counted
+  (`response='cancel' and action_locked_at is not null`; not
+  GET/prepare/expired/unsubscribe); held cancels land in `pending_staff_review`
+  and clear via bulk-approve-safe or `staff_closed_no_write`; a footer-opt-out
+  `GET` can't opt out; full phone numbers aren't stored at rest;
+  `consent_events` exists with source/scope/version on every
+  legacy-import/opt-out/re-enable; the public Edge Fn returns only sanitized
+  fields and can't enumerate rows; token URLs are redacted in logs and served
+  with `Referrer-Policy: no-referrer` + `Cache-Control: no-store` + no
+  third-party assets; **and the §6.6 live-clinic guard holds (ADR-024):** a send
+  to a non-allowlisted number under `SEND_MODE≠full` is refused with **zero**
+  provider calls; a write to a non-allowlisted `visit_id` under
+  `CRM_WRITE_MODE≠full` is refused with **zero** `PUT`/`DELETE`; an empty
+  allowlist under a non-`full` mode refuses **all**; `full` (and only `full`)
+  lifts the recipient allowlist; a `full` mode under `APP_ENV ∈ {test,dev}`
+  **hard-fails at boot**.
+- **Data-layer regression gate (pgTAP / SQL — must pass before production,
+  Tension 1/3/5; ADR-019).** Make the grant matrix and the concurrency SQL
+  _tested_, not just documented, on the local Supabase stack: (1)
+  **least-privilege** — `dentino_confirm_api` and `anon` can `SELECT` **no**
+  `app` table and can `EXECUTE` **only** the four `api` RPCs
+  (`set role dentino_confirm_api; select * from app.patients` must throw
+  `42501`); `authenticated` cannot read token/nonce/claim digests (only the
+  `api.v_*` views); **no `app` base table is exposed** through the Data API
+  (only `api`). (2) **definer hygiene** — every `SECURITY DEFINER` function has
+  `search_path = ''` and a non-superuser, non-login owner; `EXECUTE` is revoked
+  from `PUBLIC`; the public role carries the fail-closed
+  `statement_timeout`/`lock_timeout`/`idle_in_transaction_session_timeout`. (3)
+  **single-winner concurrency** — two concurrent lease claims yield one holder;
+  a double `POST /action` yields exactly one `action_locked_at`; the
+  `reminder_messages_action_lock_guard` trigger rejects any un-lock/re-respond;
+  two write-lock steals yield one winner. (4) **RLS on (and forced)** for every
+  `app` table. Run as a CI step alongside `supabase db lint`; regenerate
+  `database.types.ts` and assert no drift (AGENTS.md schema↔types contract).
+- **Deliverability validation (pre-launch go-live gate):** seed **≥3 Kyivstar +
+  3 Vodafone UA + 3 lifecell** numbers (+ ≥2 ported/MNP if available); iOS +
+  Android incl. one low-end Android; check **page load on mobile data with Wi-Fi
+  off**. Send four variants — **no-URL control**, **production URL template**,
+  **name-overflow fallback template**, **expired/invalid token** — repeated on
+  **3 separate days at the production send time**. Measure: handset receipt,
+  sender shown as `Dentino`, delivery time, **per-message provider status**, URL
+  auto-linkification, page load, DB write, CRM dry-run write-back. **Pass = 0
+  sender overwrites, 0 URL-specific blocks, 0 unexplained
+  Rejected/Undelivered/Expired**, and a working link→page→action on every
+  received message. **Any** cross-operator sender rewrite, URL block, or missing
+  per-message DLR is a **launch blocker** (resolve, or switch to an aggregator
+  route — ADR-005). **(This is the seed/§6.6 rung-2 gate — a _real_ send to
+  allowlisted staff numbers only, never the inner-loop CI suite; ADR-024.)**
 
-The catalog above names *what* to test; the sub-sections below are the **layered harness** that makes "green CI = safe to ship" defensible and makes "no dev/test/CI run can touch a real patient" a property the harness **fails closed** on (ADR-023). All new test code lands under §8 `tests/`; all new harness code under `_shared/`.
+The catalog above names _what_ to test; the sub-sections below are the **layered
+harness** that makes "green CI = safe to ship" defensible and makes "no
+dev/test/CI run can touch a real patient" a property the harness **fails
+closed** on (ADR-023). All new test code lands under §8 `tests/`; all new
+harness code under `_shared/`.
 
 **Hermetic harness — no real egress is PROVEN, not assumed (ADR-023).**
-- **One chokepoint:** all outbound HTTP routes through `_shared/http.ts`; `clinicCardsClient`/`smsSender`/DLR/Sentry/heartbeat take the injected `httpClient` (no module calls global `fetch`). A `ubs`/grep gate forbids `fetch(`/`new Request(` outside `_shared/http.ts` (asserted in CI — CI ladder tier 0).
-- **Cassette player throws on miss:** the test `httpClient` matches host+method+path+a normalized body against `tests/fixtures/cassettes/`; an unrecorded request **throws** (`UnrecordedRequestError`) → the test fails. It NEVER falls through to the network (the nock-`disableNetConnect` posture, not VCR auto-record).
-- **Env guard:** the Zod config loader hard-errors under `APP_ENV ∈ ('test','dev','ci')` if a real CRM/provider base URL or live key is present, and forces `SEND_MODE='off'` (the stub sender records would-send intent, never dispatches) + `CRM_WRITE_MODE='off'` — the same fail-closed flags the go-live ladder climbs (§6.6/ADR-024).
-- **CI egress-deny ring:** the suite runs with outbound network denied except localhost + the local Supabase ports; a bypass fails with a connection error (red), never a real call.
-- **The no-egress assertion (a first-class test, `tests/integration/no-egress.test.ts`):** runs `run-reminders` end-to-end against cassettes + the stub sender and asserts: (a) the stub recorded N would-send intents and made **zero** provider calls; (b) the cassette player saw **zero** unrecorded requests; (c) `CRM_WRITE_MODE='off'` ⇒ zero `PUT /visits`; (d) deliberately removing one cassette makes the run **throw** `UnrecordedRequestError` (proves the chokepoint is load-bearing, not decorative).
+
+- **One chokepoint:** all outbound HTTP routes through `_shared/http.ts`;
+  `clinicCardsClient`/`smsSender`/DLR/Sentry/heartbeat take the injected
+  `httpClient` (no module calls global `fetch`). A `ubs`/grep gate forbids
+  `fetch(`/`new Request(` outside `_shared/http.ts` (asserted in CI — CI ladder
+  tier 0).
+- **Cassette player throws on miss:** the test `httpClient` matches
+  host+method+path+a normalized body against `tests/fixtures/cassettes/`; an
+  unrecorded request **throws** (`UnrecordedRequestError`) → the test fails. It
+  NEVER falls through to the network (the nock-`disableNetConnect` posture, not
+  VCR auto-record).
+- **Env guard:** the Zod config loader hard-errors under
+  `APP_ENV ∈ ('test','dev','ci')` if a real CRM/provider base URL or live key is
+  present, and forces `SEND_MODE='off'` (the stub sender records would-send
+  intent, never dispatches) + `CRM_WRITE_MODE='off'` — the same fail-closed
+  flags the go-live ladder climbs (§6.6/ADR-024).
+- **CI egress-deny ring:** the suite runs with outbound network denied except
+  localhost + the local Supabase ports; a bypass fails with a connection error
+  (red), never a real call.
+- **The no-egress assertion (a first-class test,
+  `tests/integration/no-egress.test.ts`):** runs `run-reminders` end-to-end
+  against cassettes + the stub sender and asserts: (a) the stub recorded N
+  would-send intents and made **zero** provider calls; (b) the cassette player
+  saw **zero** unrecorded requests; (c) `CRM_WRITE_MODE='off'` ⇒ zero
+  `PUT /visits`; (d) deliberately removing one cassette makes the run **throw**
+  `UnrecordedRequestError` (proves the chokepoint is load-bearing, not
+  decorative).
 
 **Cassette lifecycle & drift-detection (ADR-023).**
-- **Source of truth for the initial cassettes:** the **real saved 200 examples** in `docs/vendor/cliniccards/API-REFERENCE.md` (every endpoint has one) + the documented `{data,result,error}` envelope. Cassettes are built from those real shapes, NOT guessed; the SMS-provider cassettes are built from its documented send/DLR responses, refined once the test-balance key exists.
-- **Sanitization is a rule, not a step (no real PII — ADR-016):** every cassette carries only synthetic identifiers (e.g. `patient_id:"1111111"`, `phone:"380000000000"`, `firstname:"Test"`), is run through `tests/harness/sanitize-cassette.ts` (strips phone/phone2/email/name/note to synthetic values) before commit, and a CI check greps committed cassettes for the staff/clinic phone, real `380…` numbers, and the real clinic name — a hit fails the build. Each cassette carries provenance metadata (`recorded_at`, `source`, `sanitized:true`, `endpoint`).
-- **Drift detection is explicit, guarded, opt-in, READ-ONLY, and NOT in the default CI path:** a manual `deno task contract:verify` (a) replays each cassette's request against the **live ClinicCards read endpoints only** (`GET /visits`, `GET /patients` — never `PUT`/`DELETE`), with `CRM_WRITE_MODE='off'` and the SMS stub, and (b) diffs the live response *shape* (keys, types, the `{data,result,error}` envelope, the visit/patient field set, the `visit_start`/`date_edited` formats) against the recorded cassette, failing on structural drift. It runs only with a deliberately-set live **read** key, off the laptop of whoever holds it, on the owner's schedule (e.g. monthly + before go-live) — never from the default suite. A drift is a ticket to refresh + re-sanitize the cassette, not a silent green. The `PUT`/`DELETE` paths are **never** contract-verified live (their drift is caught by the §6.6 seed/canary rungs) — only reads, which the live clinic tolerates.
 
-**Smoke-test ladder — the minimal fast check at each layer that proves the wiring before the slow suite.** Three rungs, each strictly faster than the next, run on every save in the inner loop; the full gated suite (CI ladder below) runs at commit/PR.
-- **Rung A — pure-function smoke (<1 s, no I/O, `deno test tests/unit/smoke`).** Render the default + name-overflow fallback and assert ≤2 segments; compute one Cyrillic segment count; normalize one phone to E.164; compute `target_date` for a fixed winter and summer Kyiv instant; mint one token + its HMAC digest with a SEEDED RNG and assert determinism. No Supabase, no network — the commit-#1 feedback, green from the very first `_shared/` file.
-- **Rung B — DB-only smoke (a few s, pgTAP, `supabase db` + the migrations, NO Edge stack).** Apply `0001`+`0002`; run ONE `reminder_days` lease claim and assert exactly one winner; run ONE per-message `FOR UPDATE SKIP LOCKED` claim and assert one winner; run the single-use action CAS twice and assert the second affects 0 rows. pgTAP against the local DB only — no functions, no cassettes, no browser.
-- **Rung C — single-message dry-run smoke (a few s, one Edge invocation against cassettes + stub).** Feed ONE synthetic visit through `run-reminders` in dry-run mode (`SEND_MODE='off'`, `CRM_WRITE_MODE='off'`): assert exactly one would-send intent recorded, one `reminder_messages` row at `sent` (stubbed), **zero** external calls, **zero** CRM writes — the thinnest end-to-end "the spine is wired" check.
+- **Source of truth for the initial cassettes:** the **real saved 200 examples**
+  in `docs/vendor/cliniccards/API-REFERENCE.md` (every endpoint has one) + the
+  documented `{data,result,error}` envelope. Cassettes are built from those real
+  shapes, NOT guessed; the SMS-provider cassettes are built from its documented
+  send/DLR responses, refined once the test-balance key exists.
+- **Sanitization is a rule, not a step (no real PII — ADR-016):** every cassette
+  carries only synthetic identifiers (e.g. `patient_id:"1111111"`,
+  `phone:"380000000000"`, `firstname:"Test"`), is run through
+  `tests/harness/sanitize-cassette.ts` (strips phone/phone2/email/name/note to
+  synthetic values) before commit, and a CI check greps committed cassettes for
+  the staff/clinic phone, real `380…` numbers, and the real clinic name — a hit
+  fails the build. Each cassette carries provenance metadata (`recorded_at`,
+  `source`, `sanitized:true`, `endpoint`).
+- **Drift detection is explicit, guarded, opt-in, READ-ONLY, and NOT in the
+  default CI path:** a manual `deno task contract:verify` (a) replays each
+  cassette's request against the **live ClinicCards read endpoints only**
+  (`GET /visits`, `GET /patients` — never `PUT`/`DELETE`), with
+  `CRM_WRITE_MODE='off'` and the SMS stub, and (b) diffs the live response
+  _shape_ (keys, types, the `{data,result,error}` envelope, the visit/patient
+  field set, the `visit_start`/`date_edited` formats) against the recorded
+  cassette, failing on structural drift. It runs only with a deliberately-set
+  live **read** key, off the laptop of whoever holds it, on the owner's schedule
+  (e.g. monthly + before go-live) — never from the default suite. A drift is a
+  ticket to refresh + re-sanitize the cassette, not a silent green. The
+  `PUT`/`DELETE` paths are **never** contract-verified live (their drift is
+  caught by the §6.6 seed/canary rungs) — only reads, which the live clinic
+  tolerates.
+
+**Smoke-test ladder — the minimal fast check at each layer that proves the
+wiring before the slow suite.** Three rungs, each strictly faster than the next,
+run on every save in the inner loop; the full gated suite (CI ladder below) runs
+at commit/PR.
+
+- **Rung A — pure-function smoke (<1 s, no I/O, `deno test tests/unit/smoke`).**
+  Render the default + name-overflow fallback and assert ≤2 segments; compute
+  one Cyrillic segment count; normalize one phone to E.164; compute
+  `target_date` for a fixed winter and summer Kyiv instant; mint one token + its
+  HMAC digest with a SEEDED RNG and assert determinism. No Supabase, no network
+  — the commit-#1 feedback, green from the very first `_shared/` file.
+- **Rung B — DB-only smoke (a few s, pgTAP, `supabase db` + the migrations, NO
+  Edge stack).** Apply `0001`+`0002`; run ONE `reminder_days` lease claim and
+  assert exactly one winner; run ONE per-message `FOR UPDATE SKIP LOCKED` claim
+  and assert one winner; run the single-use action CAS twice and assert the
+  second affects 0 rows. pgTAP against the local DB only — no functions, no
+  cassettes, no browser.
+- **Rung C — single-message dry-run smoke (a few s, one Edge invocation against
+  cassettes + stub).** Feed ONE synthetic visit through `run-reminders` in
+  dry-run mode (`SEND_MODE='off'`, `CRM_WRITE_MODE='off'`): assert exactly one
+  would-send intent recorded, one `reminder_messages` row at `sent` (stubbed),
+  **zero** external calls, **zero** CRM writes — the thinnest end-to-end "the
+  spine is wired" check.
 
 **Ladder ↔ build-slice map (§11 Suggested Build Sequence):**
-| Slice (§11) | Smoke that gates "wired" | Full tests that gate "done" |
-|---|---|---|
-| 1. schema + seed templates | Rung B (migrations apply; one lease claim wins) | pgTAP data-layer gate (grants/RLS/definer) |
-| 2. `clinicCardsClient` + cassettes | Rung A (envelope parse) | contract tests (visits/patients cassettes; 414/400 chunk-split; fail-closed on truncated list) |
-| 3. `run-reminders` dry-run + idempotency | Rung C (one visit → one intent, zero egress) | idempotency suite (double-fire/two-firing/reaper) + reconciliation-shortfall + no-egress assertion |
-| 4. `smsSender` + confirm page E2E | Rung C (stub send) | confirm-page adversarial suite A + SMS-render suite B + security HTTP invariants |
-| 5. dashboard status board | Rung A (trust-panel rollup math on fixtures) | Playwright dashboard regression + axe-core |
-| 6. scheduler + reliability spine | Rung B (lease steal on a frozen-then-advanced clock) | heartbeat-grace steal + on-steal reap + DST firing-window matrix |
-| 7. hardening (reconciliation, write-lease, breaker, retention) | Rung B (breaker CAS) | failure-injection suite + breaker velocity/drip suite + purge/reaper pgTAP |
 
-A slice is **"done"** only when its smoke rung is green in the inner loop AND its full-test column passes in the gated suite (the per-slice definition-of-done, CI ladder below).
+| Slice (§11)                                                    | Smoke that gates "wired"                             | Full tests that gate "done"                                                                        |
+| -------------------------------------------------------------- | ---------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| 1. schema + seed templates                                     | Rung B (migrations apply; one lease claim wins)      | pgTAP data-layer gate (grants/RLS/definer)                                                         |
+| 2. `clinicCardsClient` + cassettes                             | Rung A (envelope parse)                              | contract tests (visits/patients cassettes; 414/400 chunk-split; fail-closed on truncated list)     |
+| 3. `run-reminders` dry-run + idempotency                       | Rung C (one visit → one intent, zero egress)         | idempotency suite (double-fire/two-firing/reaper) + reconciliation-shortfall + no-egress assertion |
+| 4. `smsSender` + confirm page E2E                              | Rung C (stub send)                                   | confirm-page adversarial suite A + SMS-render suite B + security HTTP invariants                   |
+| 5. dashboard status board                                      | Rung A (trust-panel rollup math on fixtures)         | Playwright dashboard regression + axe-core                                                         |
+| 6. scheduler + reliability spine                               | Rung B (lease steal on a frozen-then-advanced clock) | heartbeat-grace steal + on-steal reap + DST firing-window matrix                                   |
+| 7. hardening (reconciliation, write-lease, breaker, retention) | Rung B (breaker CAS)                                 | failure-injection suite + breaker velocity/drip suite + purge/reaper pgTAP                         |
 
-**Determinism hooks — the architecture exposes four test seams (ADR-023; located in §8/§5.7).**
-- **Clock:** `_shared/clock.ts` (Edge) + `app.now()` (DB, overridable by the `app.test_now` GUC). Every test that depends on expiry/steal/window advances `app.test_now`; **no `pg_sleep`, no real wall-clock waits.** Assertions: a holder renewing `lock_heartbeat_at` every ≤30 s is NEVER stolen; advance `app.test_now` by 121 s without a renew ⇒ the steal predicate matches and a second firing wins (§5.7a). Token-expiry and the breaker windows use the same advance.
-- **Token/nonce RNG:** `_shared/tokens.ts` injected `rng`. In test, a seeded 16-byte stream makes the token, digest, and nonce reproducible so a test can assert an exact digest/nonce **without** weakening prod entropy (prod uses `crypto.getRandomValues`; the test never shortens the token — a 22-char base64url 128-bit token is asserted in both).
-- **Two-firing concurrency driver:** `tests/harness/concurrency.ts`. **Real-parallel mode** (two live Postgres connections fire the claim simultaneously) proves the one-winner property under an actual race; **interleave mode** pins statement order (claim-A, claim-B, commit-A, commit-B) to prove the EvalPlanQual/`ON CONFLICT` re-evaluation deterministically. Every §5.7 statement (lease claim/steal, per-message claim, action CAS, write-lock steal) gets both-mode coverage; assert exactly one `RETURNING` row across the pair.
-- **DST/TZ fixture matrix:** `tests/harness/kyiv-fixtures.ts`, fixed UTC instants → expected `target_date_kyiv`: a winter day (EET, UTC+2 → 12:00 Kyiv = 10:00 UTC), a summer day (EEST, UTC+3 → 09:00 UTC), the spring-forward Sunday, the fall-back Sunday, a 23:30-Kyiv near-midnight instant (UTC still "yesterday"), and a firing at each noon-window UTC slot (09:00/09:30/10:00/10:30). Assert the Kyiv-gate proceeds only when ≥12:00 Kyiv, and that `run-reminders` **fails before sending** on any logged `run_date_kyiv`/`target_date` mismatch (§4.4 — the "never derive target_date from UTC" rule becomes a test).
+A slice is **"done"** only when its smoke rung is green in the inner loop AND
+its full-test column passes in the gated suite (the per-slice
+definition-of-done, CI ladder below).
 
-**Adversarial suite A — confirm-page / write-back (no real patient can be wrongly cancelled).** Runs as HTTP/contract tests below the browser (the security invariants) + Playwright for the rendered flow. Every case asserts a precise expected-state, not "it's handled".
-- **Auto-fetch immunity (ADR-014/§5.4) — zero business writes from a fetch:** for each of `GET`, `HEAD`, `OPTIONS`, a 30x-followed redirect, an image/script preload of `/r/<token>`, `?action=confirm|cancel|unsubscribe` in the query, `_method=POST`, and an auto-submitting/crawled form → assert **0** rows changed in `reminder_messages`, **0** `consent_events`, **0** CRM `PUT`, **0** breaker-counter increment, and that no `action_nonce` was consumed (table-driven, one row per vector).
-- **Nonce/token fuzzing — `/action` rejects everything except a valid, scoped, fresh nonce:** missing nonce; replayed (already-used) nonce; nonce minted for `confirm` submitted to `cancel` (cross-action); expired nonce; nonce for a superseded row; cross-origin (`Origin`/`Sec-Fetch-Site` cross-site); wrong/empty `Content-Type`; a forged/tampered render-fingerprint in the nonce → each asserts the POST is refused, 0 CRM writes, neutral page renders. Token fuzzing: malformed token, valid-shape-but-unknown digest, expired token, superseded-row token → identical neutral "invalid/expired" page (no oracle — §6.3.1).
-- **Double-POST = exactly one action ≤1 CRM write (§5.7c):** fire two concurrent valid `cancel` POSTs via the two-firing driver → assert exactly one `action_locked_at` set, one `response='cancel'`, **≤1** ClinicCards `PUT`, and the second POST renders the already-recorded page. Assert the `reminder_messages_action_lock_guard` trigger rejects any un-lock/re-respond (it throws).
-- **TOCTOU (§5.6) — facts changed between render and write:** the page renders fingerprint F; before the `/action` POST commits the CRM write, the cassette for the pre-write re-fetch returns F′ (moved/terminal/reassigned) → assert the guarded write-back **refuses**, writes nothing to CRM, flags, and re-renders current facts. Separately: a move-*earlier* that outdates `token_expires_at` → assert refusal.
-- **Per-visit write-lease serialization (§5.7d):** two confirm-page write-backs to one `visit_id` via the two-firing driver → one acquires the lease, the other waits/no-ops; assert ≤1 `PUT` and the stale-token holder affects 0 rows (the ADR-020 fenced-write rule: a stale-token actor makes 0 external calls).
-- **Breaker — velocity hard-opens, a slow drip does NOT (§5.6/the security gate):** with `app.test_now` advancing, replay 4 valid cancel POSTs inside a 10-min window ⇒ assert hard-open (further cancels land in `pending_staff_review`, **0** further CRM writes); replay 6 across 30 min ⇒ hard-open; replay 8 cancels spread over 6 hours (a flu day) ⇒ assert it does **NOT** hard-open (writes keep landing) and only ambers at ≥⌈0.4×sent⌉. Assert only valid nonce-backed cancel POSTs count (a GET/prepare/expired/unsubscribe burst does not trip it).
-- **CRM-write reaper (ADR-020) — no human-only-exit:** record `action_taken='cancelled'` then crash before the `PUT`; assert the reaper (run-owned + `pg_cron`) re-drives the idempotent guarded write-back to a landed write or `error`, and that a zombie of the original invocation (stale token) affects 0 rows and makes 0 CRM calls.
+**Determinism hooks — the architecture exposes four test seams (ADR-023; located
+in §8/§5.7).**
 
-**Adversarial suite B — SMS render (a patient can never see a mistake). Property/fuzz-based + golden-file.**
-- **Segment-budget property (the core invariant):** a property-based test (fast-check / Deno equivalent) generates adversarial `{{name}}`/`{{date}}`/`{{time}}` inputs — a very long Cyrillic name, mixed Latin+Cyrillic, emoji, RTL marks, zero-width/control chars, combining diacritics, an empty name, a 200-char name — and asserts for **every** input: the rendered body is **≤2 segments / ≤134 UCS-2 chars**, OR the name-overflow fallback (no-name) was used (never a silent 3rd segment). The "NO input ever yields >2 segments without the name-overflow fallback" guarantee as a runnable property, not an example.
-- **Never a wrong/empty link:** assert the rendered body always contains exactly one `https://r.dentino.com.ua/r/<token>` whose token is the full 22-char base64url 128-bit value (seeded RNG), never empty, never truncated, never a second URL, and that `{{confirm_url}}` resolved (no literal `{{confirm_url}}` survives). A template missing `{{confirm_url}}` fails template-editor validation (assert the `update_message_template` RPC rejects it).
-- **No broken Cyrillic / no mis-substitution:** golden-file/snapshot the rendered default + name-overflow fallback bodies for a fixed fixture (`Іван`, date, time, phone) and byte-compare — a snapshot diff catches a broken-encoding regression, a swapped date/time field, or a name leaking into the wrong slot. The clinic phone `+380679876111` (no spaces) must appear in both bodies.
-- **Mis-substituted field guard:** a test asserts `{{date}}`/`{{time}}` render in Europe/Kyiv from the visit's `visit_start` (using the Kyiv fixture matrix) — a UTC-rendered time is a wrong-time SMS and must fail. A missing field falls back to the name-overflow fallback; it never renders a half-substituted body (§5.6).
-- **Golden corpus:** keep `tests/fixtures/sms-golden/` (rendered bodies for ~8 representative fixtures incl. the long-name → name-overflow fallback case); a change to the template or renderer must update the golden file deliberately (review-visible), so a wording/segment regression cannot land silently.
+- **Clock:** `_shared/clock.ts` (Edge) + `app.now()` (DB, overridable by the
+  `app.test_now` GUC). Every test that depends on expiry/steal/window advances
+  `app.test_now`; **no `pg_sleep`, no real wall-clock waits.** Assertions: a
+  holder renewing `lock_heartbeat_at` every ≤30 s is NEVER stolen; advance
+  `app.test_now` by 121 s without a renew ⇒ the steal predicate matches and a
+  second firing wins (§5.7a). Token-expiry and the breaker windows use the same
+  advance.
+- **Token/nonce RNG:** `_shared/tokens.ts` injected `rng`. In test, a seeded
+  16-byte stream makes the token, digest, and nonce reproducible so a test can
+  assert an exact digest/nonce **without** weakening prod entropy (prod uses
+  `crypto.getRandomValues`; the test never shortens the token — a 22-char
+  base64url 128-bit token is asserted in both).
+- **Two-firing concurrency driver:** `tests/harness/concurrency.ts`.
+  **Real-parallel mode** (two live Postgres connections fire the claim
+  simultaneously) proves the one-winner property under an actual race;
+  **interleave mode** pins statement order (claim-A, claim-B, commit-A,
+  commit-B) to prove the EvalPlanQual/`ON CONFLICT` re-evaluation
+  deterministically. Every §5.7 statement (lease claim/steal, per-message claim,
+  action CAS, write-lock steal) gets both-mode coverage; assert exactly one
+  `RETURNING` row across the pair.
+- **DST/TZ fixture matrix:** `tests/harness/kyiv-fixtures.ts`, fixed UTC
+  instants → expected `target_date_kyiv`: a winter day (EET, UTC+2 → 12:00 Kyiv
+  = 10:00 UTC), a summer day (EEST, UTC+3 → 09:00 UTC), the spring-forward
+  Sunday, the fall-back Sunday, a 23:30-Kyiv near-midnight instant (UTC still
+  "yesterday"), and a firing at each noon-window UTC slot
+  (09:00/09:30/10:00/10:30). Assert the Kyiv-gate proceeds only when ≥12:00
+  Kyiv, and that `run-reminders` **fails before sending** on any logged
+  `run_date_kyiv`/`target_date` mismatch (§4.4 — the "never derive target_date
+  from UTC" rule becomes a test).
 
-**CI gate ladder — ordered fast→slow; a tier must be green before the next runs.**
-| # | Tier | Pass condition | Gates slices |
-|---|---|---|---|
-| 0 | format/lint/typecheck/`ubs` + **no-`fetch`-outside-`http.ts`** grep | `deno fmt --check` · `deno lint` · `deno check` · `ubs --ci` · the chokepoint grep is clean | all |
-| 1 | unit + pure smokes (Rung A) | `deno test tests/unit` green; segment-budget property green | 2,3,4,5 |
-| 2 | pgTAP data-layer + concurrency (Rung B) | grants/RLS/definer-hygiene + single-winner (lease/claim/CAS/write-lock) all green | 1,6,7 |
-| 3 | contract (cassettes) | visits/patients/SMS cassettes replay; chunk-split on 414/400; fail-closed on truncated list | 2 |
-| 4 | integration (local Supabase) + **the no-egress assertion** | dry-run pipeline green; stub recorded N intents, **0** real calls, **0** CRM writes; removing a cassette throws | 3,4 |
-| 5 | confirm-page E2E (Playwright: JS-disabled + axe-AA + the security HTTP invariants) + SMS golden | adversarial suites A & B green; no-JS form-POST records an action; axe-core WCAG-AA clean | 4,5 |
-| 6 | reconciliation / failure-injection / state-machine totality | reconciliation-shortfall red-state asserted; reaper/steal totality green; breaker velocity-vs-drip green | 3,6,7 |
-| 7 | **schema ↔ `database.types.ts` no-drift** | regenerate types from the local schema ⇒ **no diff** (a diff fails the build) | 1 + any migration |
-| — | security go-live gate | **pre-prod only**, not every CI run (the existing §6.5 security gate) | pre-go-live |
-| — | deliverability seed test | **pre-go-live, staff numbers only, NOT in CI** (manual go/no-go — §6.6 rung 2) | go-live |
+**Adversarial suite A — confirm-page / write-back (no real patient can be
+wrongly cancelled).** Runs as HTTP/contract tests below the browser (the
+security invariants) + Playwright for the rendered flow. Every case asserts a
+precise expected-state, not "it's handled".
 
-Tiers 0–7 are the **per-commit/PR CI**; the security gate and the seed test are **release gates**, never the inner loop. The **no-egress assertion (tier 4)** and the **schema↔types no-drift (tier 7)** are first-class, non-skippable gates — a failure there fails the build, it cannot be narrowed away (AGENTS.md "do not narrow the gate to bypass it").
+- **Auto-fetch immunity (ADR-014/§5.4) — zero business writes from a fetch:**
+  for each of `GET`, `HEAD`, `OPTIONS`, a 30x-followed redirect, an image/script
+  preload of `/r/<token>`, `?action=confirm|cancel|unsubscribe` in the query,
+  `_method=POST`, and an auto-submitting/crawled form → assert **0** rows
+  changed in `reminder_messages`, **0** `consent_events`, **0** CRM `PUT`, **0**
+  breaker-counter increment, and that no `action_nonce` was consumed
+  (table-driven, one row per vector).
+- **Nonce/token fuzzing — `/action` rejects everything except a valid, scoped,
+  fresh nonce:** missing nonce; replayed (already-used) nonce; nonce minted for
+  `confirm` submitted to `cancel` (cross-action); expired nonce; nonce for a
+  superseded row; cross-origin (`Origin`/`Sec-Fetch-Site` cross-site);
+  wrong/empty `Content-Type`; a forged/tampered render-fingerprint in the nonce
+  → each asserts the POST is refused, 0 CRM writes, neutral page renders. Token
+  fuzzing: malformed token, valid-shape-but-unknown digest, expired token,
+  superseded-row token → identical neutral "invalid/expired" page (no oracle —
+  §6.3.1).
+- **Double-POST = exactly one action ≤1 CRM write (§5.7c):** fire two concurrent
+  valid `cancel` POSTs via the two-firing driver → assert exactly one
+  `action_locked_at` set, one `response='cancel'`, **≤1** ClinicCards `PUT`, and
+  the second POST renders the already-recorded page. Assert the
+  `reminder_messages_action_lock_guard` trigger rejects any un-lock/re-respond
+  (it throws).
+- **TOCTOU (§5.6) — facts changed between render and write:** the page renders
+  fingerprint F; before the `/action` POST commits the CRM write, the cassette
+  for the pre-write re-fetch returns F′ (moved/terminal/reassigned) → assert the
+  guarded write-back **refuses**, writes nothing to CRM, flags, and re-renders
+  current facts. Separately: a move-_earlier_ that outdates `token_expires_at` →
+  assert refusal.
+- **Per-visit write-lease serialization (§5.7d):** two confirm-page write-backs
+  to one `visit_id` via the two-firing driver → one acquires the lease, the
+  other waits/no-ops; assert ≤1 `PUT` and the stale-token holder affects 0 rows
+  (the ADR-020 fenced-write rule: a stale-token actor makes 0 external calls).
+- **Breaker — velocity hard-opens, a slow drip does NOT (§5.6/the security
+  gate):** with `app.test_now` advancing, replay 4 valid cancel POSTs inside a
+  10-min window ⇒ assert hard-open (further cancels land in
+  `pending_staff_review`, **0** further CRM writes); replay 6 across 30 min ⇒
+  hard-open; replay 8 cancels spread over 6 hours (a flu day) ⇒ assert it does
+  **NOT** hard-open (writes keep landing) and only ambers at ≥⌈0.4×sent⌉. Assert
+  only valid nonce-backed cancel POSTs count (a GET/prepare/expired/unsubscribe
+  burst does not trip it).
+- **CRM-write reaper (ADR-020) — no human-only-exit:** record
+  `action_taken='cancelled'` then crash before the `PUT`; assert the reaper
+  (run-owned + `pg_cron`) re-drives the idempotent guarded write-back to a
+  landed write or `error`, and that a zombie of the original invocation (stale
+  token) affects 0 rows and makes 0 CRM calls.
 
-**Per-slice definition-of-done (an implementer/agent checks these off):** a slice N is DONE iff (a) its smoke rung (ladder map above) is green in the inner loop; (b) every CI tier in its "gates slices" column is green; (c) for any slice touching `reminder_messages` lifecycle or the confirm page, the relevant adversarial suite (A/B) and the state-machine totality test pass; (d) if the slice changed the schema, tier 7 shows no `database.types.ts` drift; (e) no new outbound `fetch` was added outside `_shared/http.ts` (tier 0 grep).
+**Adversarial suite B — SMS render (a patient can never see a mistake).
+Property/fuzz-based + golden-file.**
+
+- **Segment-budget property (the core invariant):** a property-based test
+  (fast-check / Deno equivalent) generates adversarial
+  `{{name}}`/`{{date}}`/`{{time}}` inputs — a very long Cyrillic name, mixed
+  Latin+Cyrillic, emoji, RTL marks, zero-width/control chars, combining
+  diacritics, an empty name, a 200-char name — and asserts for **every** input:
+  the rendered body is **≤2 segments / ≤134 UCS-2 chars**, OR the name-overflow
+  fallback (no-name) was used (never a silent 3rd segment). The "NO input ever
+  yields >2 segments without the name-overflow fallback" guarantee as a runnable
+  property, not an example.
+- **Never a wrong/empty link:** assert the rendered body always contains exactly
+  one `https://r.dentino.com.ua/r/<token>` whose token is the full 22-char
+  base64url 128-bit value (seeded RNG), never empty, never truncated, never a
+  second URL, and that `{{confirm_url}}` resolved (no literal `{{confirm_url}}`
+  survives). A template missing `{{confirm_url}}` fails template-editor
+  validation (assert the `update_message_template` RPC rejects it).
+- **No broken Cyrillic / no mis-substitution:** golden-file/snapshot the
+  rendered default + name-overflow fallback bodies for a fixed fixture (`Іван`,
+  date, time, phone) and byte-compare — a snapshot diff catches a
+  broken-encoding regression, a swapped date/time field, or a name leaking into
+  the wrong slot. The clinic phone `+380679876111` (no spaces) must appear in
+  both bodies.
+- **Mis-substituted field guard:** a test asserts `{{date}}`/`{{time}}` render
+  in Europe/Kyiv from the visit's `visit_start` (using the Kyiv fixture matrix)
+  — a UTC-rendered time is a wrong-time SMS and must fail. A missing field falls
+  back to the name-overflow fallback; it never renders a half-substituted body
+  (§5.6).
+- **Golden corpus:** keep `tests/fixtures/sms-golden/` (rendered bodies for ~8
+  representative fixtures incl. the long-name → name-overflow fallback case); a
+  change to the template or renderer must update the golden file deliberately
+  (review-visible), so a wording/segment regression cannot land silently.
+
+**CI gate ladder — ordered fast→slow; a tier must be green before the next
+runs.**
+
+| # | Tier                                                                                            | Pass condition                                                                                                  | Gates slices      |
+| - | ----------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- | ----------------- |
+| 0 | format/lint/typecheck/`ubs` + **no-`fetch`-outside-`http.ts`** grep                             | `deno fmt --check` · `deno lint` · `deno check` · `ubs --ci` · the chokepoint grep is clean                     | all               |
+| 1 | unit + pure smokes (Rung A)                                                                     | `deno test tests/unit` green; segment-budget property green                                                     | 2,3,4,5           |
+| 2 | pgTAP data-layer + concurrency (Rung B)                                                         | grants/RLS/definer-hygiene + single-winner (lease/claim/CAS/write-lock) all green                               | 1,6,7             |
+| 3 | contract (cassettes)                                                                            | visits/patients/SMS cassettes replay; chunk-split on 414/400; fail-closed on truncated list                     | 2                 |
+| 4 | integration (local Supabase) + **the no-egress assertion**                                      | dry-run pipeline green; stub recorded N intents, **0** real calls, **0** CRM writes; removing a cassette throws | 3,4               |
+| 5 | confirm-page E2E (Playwright: JS-disabled + axe-AA + the security HTTP invariants) + SMS golden | adversarial suites A & B green; no-JS form-POST records an action; axe-core WCAG-AA clean                       | 4,5               |
+| 6 | reconciliation / failure-injection / state-machine totality                                     | reconciliation-shortfall red-state asserted; reaper/steal totality green; breaker velocity-vs-drip green        | 3,6,7             |
+| 7 | **schema ↔ `database.types.ts` no-drift**                                                       | regenerate types from the local schema ⇒ **no diff** (a diff fails the build)                                   | 1 + any migration |
+| — | security go-live gate                                                                           | **pre-prod only**, not every CI run (the existing §6.5 security gate)                                           | pre-go-live       |
+| — | deliverability seed test                                                                        | **pre-go-live, staff numbers only, NOT in CI** (manual go/no-go — §6.6 rung 2)                                  | go-live           |
+
+Tiers 0–7 are the **per-commit/PR CI**; the security gate and the seed test are
+**release gates**, never the inner loop. The **no-egress assertion (tier 4)**
+and the **schema↔types no-drift (tier 7)** are first-class, non-skippable gates
+— a failure there fails the build, it cannot be narrowed away (AGENTS.md "do not
+narrow the gate to bypass it").
+
+**Per-slice definition-of-done (an implementer/agent checks these off):** a
+slice N is DONE iff (a) its smoke rung (ladder map above) is green in the inner
+loop; (b) every CI tier in its "gates slices" column is green; (c) for any slice
+touching `reminder_messages` lifecycle or the confirm page, the relevant
+adversarial suite (A/B) and the state-machine totality test pass; (d) if the
+slice changed the schema, tier 7 shows no `database.types.ts` drift; (e) no new
+outbound `fetch` was added outside `_shared/http.ts` (tier 0 grep).
 
 ---
 
 ### 6.6 Live-Clinic Safety & Staged Go-Live (ADR-024)
 
-**Dentino is a live clinic with real patients booked months ahead.** The runtime guards (ADR-007/014/019/020) keep the clinic safe from the system *misbehaving*; this section keeps it safe from the *build/test/rollout process itself*. It is additive — it weakens no runtime guard, does not make the manual backstop (§4.4/ADR-017) harder, and does not delay the noon run or the 12:30 heartbeat once live. Four parts (1–4 below). Cross-refs: §4.4 (pause switch/backstop — the rollback floor), §5.2 (the trust-panel mode banner), §5.6 (the write-back chokepoint), §6.5 (the guard tests + the security gate + the §6.5 hermetic harness this builds on — ADR-023), §9.2 (the new config), §10 (the read-only-key / sandbox / test-patient questions), §11 (the go-live sequence climbs the ladder), ADR-003/014/016/017/019/023.
+**Dentino is a live clinic with real patients booked months ahead.** The runtime
+guards (ADR-007/014/019/020) keep the clinic safe from the system _misbehaving_;
+this section keeps it safe from the _build/test/rollout process itself_. It is
+additive — it weakens no runtime guard, does not make the manual backstop
+(§4.4/ADR-017) harder, and does not delay the noon run or the 12:30 heartbeat
+once live. Four parts (1–4 below). Cross-refs: §4.4 (pause switch/backstop — the
+rollback floor), §5.2 (the trust-panel mode banner), §5.6 (the write-back
+chokepoint), §6.5 (the guard tests + the security gate + the §6.5 hermetic
+harness this builds on — ADR-023), §9.2 (the new config), §10 (the read-only-key
+/ sandbox / test-patient questions), §11 (the go-live sequence climbs the
+ladder), ADR-003/014/016/017/019/023.
 
-**1 · Read-only-until-go-live — two fail-closed mode flags, each checked at exactly one chokepoint.**
-- `SEND_MODE ∈ {off, seed, canary, full}` (default **off**) — read once at boot (Zod-validated, §9.2) and re-checked inside `smsSender` immediately before the provider HTTP call. `off` ⇒ the send is recorded as a would-send intent (shadow), never dispatched; an absent/unparseable value ⇒ **off** (fail-closed), logged loudly.
-- `CRM_WRITE_MODE ∈ {off, allowlist, full}` (default **off**) — read at boot and re-checked inside the guarded write-back (§5.6) immediately before the `PUT`/`DELETE`. `off` ⇒ the intended write is recorded + flagged, never sent to ClinicCards; absent/unparseable ⇒ **off** (fail-closed).
-- **The live ClinicCards key validates READS on day one** (the linchpin value of A2/A3) while writes are physically unreachable: `GET /visits`/`GET /patients` are never gated; only the `PUT`/`DELETE` chokepoint is. This is additive to ADR-019's role split — a *capability* gate above the *privilege* gate (the run role may hold DML; the mode flag still refuses the external call).
-- **No `full` mode is reachable under `APP_ENV ∈ {test,dev}`** (part 4): the boot guard hard-fails. These are the **same chokepoint** the §6.5 no-egress harness denies in CI (ADR-023): the harness denies egress in dev/test/CI; the mode flag denies the side effect in prod-until-go-live.
+**1 · Read-only-until-go-live — two fail-closed mode flags, each checked at
+exactly one chokepoint.**
+
+- `SEND_MODE ∈ {off, seed, canary, full}` (default **off**) — read once at boot
+  (Zod-validated, §9.2) and re-checked inside `smsSender` immediately before the
+  provider HTTP call. `off` ⇒ the send is recorded as a would-send intent
+  (shadow), never dispatched; an absent/unparseable value ⇒ **off**
+  (fail-closed), logged loudly.
+- `CRM_WRITE_MODE ∈ {off, allowlist, full}` (default **off**) — read at boot and
+  re-checked inside the guarded write-back (§5.6) immediately before the
+  `PUT`/`DELETE`. `off` ⇒ the intended write is recorded + flagged, never sent
+  to ClinicCards; absent/unparseable ⇒ **off** (fail-closed).
+- **The live ClinicCards key validates READS on day one** (the linchpin value of
+  A2/A3) while writes are physically unreachable: `GET /visits`/`GET /patients`
+  are never gated; only the `PUT`/`DELETE` chokepoint is. This is additive to
+  ADR-019's role split — a _capability_ gate above the _privilege_ gate (the run
+  role may hold DML; the mode flag still refuses the external call).
+- **No `full` mode is reachable under `APP_ENV ∈ {test,dev}`** (part 4): the
+  boot guard hard-fails. These are the **same chokepoint** the §6.5 no-egress
+  harness denies in CI (ADR-023): the harness denies egress in dev/test/CI; the
+  mode flag denies the side effect in prod-until-go-live.
 
 **2 · The staged go-live ladder (shadow → seed → canary → full).**
-| Rung | `SEND_MODE` / `CRM_WRITE_MODE` | What it does | Side effects allowed | Entry gate (all green to advance) | Rollback |
-|---|---|---|---|---|---|
-| **0 · Hermetic dev** | `off` / `off`, `APP_ENV=dev/test` | Full pipeline on synthetic cassettes + stub sender + local Supabase. **The §6.5 hermetic harness owns this (ADR-023).** | **None** (no real egress — enforced by the test harness). | The §6.5 CI gate ladder is green. | n/a (no real surface). |
-| **1 · Shadow** | `off` / `off`, `APP_ENV=prod`, **live read key present** | Run the *real* pipeline against the **real ClinicCards read** for a real `target_date`: classify, materialize, render the exact SMS body + confirm URL it *would* send, compute the write it *would* make — **persist as would-send/would-write intents**, surface on the dashboard. **Zero** sends, **zero** writes. | **Reads only.** Writes/sends are recorded intents, never dispatched (relies on the ADR-023 no-egress chokepoint even here). | Shadow-run reconciliation green; the **read-only reconciliation dry-run** shows correct selection (right patients, right `target_date`, Kyiv math, segment budget ≤2, no malformed renders); zero unexpected `unaccounted`. Owner reviews the would-send list (your-tasks D1a). | Trivial — it never touched a patient. Fix selection/render, re-run shadow. |
-| **2 · Seed / deliverability** | `seed` / `off` | Real sends to **allowlisted staff numbers only** (the §6.5 cross-operator deliverability test); write-back still **off**. | **Real SMS to allowlisted staff numbers.** No CRM writes. | The §6.5 deliverability gate passes (0 sender overwrites, 0 URL blocks, 0 unexplained Rejected/Undelivered, working link→page on every operator, 3 days); owner go/no-go (your-tasks C4). Allowlist contains *only* staff numbers (B2). | Set `SEND_MODE=off` (one flip) + pause switch. No patient was reachable. |
-| **3 · Canary** | `canary` / `allowlist` | A **tiny** set of **real** appointments (1–3, staff watching live), real sends, write-back **allowlisted to those visit-ids only** (or staff-approved one-at-a-time). | **Real SMS + real CRM write, but ONLY to the canary allowlist** (specific visit-ids the staff chose for the day; their patients pre-briefed by reception). | Seed green; staff present and watching the dashboard; the canary visit-ids loaded into the **write allowlist**; the first real write requires a typed confirmation token. Owner sign-off (your-tasks D1b). | `SEND_MODE=off` + `CRM_WRITE_MODE=off` (or drop back to `seed`) + pause switch; manually reverse any canary write in ClinicCards via the complaint micro-runbook (§4.4). Blast radius ≤3. |
-| **4 · Full** | `full` / `full` | The designed system: ~20/day, write-back on, the allowlist guard **lifted** (only `full` lifts it), the velocity breaker + guarded write-back + fenced side effects now the active safety layer. | **Full real sends + writes**, governed by all existing runtime guards. | Canary clean for ≥1 full day; ADR-017 readiness (runbook C5, staff policy C7, manual-fallback drill D5, heartbeat alert contacts set); explicit human go-live flip. | The **one-step pause/kill-switch** (§4.4/ADR-017) → revert to manual phoning; or drop to `seed`/`off`. The first-month stop-loss (D4) governs *value* rollback. |
 
-**Reversibility:** every rung is entered and exited by a config flip of the two mode flags plus the existing one-step pause switch (§4.4/ADR-017) — no redeploy, no schema change. Advancing a rung is a **human-authorized, logged act** (an `audit_log` row: who, when, from-mode, to-mode); the first real *write* flip additionally requires a one-time **typed confirmation token** (e.g. the operator types the literal `target_date` / `ENABLE-LIVE-WRITES-<date>`, recorded to `audit_log`) — a break-glass-with-a-witness friction applied *once at the flip*, never to the per-run path (so it never delays the noon run). The ladder is forward progression gated on green; the ADR-017 first-month stop-loss is the backward value-tripwire once at `full`. **Trust-panel "current mode" banner (§5.2):** an always-visible coloured banner reads the live `SEND_MODE`/`CRM_WRITE_MODE` (SHADOW / SEED / CANARY / LIVE), in a distinct colour for any non-`full` mode, so staff never have to guess whether real messages and real CRM writes are happening; shadow/seed run rows are annotated ("would have sent" / "sent to staff test number") so staff don't mistake a shadow/seed run for the real thing and stop phoning patients.
+| Rung                          | `SEND_MODE` / `CRM_WRITE_MODE`                           | What it does                                                                                                                                                                                                                                                                                                          | Side effects allowed                                                                                                                                       | Entry gate (all green to advance)                                                                                                                                                                                                                                               | Rollback                                                                                                                                                                                  |
+| ----------------------------- | -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **0 · Hermetic dev**          | `off` / `off`, `APP_ENV=dev/test`                        | Full pipeline on synthetic cassettes + stub sender + local Supabase. **The §6.5 hermetic harness owns this (ADR-023).**                                                                                                                                                                                               | **None** (no real egress — enforced by the test harness).                                                                                                  | The §6.5 CI gate ladder is green.                                                                                                                                                                                                                                               | n/a (no real surface).                                                                                                                                                                    |
+| **1 · Shadow**                | `off` / `off`, `APP_ENV=prod`, **live read key present** | Run the _real_ pipeline against the **real ClinicCards read** for a real `target_date`: classify, materialize, render the exact SMS body + confirm URL it _would_ send, compute the write it _would_ make — **persist as would-send/would-write intents**, surface on the dashboard. **Zero** sends, **zero** writes. | **Reads only.** Writes/sends are recorded intents, never dispatched (relies on the ADR-023 no-egress chokepoint even here).                                | Shadow-run reconciliation green; the **read-only reconciliation dry-run** shows correct selection (right patients, right `target_date`, Kyiv math, segment budget ≤2, no malformed renders); zero unexpected `unaccounted`. Owner reviews the would-send list (your-tasks D1a). | Trivial — it never touched a patient. Fix selection/render, re-run shadow.                                                                                                                |
+| **2 · Seed / deliverability** | `seed` / `off`                                           | Real sends to **allowlisted staff numbers only** (the §6.5 cross-operator deliverability test); write-back still **off**.                                                                                                                                                                                             | **Real SMS to allowlisted staff numbers.** No CRM writes.                                                                                                  | The §6.5 deliverability gate passes (0 sender overwrites, 0 URL blocks, 0 unexplained Rejected/Undelivered, working link→page on every operator, 3 days); owner go/no-go (your-tasks C4). Allowlist contains _only_ staff numbers (B2).                                         | Set `SEND_MODE=off` (one flip) + pause switch. No patient was reachable.                                                                                                                  |
+| **3 · Canary**                | `canary` / `allowlist`                                   | A **tiny** set of **real** appointments (1–3, staff watching live), real sends, write-back **allowlisted to those visit-ids only** (or staff-approved one-at-a-time).                                                                                                                                                 | **Real SMS + real CRM write, but ONLY to the canary allowlist** (specific visit-ids the staff chose for the day; their patients pre-briefed by reception). | Seed green; staff present and watching the dashboard; the canary visit-ids loaded into the **write allowlist**; the first real write requires a typed confirmation token. Owner sign-off (your-tasks D1b).                                                                      | `SEND_MODE=off` + `CRM_WRITE_MODE=off` (or drop back to `seed`) + pause switch; manually reverse any canary write in ClinicCards via the complaint micro-runbook (§4.4). Blast radius ≤3. |
+| **4 · Full**                  | `full` / `full`                                          | The designed system: ~20/day, write-back on, the allowlist guard **lifted** (only `full` lifts it), the velocity breaker + guarded write-back + fenced side effects now the active safety layer.                                                                                                                      | **Full real sends + writes**, governed by all existing runtime guards.                                                                                     | Canary clean for ≥1 full day; ADR-017 readiness (runbook C5, staff policy C7, manual-fallback drill D5, heartbeat alert contacts set); explicit human go-live flip.                                                                                                             | The **one-step pause/kill-switch** (§4.4/ADR-017) → revert to manual phoning; or drop to `seed`/`off`. The first-month stop-loss (D4) governs _value_ rollback.                           |
 
-**3 · The fail-closed allowlist guard (code, not config).** A hard allowlist check sits at the **same two chokepoints** as the mode flags:
-- **Send:** in `smsSender`, before the provider call. `refuse_send := SEND_MODE ≠ full AND phone ∉ SEND_ALLOWLIST`. Refused sends record `blocked_by_allowlist` (a skip-like outcome surfaced as needs-attention), never a silent drop.
-- **Write:** in the guarded write-back (§5.6), before the `PUT`/`DELETE`. `refuse_write := CRM_WRITE_MODE = off OR (CRM_WRITE_MODE = allowlist AND visit_id ∉ CRM_WRITE_ALLOWLIST)`.
-- **Fail-closed default:** an empty/unset allowlist under any non-`full` mode refuses **all** recipients/visits. The allowlist holds **only** staff-provided numbers + owner-created test visit-ids — **never real patient PII** (composes with ADR-016).
-- **Mode-coupling:** `full` is the **only** mode that lifts the allowlist; advancing to `full` is the single act that does so (visible on the trust-panel banner). This is symmetric protection against both failure shapes: a guard shipped *disabled* into a pre-go-live rung (sends to everyone) is impossible (the guard is enforced in every mode except `full`), and a guard shipped *enabled* into `full` (silently dropping 18/20 real patients) is impossible (only `full`, which lifts it).
-- **Loud-when-wrong:** the effective mode + allowlist sizes are logged at boot (Zod config validation, §9.2) and carried in the counts-only heartbeat payload (§4.4/ADR-013), and a scheduled **guard-liveness check** (a small `pg_cron` job or CI assertion against the deployed function's effective config) asserts the guard is active and the allowlist non-empty in non-`full` rungs, alerting via the §4.4/ADR-013 path if it drifts off. A non-`full` mode is never silent.
+**Reversibility:** every rung is entered and exited by a config flip of the two
+mode flags plus the existing one-step pause switch (§4.4/ADR-017) — no redeploy,
+no schema change. Advancing a rung is a **human-authorized, logged act** (an
+`audit_log` row: who, when, from-mode, to-mode); the first real _write_ flip
+additionally requires a one-time **typed confirmation token** (e.g. the operator
+types the literal `target_date` / `ENABLE-LIVE-WRITES-<date>`, recorded to
+`audit_log`) — a break-glass-with-a-witness friction applied _once at the flip_,
+never to the per-run path (so it never delays the noon run). The ladder is
+forward progression gated on green; the ADR-017 first-month stop-loss is the
+backward value-tripwire once at `full`. **Trust-panel "current mode" banner
+(§5.2):** an always-visible coloured banner reads the live
+`SEND_MODE`/`CRM_WRITE_MODE` (SHADOW / SEED / CANARY / LIVE), in a distinct
+colour for any non-`full` mode, so staff never have to guess whether real
+messages and real CRM writes are happening; shadow/seed run rows are annotated
+("would have sent" / "sent to staff test number") so staff don't mistake a
+shadow/seed run for the real thing and stop phoning patients.
 
-**4 · Credential lifecycle & environment separation (prod keys never in dev/CI).**
-- **One prod project, local Supabase for dev/test** (no parallel prod — proportionate to ~20/day).
-- **Distinct secrets per environment:** the real `CLINICCARDS_TOKEN` / `SMS_PROVIDER_API_KEY` / `CLINICCARDS_BASE_URL` / `APP_BASE_URL` exist **only** in the deployed prod Vault. Dev/test use fixtures + local Supabase; **CI stores no real ClinicCards/TurboSMS keys.**
-- **`APP_ENV` boot guard (Zod, §9.2):** under `APP_ENV ∈ {test,dev}` a real base URL is rejected and `SEND_MODE`/`CRM_WRITE_MODE` cannot be `full`/live (hard-fail at boot); under `APP_ENV=prod` a *missing* live key is also a hard-fail (so prod never silently runs degraded). Composes with the §6.5 no-egress harness (ADR-023): that denies egress, this denies *configuring* a real target.
-- **Key handover into Vault only (your-tasks C2):** keys go where shown in the prod project — never chat, repo, a committed `.env`, or a CI secret.
-- **`supabase db push` / `functions deploy` against prod is a deliberate, human-authorized act** (ADR-003 + the AGENTS.md "Irreversible Git & Filesystem Actions" discipline): the prod connection string lives only in the deploy pipeline / a separate operator prod profile, so a casual dev-shell `db push` targets **local**, never prod.
-- **The public confirm fn never receives `service_role`** (ADR-019 — reinforced, not duplicated).
+**3 · The fail-closed allowlist guard (code, not config).** A hard allowlist
+check sits at the **same two chokepoints** as the mode flags:
+
+- **Send:** in `smsSender`, before the provider call.
+  `refuse_send := SEND_MODE ≠ full AND phone ∉ SEND_ALLOWLIST`. Refused sends
+  record `blocked_by_allowlist` (a skip-like outcome surfaced as
+  needs-attention), never a silent drop.
+- **Write:** in the guarded write-back (§5.6), before the `PUT`/`DELETE`.
+  `refuse_write := CRM_WRITE_MODE = off OR (CRM_WRITE_MODE = allowlist AND visit_id ∉ CRM_WRITE_ALLOWLIST)`.
+- **Fail-closed default:** an empty/unset allowlist under any non-`full` mode
+  refuses **all** recipients/visits. The allowlist holds **only** staff-provided
+  numbers + owner-created test visit-ids — **never real patient PII** (composes
+  with ADR-016).
+- **Mode-coupling:** `full` is the **only** mode that lifts the allowlist;
+  advancing to `full` is the single act that does so (visible on the trust-panel
+  banner). This is symmetric protection against both failure shapes: a guard
+  shipped _disabled_ into a pre-go-live rung (sends to everyone) is impossible
+  (the guard is enforced in every mode except `full`), and a guard shipped
+  _enabled_ into `full` (silently dropping 18/20 real patients) is impossible
+  (only `full`, which lifts it).
+- **Loud-when-wrong:** the effective mode + allowlist sizes are logged at boot
+  (Zod config validation, §9.2) and carried in the counts-only heartbeat payload
+  (§4.4/ADR-013), and a scheduled **guard-liveness check** (a small `pg_cron`
+  job or CI assertion against the deployed function's effective config) asserts
+  the guard is active and the allowlist non-empty in non-`full` rungs, alerting
+  via the §4.4/ADR-013 path if it drifts off. A non-`full` mode is never silent.
+
+**4 · Credential lifecycle & environment separation (prod keys never in
+dev/CI).**
+
+- **One prod project, local Supabase for dev/test** (no parallel prod —
+  proportionate to ~20/day).
+- **Distinct secrets per environment:** the real `CLINICCARDS_TOKEN` /
+  `SMS_PROVIDER_API_KEY` / `CLINICCARDS_BASE_URL` / `APP_BASE_URL` exist
+  **only** in the deployed prod Vault. Dev/test use fixtures + local Supabase;
+  **CI stores no real ClinicCards/TurboSMS keys.**
+- **`APP_ENV` boot guard (Zod, §9.2):** under `APP_ENV ∈ {test,dev}` a real base
+  URL is rejected and `SEND_MODE`/`CRM_WRITE_MODE` cannot be `full`/live
+  (hard-fail at boot); under `APP_ENV=prod` a _missing_ live key is also a
+  hard-fail (so prod never silently runs degraded). Composes with the §6.5
+  no-egress harness (ADR-023): that denies egress, this denies _configuring_ a
+  real target.
+- **Key handover into Vault only (your-tasks C2):** keys go where shown in the
+  prod project — never chat, repo, a committed `.env`, or a CI secret.
+- **`supabase db push` / `functions deploy` against prod is a deliberate,
+  human-authorized act** (ADR-003 + the AGENTS.md "Irreversible Git & Filesystem
+  Actions" discipline): the prod connection string lives only in the deploy
+  pipeline / a separate operator prod profile, so a casual dev-shell `db push`
+  targets **local**, never prod.
+- **The public confirm fn never receives `service_role`** (ADR-019 — reinforced,
+  not duplicated).
 
 ---
 
 ## 7. Architectural Decisions (ADRs)
 
 ### ADR-001 — Integrate ClinicCards via REST API, not browser automation
+
 - **Decision:** Use the ClinicCards REST API for read + cancel/confirm.
-- **Context:** API supports `GET /visits` (list), `GET /patients` (contact), `PUT/DELETE /visits` (cancel/confirm). Only webhooks are missing (we poll daily — matches our cadence).
-- **Alternatives:** CDP browser automation (the `testproject1` pattern). Rejected: fragile, needs an always-on logged-in machine, slower, more maintenance.
-- **Consequence:** No daemon, no Chrome profile, no Tauri requirement → cloud delivery unlocked.
-- **Caveat:** confirm API-key plan tier with vendor (C3). If gated/denied, browser automation is the documented fallback.
+- **Context:** API supports `GET /visits` (list), `GET /patients` (contact),
+  `PUT/DELETE /visits` (cancel/confirm). Only webhooks are missing (we poll
+  daily — matches our cadence).
+- **Alternatives:** CDP browser automation (the `testproject1` pattern).
+  Rejected: fragile, needs an always-on logged-in machine, slower, more
+  maintenance.
+- **Consequence:** No daemon, no Chrome profile, no Tauri requirement → cloud
+  delivery unlocked.
+- **Caveat:** confirm API-key plan tier with vendor (C3). If gated/denied,
+  browser automation is the documented fallback.
 
 ### ADR-002 — Delivery model: cloud engine + thin web dashboard
-- **Decision:** Run the engine in the cloud; expose a small authenticated web dashboard. No desktop-app engine; no AWS Step Functions.
-- **Context:** The confirm/cancel page must be reachable 24/7 and the noon job must run unattended. A clinic PC can't reliably host a public page; Step Functions is heavier than a one-job-per-day workload warrants.
-- **Alternatives:** (a) Tauri/Electron desktop on clinic PC — rejected (can't host a public page reliably, brittle, install/maintenance burden). (b) AWS Step Functions cron — viable but more wiring; keep as alternative if AWS-native.
-- **Consequence:** Reliability independent of the clinic PC; public-page hosting native; staff use a URL.
 
-### ADR-003 — Platform: Supabase (Pro), with the reliability boundary *outside* Supabase
-- **Decision:** Supabase **Pro** is the v1 application platform (Postgres + Auth + Vault + Edge Functions + dashboard); **Free is forbidden for production.** The **primary scheduler and the absence-detector must not live inside the same Supabase project**: trigger the noon run from an **external scheduler** (Cloudflare Workers Cron — free) *or* `pg_cron`, keep `pg_cron` as a **backup** trigger, and detect a missed run with an **external dead-man's-switch** (Healthchecks.io/Cronitor — ADR-013). At ~20/day, `pg_cron` as the sole trigger **is acceptable for v1 *because* the external heartbeat + the manual "Message next day" button cover a miss** — the external scheduler is recommended hardening, not a launch blocker.
-- **Context:** Supabase collapses DB, scheduler, functions, auth, secrets, admin UI, and an MCP into one platform — best operational simplicity for a solo/small build. But the workload's whole job is to *never silently miss*, and Free pausing is **not** the only Supabase reliability gotcha.
-- **Alternatives (reliability-per-euro for *this* one-job + 24/7-page + tiny-DB workload):** **Hetzner VPS + system cron + Postgres** (~€5/mo; dead-simple, never pauses — but VM/disk/OS/backup/TLS ops surface and no managed Auth/Vault); **Cloudflare Workers Cron + D1** (no pausing, edge-native — but UTC-only, ~15-min trigger propagation, SQLite-like D1, loses Postgres/RLS/Supabase ergonomics); **AWS EventBridge / GCP Cloud Scheduler** (native IANA-TZ/DST — but a cloud/IAM surface unjustified here). Verdict: **stay Supabase-Pro, move the reliability boundary out.**
-- **Residual Supabase risks to design around:** single-region (Pro stops pausing, not a failover); Edge wall-clock/idle/CPU limits + cold starts; `pg_net` async ("request queued" ≠ "function completed"); deploy/editor drift.
-- **Production rules:** Pro org, EU region, **no production Free project**; deploy functions + migrations from **git CI/CLI only — no dashboard hot-edits**; run-level lease + per-message claim mandatory (ADR-012); the external heartbeat — not the existence of a run row — is the source of truth for "did it run?" (ADR-013). **Hot-edit boundary (ADR-011/§6.3):** the rule is **no dashboard SQL/editor hot-edits and no untracked production DDL/DML**; it does **not** forbid the application's own authenticated + audited config-write RPCs (the staff template editor, held-cancel resolution, preference changes) — those are a sanctioned runtime data path, not drift. Config-data changes are therefore either tracked **data migrations** (`cliniccards_status_policy`) or **admin RPCs** (`message_templates`), never a raw SQL-editor `UPDATE`.
-- **Consequence:** Fast/cheap to build; reliability no longer shares fate with the app platform.
+- **Decision:** Run the engine in the cloud; expose a small authenticated web
+  dashboard. No desktop-app engine; no AWS Step Functions.
+- **Context:** The confirm/cancel page must be reachable 24/7 and the noon job
+  must run unattended. A clinic PC can't reliably host a public page; Step
+  Functions is heavier than a one-job-per-day workload warrants.
+- **Alternatives:** (a) Tauri/Electron desktop on clinic PC — rejected (can't
+  host a public page reliably, brittle, install/maintenance burden). (b) AWS
+  Step Functions cron — viable but more wiring; keep as alternative if
+  AWS-native.
+- **Consequence:** Reliability independent of the clinic PC; public-page hosting
+  native; staff use a URL.
+
+### ADR-003 — Platform: Supabase (Pro), with the reliability boundary _outside_ Supabase
+
+- **Decision:** Supabase **Pro** is the v1 application platform (Postgres +
+  Auth + Vault + Edge Functions + dashboard); **Free is forbidden for
+  production.** The **primary scheduler and the absence-detector must not live
+  inside the same Supabase project**: trigger the noon run from an **external
+  scheduler** (Cloudflare Workers Cron — free) _or_ `pg_cron`, keep `pg_cron` as
+  a **backup** trigger, and detect a missed run with an **external
+  dead-man's-switch** (Healthchecks.io/Cronitor — ADR-013). At ~20/day,
+  `pg_cron` as the sole trigger **is acceptable for v1 _because_ the external
+  heartbeat + the manual "Message next day" button cover a miss** — the external
+  scheduler is recommended hardening, not a launch blocker.
+- **Context:** Supabase collapses DB, scheduler, functions, auth, secrets, admin
+  UI, and an MCP into one platform — best operational simplicity for a
+  solo/small build. But the workload's whole job is to _never silently miss_,
+  and Free pausing is **not** the only Supabase reliability gotcha.
+- **Alternatives (reliability-per-euro for _this_ one-job + 24/7-page + tiny-DB
+  workload):** **Hetzner VPS + system cron + Postgres** (~€5/mo; dead-simple,
+  never pauses — but VM/disk/OS/backup/TLS ops surface and no managed
+  Auth/Vault); **Cloudflare Workers Cron + D1** (no pausing, edge-native — but
+  UTC-only, ~15-min trigger propagation, SQLite-like D1, loses
+  Postgres/RLS/Supabase ergonomics); **AWS EventBridge / GCP Cloud Scheduler**
+  (native IANA-TZ/DST — but a cloud/IAM surface unjustified here). Verdict:
+  **stay Supabase-Pro, move the reliability boundary out.**
+- **Residual Supabase risks to design around:** single-region (Pro stops
+  pausing, not a failover); Edge wall-clock/idle/CPU limits + cold starts;
+  `pg_net` async ("request queued" ≠ "function completed"); deploy/editor drift.
+- **Production rules:** Pro org, EU region, **no production Free project**;
+  deploy functions + migrations from **git CI/CLI only — no dashboard
+  hot-edits**; run-level lease + per-message claim mandatory (ADR-012); the
+  external heartbeat — not the existence of a run row — is the source of truth
+  for "did it run?" (ADR-013). **Hot-edit boundary (ADR-011/§6.3):** the rule is
+  **no dashboard SQL/editor hot-edits and no untracked production DDL/DML**; it
+  does **not** forbid the application's own authenticated + audited config-write
+  RPCs (the staff template editor, held-cancel resolution, preference changes) —
+  those are a sanctioned runtime data path, not drift. Config-data changes are
+  therefore either tracked **data migrations** (`cliniccards_status_policy`) or
+  **admin RPCs** (`message_templates`), never a raw SQL-editor `UPDATE`.
+- **Consequence:** Fast/cheap to build; reliability no longer shares fate with
+  the app platform.
 
 ### ADR-004 — Language: TypeScript + Hono
-- **Decision:** TypeScript everywhere (engine, webhook, cron handler, dashboard) using Hono on Edge Functions.
-- **Context:** One language, portable runtime (Deno/Node/Workers), best messaging-SDK coverage, fast iteration.
-- **Alternatives:** Python/FastAPI (strong, but second language for the dashboard); Go (overkill); Rust template (overkill, slow iteration).
+
+- **Decision:** TypeScript everywhere (engine, webhook, cron handler, dashboard)
+  using Hono on Edge Functions.
+- **Context:** One language, portable runtime (Deno/Node/Workers), best
+  messaging-SDK coverage, fast iteration.
+- **Alternatives:** Python/FastAPI (strong, but second language for the
+  dashboard); Go (overkill); Rust template (overkill, slow iteration).
 - **Consequence:** Single skill set; reuse types via `supabase gen types`.
 
 ### ADR-005 — Channel strategy: SMS-only for v1; messaging-apps deferred
-- **Decision:** v1 delivers via **SMS** through a UA-native provider (registered alpha sender), reaching every eligible patient with no app, no app-channel opt-in/onboarding, and no channel-discovery. Viber/WhatsApp/Telegram are **deferred** (§4.3) and added later, additively, behind the same `send()` interface.
-- **Context:** SMS is universally reachable and avoids the apps' setup tax (Meta verification, Viber sender/template + €150–200/mo floor, Telegram cold-start). It costs more per message (Cyrillic = 2–3 segments) but has **no monthly floor**, so it's the cheapest *universal-reach* option below the **~100–130/day** 2-segment crossover (or ~67–90/day if templates drift to 3 segments).
-- **Open sub-decision (deferred):** add Viber/WhatsApp when volume passes the crossover (~100–130/day at the current 2-segment template), or when richer UX / lower at-scale cost / two-way scheduling justify it — the spine doesn't change. *(TurboSMS-specific, re-checked 2026-06-22: a Viber lane via TurboSMS carries a **₴9,000/mo → ₴10,367 (€200, 1 Jul 2026)** floor, and native Confirm/Cancel buttons are promotional-tier + floor-gated, so the TurboSMS-Viber own-sender crossover is **~150–170/day** — far above today. A **floorless shared "INFORMER" sender** (~₴300/mo) exists but loses the `Dentino` brand + native buttons; it and TurboSMS "Viber surveys" (Y/N + `VIBER_BUTTON_CLICK` webhook, also floor-gated) are recorded as **future levers only above ~150/day**, not v1.)*
-- **Economics & trajectory note (Business-Viability review, v2.8 — Tension 6):** at ~20/day the channel decision is about **reach, not cost-optimization** — the value (recovered chair-time + staff-time + reliable cancel capture — §1 Value & ROI, §6.2, ADR-017) dwarfs the per-SMS price, so paying SMS's higher per-message rate to reach *every* patient is correct. **v1's deliberate constraints fit a static single clinic (don't over-build):** the SMS-only runway is long (crossover far above today) and the channel-agnostic spine makes a later channel-add additive; **multi-clinic is a separate axis** — additive-ish but more invasive than a channel-add (it touches every table + RLS + per-tenant credential/sender), so it is *not* built now (an explicit non-goal, §2.5). The only cheap runway hedge — **config-not-constants** (clinic name/phone/sender/key-ref/reminder-hour/breaker-thresholds already in env/Vault + config, §9.2) — is already in place, so a future move is a **bounded `clinic_id` + RLS-scoping migration, not a rebuild** (ADR-017).
-- **Routing sub-decision (SMS v1) — TurboSMS primary, AlphaSMS fallback (pivoted 2026-06-22; Kyivstar-direct dropped):** send via **TurboSMS** (UA-native aggregator, self-service). Live 2026 research across TurboSMS / Mobizon / Messaggio / SMS-Fly / SMSClub / AlphaSMS / Kyivstar-direct found cost is a **wash at this volume** (~₴1,500–2,400/mo across the field; Kyivstar's edge ≈ €1–2/mo), so **capability beats price**: TurboSMS wins on self-service signup (no sales call), a free alpha name into the national-names register, webhook DLR + rejection codes, a `sequence_id` idempotency key, links allowed in transactional SMS (no Viber-style template registry), and no SMS monthly floor — where Kyivstar-direct offered a trivial price edge for a sales call + contract + likely monthly minimum, or an OpenAPI product whose per-message DLR couldn't be verified. **AlphaSMS is the documented fallback route** (the only other to explicitly confirm links-allowed + webhook DLR; ~20% pricier), preserving the primary+fallback redundancy — a routing hedge, **not** a reopening of app channels. Go-live gates (seed-tested, §6.5/§10): cross-operator delivery + `Dentino` preservation across Kyivstar / Vodafone UA / lifecell / ported numbers, **link-bearing-SMS acceptance + medical-content sign-off** (written TurboSMS confirmation; SMS has no transactional-vs-advertising rate split — Viber-only), all-3-operator alpha-name coverage, MNP delivery, per-operator price spread, **per-message DLR**.
-- **Consequence:** One sender, no per-patient channel storage, no inbound webhook in v1; fastest, simplest, universal-reach launch. The `smsSender` adapter hides the route, so a **TurboSMS ↔ AlphaSMS** swap needs no spine change.
+
+- **Decision:** v1 delivers via **SMS** through a UA-native provider (registered
+  alpha sender), reaching every eligible patient with no app, no app-channel
+  opt-in/onboarding, and no channel-discovery. Viber/WhatsApp/Telegram are
+  **deferred** (§4.3) and added later, additively, behind the same `send()`
+  interface.
+- **Context:** SMS is universally reachable and avoids the apps' setup tax (Meta
+  verification, Viber sender/template + €150–200/mo floor, Telegram cold-start).
+  It costs more per message (Cyrillic = 2–3 segments) but has **no monthly
+  floor**, so it's the cheapest _universal-reach_ option below the
+  **~100–130/day** 2-segment crossover (or ~67–90/day if templates drift to 3
+  segments).
+- **Open sub-decision (deferred):** add Viber/WhatsApp when volume passes the
+  crossover (~~100–130/day at the current 2-segment template), or when richer UX
+  / lower at-scale cost / two-way scheduling justify it — the spine doesn't
+  change. *(TurboSMS-specific, re-checked 2026-06-22: a Viber lane via TurboSMS
+  carries a **₴9,000/mo → ₴10,367 (€200, 1 Jul 2026)** floor, and native
+  Confirm/Cancel buttons are promotional-tier + floor-gated, so the
+  TurboSMS-Viber own-sender crossover is **~150–170/day** — far above today. A
+  **floorless shared "INFORMER" sender** (~~₴300/mo) exists but loses the
+  `Dentino` brand + native buttons; it and TurboSMS "Viber surveys" (Y/N +
+  `VIBER_BUTTON_CLICK` webhook, also floor-gated) are recorded as **future
+  levers only above ~150/day**, not v1.)*
+- **Economics & trajectory note (Business-Viability review, v2.8 — Tension 6):**
+  at ~20/day the channel decision is about **reach, not cost-optimization** —
+  the value (recovered chair-time + staff-time + reliable cancel capture — §1
+  Value & ROI, §6.2, ADR-017) dwarfs the per-SMS price, so paying SMS's higher
+  per-message rate to reach _every_ patient is correct. **v1's deliberate
+  constraints fit a static single clinic (don't over-build):** the SMS-only
+  runway is long (crossover far above today) and the channel-agnostic spine
+  makes a later channel-add additive; **multi-clinic is a separate axis** —
+  additive-ish but more invasive than a channel-add (it touches every table +
+  RLS + per-tenant credential/sender), so it is _not_ built now (an explicit
+  non-goal, §2.5). The only cheap runway hedge — **config-not-constants**
+  (clinic name/phone/sender/key-ref/reminder-hour/breaker-thresholds already in
+  env/Vault + config, §9.2) — is already in place, so a future move is a
+  **bounded `clinic_id` + RLS-scoping migration, not a rebuild** (ADR-017).
+- **Routing sub-decision (SMS v1) — TurboSMS primary, AlphaSMS fallback (pivoted
+  2026-06-22; Kyivstar-direct dropped):** send via **TurboSMS** (UA-native
+  aggregator, self-service). Live 2026 research across TurboSMS / Mobizon /
+  Messaggio / SMS-Fly / SMSClub / AlphaSMS / Kyivstar-direct found cost is a
+  **wash at this volume** (~₴1,500–2,400/mo across the field; Kyivstar's edge ≈
+  €1–2/mo), so **capability beats price**: TurboSMS wins on self-service signup
+  (no sales call), a free alpha name into the national-names register, webhook
+  DLR + rejection codes, a `sequence_id` idempotency key, links allowed in
+  transactional SMS (no Viber-style template registry), and no SMS monthly floor
+  — where Kyivstar-direct offered a trivial price edge for a sales call +
+  contract + likely monthly minimum, or an OpenAPI product whose per-message DLR
+  couldn't be verified. **AlphaSMS is the documented fallback route** (the only
+  other to explicitly confirm links-allowed + webhook DLR; ~20% pricier),
+  preserving the primary+fallback redundancy — a routing hedge, **not** a
+  reopening of app channels. Go-live gates (seed-tested, §6.5/§10):
+  cross-operator delivery + `Dentino` preservation across Kyivstar / Vodafone UA
+  / lifecell / ported numbers, **link-bearing-SMS acceptance + medical-content
+  sign-off** (written TurboSMS confirmation; SMS has no
+  transactional-vs-advertising rate split — Viber-only), all-3-operator
+  alpha-name coverage, MNP delivery, per-operator price spread, **per-message
+  DLR**.
+- **Consequence:** One sender, no per-patient channel storage, no inbound
+  webhook in v1; fastest, simplest, universal-reach launch. The `smsSender`
+  adapter hides the route, so a **TurboSMS ↔ AlphaSMS** swap needs no spine
+  change.
 
 ### ADR-006 — No CRM webhooks → poll + same-target-date reconciliation
-- **Decision:** Poll `GET /visits` for the target date; do not depend on push. Run the reminder pass at noon **plus at least one automatic late-afternoon catch-up** (~16:30 Europe/Kyiv) for the **same `target_date`**, and **re-validate the target date once immediately before sending** in every pass.
-- **Context:** ClinicCards has no webhooks. A single noon poll leaves everything created/moved/cancelled afterward invisible until tomorrow — a late booking is never reminded, a post-fetch cancel is messaged anyway. This is still a poll-only, next-day system: all passes target one `target_date` per calendar day and message idempotency (ADR-008) prevents duplicates — the catch-up sends only newly-eligible appointments, change notices, or safe `pending`/`failed` retries.
-- **Consequence:** Late bookings and same-day changes are caught without relying on staff remembering the manual button; pre-send revalidation stops us messaging an already-cancelled/moved visit. The scheduling mechanism (firings + the run-level lease/gating) is specified in §4.4 and ADR-012.
+
+- **Decision:** Poll `GET /visits` for the target date; do not depend on push.
+  Run the reminder pass at noon **plus at least one automatic late-afternoon
+  catch-up** (~16:30 Europe/Kyiv) for the **same `target_date`**, and
+  **re-validate the target date once immediately before sending** in every pass.
+- **Context:** ClinicCards has no webhooks. A single noon poll leaves everything
+  created/moved/cancelled afterward invisible until tomorrow — a late booking is
+  never reminded, a post-fetch cancel is messaged anyway. This is still a
+  poll-only, next-day system: all passes target one `target_date` per calendar
+  day and message idempotency (ADR-008) prevents duplicates — the catch-up sends
+  only newly-eligible appointments, change notices, or safe `pending`/`failed`
+  retries.
+- **Consequence:** Late bookings and same-day changes are caught without relying
+  on staff remembering the manual button; pre-send revalidation stops us
+  messaging an already-cancelled/moved visit. The scheduling mechanism
+  (firings + the run-level lease/gating) is specified in §4.4 and ADR-012.
 
 ### ADR-007 — Response write-back via guarded status change
-- **Decision:** On Cancel → `PUT /visits status=CANCELLED` (**the default**); on Confirm → policy-gated `PUT status=CONFIRMED` when `cliniccards_status_policy.allow_confirm_action` permits it. `DELETE` is a **staff-approved fallback only**. Because `PUT` requires *all* visit fields, the handler **re-fetches the visit immediately before writing, compares it to the page-render fingerprint, and refuses to write if the visit changed or is no longer in an action-allowed status** — building the `PUT` body from that immediate re-fetch and re-fetching once more after to confirm the landed status.
-- **Context:** `CANCELLED`/`CONFIRMED` are first-class statuses; ClinicCards help indicates **deleted visits drop out of patient history and operational reports**, so `DELETE` causes guaranteed audit/reporting loss and is reserved for explicit staff/admin policy. Re-fetch-before-`PUT` shrinks but does **not** eliminate the TOCTOU gap: an all-fields `PUT` can still clobber a staff edit made in the sub-second window, and public docs do **not** confirm any optimistic-concurrency primitive (ETag / `If-Match` / version / `date_edited` precondition / `PATCH` / status-only update) — to be verified (C3), and used if it exists.
-- **Consequence:** Calendar stays in sync with a reversible, auditable trail; stale-fact and most concurrent-edit clobbers are prevented, leaving only a residual vendor-side race for detection (post-write re-fetch + catch-up reconciliation). The **short-lived per-visit CRM write lease** that serializes Dentino-originated writes to one visit is specified in §5.6 / ADR-012.
+
+- **Decision:** On Cancel → `PUT /visits status=CANCELLED` (**the default**); on
+  Confirm → policy-gated `PUT status=CONFIRMED` when
+  `cliniccards_status_policy.allow_confirm_action` permits it. `DELETE` is a
+  **staff-approved fallback only**. Because `PUT` requires _all_ visit fields,
+  the handler **re-fetches the visit immediately before writing, compares it to
+  the page-render fingerprint, and refuses to write if the visit changed or is
+  no longer in an action-allowed status** — building the `PUT` body from that
+  immediate re-fetch and re-fetching once more after to confirm the landed
+  status.
+- **Context:** `CANCELLED`/`CONFIRMED` are first-class statuses; ClinicCards
+  help indicates **deleted visits drop out of patient history and operational
+  reports**, so `DELETE` causes guaranteed audit/reporting loss and is reserved
+  for explicit staff/admin policy. Re-fetch-before-`PUT` shrinks but does
+  **not** eliminate the TOCTOU gap: an all-fields `PUT` can still clobber a
+  staff edit made in the sub-second window, and public docs do **not** confirm
+  any optimistic-concurrency primitive (ETag / `If-Match` / version /
+  `date_edited` precondition / `PATCH` / status-only update) — to be verified
+  (C3), and used if it exists.
+- **Consequence:** Calendar stays in sync with a reversible, auditable trail;
+  stale-fact and most concurrent-edit clobbers are prevented, leaving only a
+  residual vendor-side race for detection (post-write re-fetch + catch-up
+  reconciliation). The **short-lived per-visit CRM write lease** that serializes
+  Dentino-originated writes to one visit is specified in §5.6 / ADR-012.
 
 ### ADR-008 — Idempotency + appointment change-detection
-- **Decision:** Two complementary keys on `reminder_messages`. A **partial-unique appointment-day key `(visit_id, target_date)`** over *ordinary* reminders (`initial_reminder`/`catchup_reminder`) guarantees at most one ordinary reminder per appointment per day. A **partial-unique fingerprint key `(visit_id, target_date, message_kind, appointment_fingerprint)`** over change notices admits **exactly one** `reschedule_notice`/`time_change_notice` per distinct change. `appointment_fingerprint` hashes message-salient facts (visit_start/end, status, doctor/cabinet, patient) **but not `note`**; a material change **supersedes** the stale message **and kills its capability** (sets `token_expires_at = now()`; `/action` is refused on a `superseded_at is not null` row — §5.6/§5.7c), so the new notice's token is the sole live link for the visit and a late DLR cannot resurrect a superseded row's send-status. `reminder_runs` stays an append-only log; inbound provider retries dedupe by message/update id; a `send_unknown` (send succeeded but the record was lost) is **flagged, never auto-retried**.
-- **Context:** `unique (visit_id, target_date)` alone prevents duplicate reminders but cannot represent *changed appointment facts* — a same-day time change is silently suppressed (patient holds a stale-time SMS); a cross-day move looks like a confusing duplicate. A hard `unique(run_date)` would block legitimate re-runs; a per-run key (`visit_id, run_id`) would *double-send* across re-runs. The fingerprint + message-kind layer adds change-awareness without re-arming double-send. **Rejected as over-engineered at ~20/day, single-clinic:** a separate CRM shadow/mirror table, a poll-derived change-event (CDC) log, an `episode_seq` counter, and per-attempt write/send outbox tables — change-detection's needed state already lives in `reminder_messages.appointment_fingerprint`. **One carve-out (Tension 4):** the lean **`crm_visit_facts`** ledger (visit id · status · remindable · time, non-PII) — *not* a CRM mirror or CDC log — earns its keep because it supplies a guarantee the lean set cannot: reconciliation (§5.6) that is **independent of the vendor wire-format and of the raw-payload retention window** (it joins a typed relation instead of re-parsing `crm_fetch_log` jsonb, and outlives that purge). Change-detection still keys on the fingerprint, so this does not re-introduce the rejected shadow/CDC tables.
-- **Consequence:** Cron double-fire, double-click, and deliberate re-runs are all safe; a moved/changed appointment gets exactly one explicit notice; a note-only edit never texts a patient; ambiguous sends fail safe. (Cancel→rebook reusing the same `visit_id` is unconfirmed — handled by flagging `reopened_same_id` for staff, C3.)
+
+- **Decision:** Two complementary keys on `reminder_messages`. A
+  **partial-unique appointment-day key `(visit_id, target_date)`** over
+  _ordinary_ reminders (`initial_reminder`/`catchup_reminder`) guarantees at
+  most one ordinary reminder per appointment per day. A **partial-unique
+  fingerprint key
+  `(visit_id, target_date, message_kind, appointment_fingerprint)`** over change
+  notices admits **exactly one** `reschedule_notice`/`time_change_notice` per
+  distinct change. `appointment_fingerprint` hashes message-salient facts
+  (visit_start/end, status, doctor/cabinet, patient) **but not `note`**; a
+  material change **supersedes** the stale message **and kills its capability**
+  (sets `token_expires_at = now()`; `/action` is refused on a
+  `superseded_at is not null` row — §5.6/§5.7c), so the new notice's token is
+  the sole live link for the visit and a late DLR cannot resurrect a superseded
+  row's send-status. `reminder_runs` stays an append-only log; inbound provider
+  retries dedupe by message/update id; a `send_unknown` (send succeeded but the
+  record was lost) is **flagged, never auto-retried**.
+- **Context:** `unique (visit_id, target_date)` alone prevents duplicate
+  reminders but cannot represent _changed appointment facts_ — a same-day time
+  change is silently suppressed (patient holds a stale-time SMS); a cross-day
+  move looks like a confusing duplicate. A hard `unique(run_date)` would block
+  legitimate re-runs; a per-run key (`visit_id, run_id`) would _double-send_
+  across re-runs. The fingerprint + message-kind layer adds change-awareness
+  without re-arming double-send. **Rejected as over-engineered at ~20/day,
+  single-clinic:** a separate CRM shadow/mirror table, a poll-derived
+  change-event (CDC) log, an `episode_seq` counter, and per-attempt write/send
+  outbox tables — change-detection's needed state already lives in
+  `reminder_messages.appointment_fingerprint`. **One carve-out (Tension 4):**
+  the lean **`crm_visit_facts`** ledger (visit id · status · remindable · time,
+  non-PII) — _not_ a CRM mirror or CDC log — earns its keep because it supplies
+  a guarantee the lean set cannot: reconciliation (§5.6) that is **independent
+  of the vendor wire-format and of the raw-payload retention window** (it joins
+  a typed relation instead of re-parsing `crm_fetch_log` jsonb, and outlives
+  that purge). Change-detection still keys on the fingerprint, so this does not
+  re-introduce the rejected shadow/CDC tables.
+- **Consequence:** Cron double-fire, double-click, and deliberate re-runs are
+  all safe; a moved/changed appointment gets exactly one explicit notice; a
+  note-only edit never texts a patient; ambiguous sends fail safe.
+  (Cancel→rebook reusing the same `visit_id` is unconfirmed — handled by
+  flagging `reopened_same_id` for staff, C3.)
 
 ### ADR-009 — Templates in the database
-- **Decision:** Store message bodies in `message_templates` (per language; per channel once apps exist). SMS templates are plain text with a `{{confirm_url}}` placeholder; the `buttons` column stays unused until app channels need it.
-- **Consequence:** Wording/language swappable without deploys (your "easily interchangeable" requirement); ready for UA/RU and future message types/channels.
+
+- **Decision:** Store message bodies in `message_templates` (per language; per
+  channel once apps exist). SMS templates are plain text with a
+  `{{confirm_url}}` placeholder; the `buttons` column stays unused until app
+  channels need it.
+- **Consequence:** Wording/language swappable without deploys (your "easily
+  interchangeable" requirement); ready for UA/RU and future message
+  types/channels.
 
 ### ADR-010 — Response capture via a confirm/cancel link (two-way SMS unavailable in UA)
-- **Decision:** Capture the patient response with a **personalized link → confirm/cancel web page** (Supabase Edge Fn, keyed by the unguessable `tracking_token`), not an SMS reply.
-- **Context:** UA alphanumeric senders are one-way (no inbound). Multiple UA provider routing guides (Twilio/Vonage/BSG) report that numeric long/short-code sender paths aren't reliably supported or preserved in Ukraine (numeric senders may be overwritten or rejected), so v1 must not depend on SMS replies. A link works with one-way SMS and yields a branded two-button page. A reply-1/2 numeric flow was weighed against this and **rejected**; the link is hardened with a 128-bit token, a pre-cleared URL pattern, 2-segment copy, and a cross-operator seed test (§4.2, §6.5).
-- **Consequence:** No provider inbound webhook in v1; the token pins the exact appointment (no phone-matching or shared-family-phone ambiguity); **opt-out lives on the confirm-page footer** (same token), not a second SMS URL. The v1 hybrid fallback is **not "reply 1/2"** — it is **link primary + clinic-phone fallback + a dashboard no-reply call queue**, all strictly one-way. The link's destination page is the project's **trust-and-engagement surface** (the dominant residual risk is action rate after delivery, §6.2): it is designed for a smishing-wary, mixed-age base and turns the Cancel flow into a **reschedule-retention** moment (a one-tap `tel:` reschedule call foregrounded in the interstitial + post-cancel page — §5.2/§9.3). The token identifies *this message*, **not** unconditional authority to mutate the current record — the page **re-validates live CRM state on open and on submit** and will not act on a superseded/terminal/moved-away visit (§5.6). When app channels are added, their native buttons/webhooks may replace the SMS link surface for that channel, but **not** the shared response/action service: callbacks must still normalize into `record_reminder_action`, enforce single-use/action-lock semantics, revalidate live CRM state, honor `cliniccards_status_policy`, and pass the ADR-014 destructive-action guard before any Cancel write. **The SMS link yields a branded page, but the *destructive* Cancel is not a one-step bearer-token write** — it requires the confirmation interstitial + single-use lock + expiry + signed action nonce + mass-cancel circuit-breaker of **ADR-014**, served from a dedicated app-only origin (`r.dentino.com.ua`).
+
+- **Decision:** Capture the patient response with a **personalized link →
+  confirm/cancel web page** (Supabase Edge Fn, keyed by the unguessable
+  `tracking_token`), not an SMS reply.
+- **Context:** UA alphanumeric senders are one-way (no inbound). Multiple UA
+  provider routing guides (Twilio/Vonage/BSG) report that numeric
+  long/short-code sender paths aren't reliably supported or preserved in Ukraine
+  (numeric senders may be overwritten or rejected), so v1 must not depend on SMS
+  replies. A link works with one-way SMS and yields a branded two-button page. A
+  reply-1/2 numeric flow was weighed against this and **rejected**; the link is
+  hardened with a 128-bit token, a pre-cleared URL pattern, 2-segment copy, and
+  a cross-operator seed test (§4.2, §6.5).
+- **Consequence:** No provider inbound webhook in v1; the token pins the exact
+  appointment (no phone-matching or shared-family-phone ambiguity); **opt-out
+  lives on the confirm-page footer** (same token), not a second SMS URL. The v1
+  hybrid fallback is **not "reply 1/2"** — it is **link primary + clinic-phone
+  fallback + a dashboard no-reply call queue**, all strictly one-way. The link's
+  destination page is the project's **trust-and-engagement surface** (the
+  dominant residual risk is action rate after delivery, §6.2): it is designed
+  for a smishing-wary, mixed-age base and turns the Cancel flow into a
+  **reschedule-retention** moment (a one-tap `tel:` reschedule call foregrounded
+  in the interstitial + post-cancel page — §5.2/§9.3). The token identifies
+  _this message_, **not** unconditional authority to mutate the current record —
+  the page **re-validates live CRM state on open and on submit** and will not
+  act on a superseded/terminal/moved-away visit (§5.6). When app channels are
+  added, their native buttons/webhooks may replace the SMS link surface for that
+  channel, but **not** the shared response/action service: callbacks must still
+  normalize into `record_reminder_action`, enforce single-use/action-lock
+  semantics, revalidate live CRM state, honor `cliniccards_status_policy`, and
+  pass the ADR-014 destructive-action guard before any Cancel write. **The SMS
+  link yields a branded page, but the _destructive_ Cancel is not a one-step
+  bearer-token write** — it requires the confirmation interstitial + single-use
+  lock + expiry + signed action nonce + mass-cancel circuit-breaker of
+  **ADR-014**, served from a dedicated app-only origin (`r.dentino.com.ua`).
 
 ### ADR-011 — Data-driven remindable-status policy
-- **Decision:** The status→action mapping lives in a `cliniccards_status_policy` table (per status: `remindable`, `terminal`, `allow_confirm_action`, `allow_cancel_action`, `send_change_notice`), seeded with the safest documented-enum default (remind `PLANNED`/`NOT_CONFIRMED`; skip `CONFIRMED`/terminals/in-progress; **flag** `BOOKING`/`MOVED` pending vendor semantics). A status with **no row is unknown → fail closed** (skip + needs-attention).
-- **Context:** The remindable set and each status's exact meaning are vendor-confirmation items (C3) yet were hardcoded design assumptions. Mis-mapping spams already-settled patients or misses the ones who most need a reminder; a new vendor status could silently slip through. Config-driven mapping decouples the policy from **application code** (no logic change, no function redeploy to retune it), and fail-closed makes an unrecognized status safe by default.
-- **Config-table edit model — resolves the ADR-011 ↔ ADR-003 contradiction (Tension 2).** The old wording "a row edit, **not** a redeploy" was wrong and is corrected: a production `UPDATE cliniccards_status_policy …` cannot be a Supabase-dashboard SQL hot-edit (forbidden, untracked, no rollback — ADR-003), so it **is** a deploy — but a **data-only migration** (`0003_status_policy_*.sql`: a few-second `UPDATE`, no code change, instantly revertible by the next migration), which is exactly the git-CI/CLI path ADR-003 mandates. So the two ADRs agree once "not a redeploy" is read as "no *application-code* change." The two config tables are managed differently by **who edits them**: **`cliniccards_status_policy` is migration-managed** (operator/developer-gated; a C3 vendor answer ships as a tracked data migration — it must stay fail-closed, so non-technical staff do not toggle remindability). **`message_templates` is admin-RPC-managed** — the dashboard template editor (a deliberate product feature, ADR-009) writes via an audited, staff-authenticated, placeholder/segment-validating `SECURITY DEFINER` RPC (`update_message_template`) that records provenance to `audit_log`. **The ADR-003 boundary, stated crisply:** ADR-003 forbids out-of-band changes to **code and schema** via the dashboard SQL editor; it does **not** forbid the application's own authenticated + audited config-write RPCs — that is a sanctioned runtime data path, not drift, and is the *only* non-migration way a config row changes (§9.3, §6.3).
-- **Config invariant:** every production config row has exactly one sanctioned mutation path. `cliniccards_status_policy` changes only through git-tracked data migrations; `message_templates` changes only through the audited `api.update_message_template` RPC; no config table is ever changed by raw dashboard SQL.
-- **Consequence:** Status semantics are tunable without an application-code change (a tracked data migration); template wording is staff-editable at runtime through one audited RPC; unknown statuses can never silently message; the seed is the documented-enum default and the C3 answers refine it in place.
+
+- **Decision:** The status→action mapping lives in a `cliniccards_status_policy`
+  table (per status: `remindable`, `terminal`, `allow_confirm_action`,
+  `allow_cancel_action`, `send_change_notice`), seeded with the safest
+  documented-enum default (remind `PLANNED`/`NOT_CONFIRMED`; skip
+  `CONFIRMED`/terminals/in-progress; **flag** `BOOKING`/`MOVED` pending vendor
+  semantics). A status with **no row is unknown → fail closed** (skip +
+  needs-attention).
+- **Context:** The remindable set and each status's exact meaning are
+  vendor-confirmation items (C3) yet were hardcoded design assumptions.
+  Mis-mapping spams already-settled patients or misses the ones who most need a
+  reminder; a new vendor status could silently slip through. Config-driven
+  mapping decouples the policy from **application code** (no logic change, no
+  function redeploy to retune it), and fail-closed makes an unrecognized status
+  safe by default.
+- **Config-table edit model — resolves the ADR-011 ↔ ADR-003 contradiction
+  (Tension 2).** The old wording "a row edit, **not** a redeploy" was wrong and
+  is corrected: a production `UPDATE cliniccards_status_policy …` cannot be a
+  Supabase-dashboard SQL hot-edit (forbidden, untracked, no rollback — ADR-003),
+  so it **is** a deploy — but a **data-only migration**
+  (`0003_status_policy_*.sql`: a few-second `UPDATE`, no code change, instantly
+  revertible by the next migration), which is exactly the git-CI/CLI path
+  ADR-003 mandates. So the two ADRs agree once "not a redeploy" is read as "no
+  _application-code_ change." The two config tables are managed differently by
+  **who edits them**: **`cliniccards_status_policy` is migration-managed**
+  (operator/developer-gated; a C3 vendor answer ships as a tracked data
+  migration — it must stay fail-closed, so non-technical staff do not toggle
+  remindability). **`message_templates` is admin-RPC-managed** — the dashboard
+  template editor (a deliberate product feature, ADR-009) writes via an audited,
+  staff-authenticated, placeholder/segment-validating `SECURITY DEFINER` RPC
+  (`update_message_template`) that records provenance to `audit_log`. **The
+  ADR-003 boundary, stated crisply:** ADR-003 forbids out-of-band changes to
+  **code and schema** via the dashboard SQL editor; it does **not** forbid the
+  application's own authenticated + audited config-write RPCs — that is a
+  sanctioned runtime data path, not drift, and is the _only_ non-migration way a
+  config row changes (§9.3, §6.3).
+- **Config invariant:** every production config row has exactly one sanctioned
+  mutation path. `cliniccards_status_policy` changes only through git-tracked
+  data migrations; `message_templates` changes only through the audited
+  `api.update_message_template` RPC; no config table is ever changed by raw
+  dashboard SQL.
+- **Consequence:** Status semantics are tunable without an application-code
+  change (a tracked data migration); template wording is staff-editable at
+  runtime through one audited RPC; unknown statuses can never silently message;
+  the seed is the documented-enum default and the C3 answers refine it in place.
 
 ### ADR-012 — Run-level lease + per-message send-claim (exactly-once outbound SMS)
-- **Decision:** A `reminder_days(target_date)` **processing lease** (expiring `lock_token`, ~15 min) lets only one firing process a day at a time; each `reminder_messages` row is **claimed** (`pending → sending`, committed) *before* the provider call and its outcome committed immediately after, with **no transaction held open across a ClinicCards/SMS HTTP call** and the batch **never wrapped in one transaction**. A concurrent firing that finds a live lease is a true no-op; a duplicate completed `initial` firing is a no-op; a scheduled `catchup` or `manual` pass may intentionally re-claim a completed day to re-scan for late bookings/changes; a crashed firing's expired/stale lease is stolen and **resumed** (sent rows are not redone). **Lease-lifecycle precision (v2.11/v2.16):** the holder renews `lock_heartbeat_at` at least every ~30 s, and a later firing steals on **`now() − lock_heartbeat_at > 120 s`** (the ~15-min `lock_expires_at` is only an absolute backstop), so a holder killed by the Edge wall-clock (≤400 s) is reclaimable within one ~120 s steal-grace, not ~15 min (§5.7a); on steal, the stealer **immediately reaps the dead holder's `sending` rows** to `send_unknown` (provably orphaned). The run is **synchronous** — it does *not* use `202`/`EdgeRuntime.waitUntil`; the heartbeat's post-reconciliation success ping (ADR-013), not the HTTP status, proves completion. A stale `sending` claim is treated as **`send_unknown`** — flagged, **not** blind-resent — unless the provider supports a client idempotency key (keyed on `reminder_message_id`+`appointment_fingerprint`, ADR-008; provider capability is a build-time confirmation, §10). A separate short-lived `crm_visit_write_locks` lease serializes confirm-page write-backs to the same visit without holding a transaction open across ClinicCards HTTP calls.
-- **Context:** ADR-008's `(visit_id, target_date)` unique key protects the *database row*; it cannot stop a *second SMS* once the first has left the system (the classic dual-write gap) — and `pg_cron` non-overlap doesn't help because `pg_net` invokes the Edge Function asynchronously, so firings can overlap. The lease + claim close that window at the side-effect layer.
-- **Canonical SQL (§5.7):** the lease claim/steal, the per-message `FOR UPDATE SKIP LOCKED` claim, the stale-claim reaper (next-firing / on-steal / `pg_cron` backstop — so no `sending` row is human-only-exit, ADR-018), the single-use action CAS (gated on `action_locked_at is null and status in ('sent','delivered','send_unknown') and token_expires_at >= now() and superseded_at is null`), and the per-visit write-lock steal are written out as the actual race-free statements, each with a one-winner proof and the "no advisory lock across HTTP" rule. The lease's claim predicate is status+pass-kind+expiry: `completed` is a no-op for duplicate initial firings, but a catch-up/manual pass may re-claim it to rescan a green prior pass (§4.4/ADR-006/020).
-- **Scope guard (keeps the ~20/day envelope):** this is **one** run lease table + a few send-claim columns + one tiny per-visit CRM write-lease table — **not** the per-attempt write/send outbox tables ADR-008 already rejected; reconciliation reads the lean **`crm_visit_facts`** ledger + the materialized `reminder_messages` rows (the one carve-out, ADR-008/Tension 4 — not a CRM-mirror/CDC table).
-- **Consequence:** Cron double-fire, double-click, concurrent firings, and re-runs are safe at the **outbound-SMS** layer, not just the row; a crash is resumed, not redone; ambiguous sends fail safe.
+
+- **Decision:** A `reminder_days(target_date)` **processing lease** (expiring
+  `lock_token`, ~15 min) lets only one firing process a day at a time; each
+  `reminder_messages` row is **claimed** (`pending → sending`, committed)
+  _before_ the provider call and its outcome committed immediately after, with
+  **no transaction held open across a ClinicCards/SMS HTTP call** and the batch
+  **never wrapped in one transaction**. A concurrent firing that finds a live
+  lease is a true no-op; a duplicate completed `initial` firing is a no-op; a
+  scheduled `catchup` or `manual` pass may intentionally re-claim a completed
+  day to re-scan for late bookings/changes; a crashed firing's expired/stale
+  lease is stolen and **resumed** (sent rows are not redone). **Lease-lifecycle
+  precision (v2.11/v2.16):** the holder renews `lock_heartbeat_at` at least
+  every ~30 s, and a later firing steals on
+  **`now() − lock_heartbeat_at > 120 s`** (the ~15-min `lock_expires_at` is only
+  an absolute backstop), so a holder killed by the Edge wall-clock (≤400 s) is
+  reclaimable within one ~120 s steal-grace, not ~15 min (§5.7a); on steal, the
+  stealer **immediately reaps the dead holder's `sending` rows** to
+  `send_unknown` (provably orphaned). The run is **synchronous** — it does _not_
+  use `202`/`EdgeRuntime.waitUntil`; the heartbeat's post-reconciliation success
+  ping (ADR-013), not the HTTP status, proves completion. A stale `sending`
+  claim is treated as **`send_unknown`** — flagged, **not** blind-resent —
+  unless the provider supports a client idempotency key (keyed on
+  `reminder_message_id`+`appointment_fingerprint`, ADR-008; provider capability
+  is a build-time confirmation, §10). A separate short-lived
+  `crm_visit_write_locks` lease serializes confirm-page write-backs to the same
+  visit without holding a transaction open across ClinicCards HTTP calls.
+- **Context:** ADR-008's `(visit_id, target_date)` unique key protects the
+  _database row_; it cannot stop a _second SMS_ once the first has left the
+  system (the classic dual-write gap) — and `pg_cron` non-overlap doesn't help
+  because `pg_net` invokes the Edge Function asynchronously, so firings can
+  overlap. The lease + claim close that window at the side-effect layer.
+- **Canonical SQL (§5.7):** the lease claim/steal, the per-message
+  `FOR UPDATE SKIP LOCKED` claim, the stale-claim reaper (next-firing / on-steal
+  / `pg_cron` backstop — so no `sending` row is human-only-exit, ADR-018), the
+  single-use action CAS (gated on
+  `action_locked_at is null and status in ('sent','delivered','send_unknown') and token_expires_at >= now() and superseded_at is null`),
+  and the per-visit write-lock steal are written out as the actual race-free
+  statements, each with a one-winner proof and the "no advisory lock across
+  HTTP" rule. The lease's claim predicate is status+pass-kind+expiry:
+  `completed` is a no-op for duplicate initial firings, but a catch-up/manual
+  pass may re-claim it to rescan a green prior pass (§4.4/ADR-006/020).
+- **Scope guard (keeps the ~20/day envelope):** this is **one** run lease
+  table + a few send-claim columns + one tiny per-visit CRM write-lease table —
+  **not** the per-attempt write/send outbox tables ADR-008 already rejected;
+  reconciliation reads the lean **`crm_visit_facts`** ledger + the materialized
+  `reminder_messages` rows (the one carve-out, ADR-008/Tension 4 — not a
+  CRM-mirror/CDC table).
+- **Consequence:** Cron double-fire, double-click, concurrent firings, and
+  re-runs are safe at the **outbound-SMS** layer, not just the row; a crash is
+  resumed, not redone; ambiguous sends fail safe.
 
 ### ADR-013 — External dead-man's-switch + self-reconciliation health signal
-- **Decision:** Detect a missed/incorrect noon run with an **external** cron-monitor (Healthchecks.io or Cronitor, free tier), independent of Supabase. The run pings **start** (after claiming the lease), **fail** (unrecoverable CRM/provider/reconciliation error), and **success only after reconciliation is green/amber** (§5.6) — so the heartbeat **carries the success-shape** (`target_date`, run id, counts, duration, deploy version), not merely "I ran". Monitor: daily **Europe/Kyiv** schedule, **30-min grace**, fail at **12:30 Kyiv**; payload is **counts only — no patient names/phones/tokens/clinical data** (§4.5). **Alert path:** primary = receptionist/clinic manager (Telegram or SMS + email), technical = operator/developer, escalation = owner if unacknowledged ~15 min, with a one-screen runbook ("noon run didn't complete → open dashboard, press *Message next day*; if Supabase/dashboard is down, use the ClinicCards tomorrow list and call patients"). A **4-number trust panel** (CRM visits/remindable · SMS handled · problems · responses-so-far) is the non-technical daily proof; a separate `/healthz` watches the confirm page.
-- **Context:** Sentry is *error* monitoring; the scariest failure is the run that **never starts** and throws nothing, and an absence-check living inside Supabase shares fate with the thing that's down. This is the mechanism behind §2.3#7's "runs even when nobody is watching". A **run-budget alert** (the §6.4 leading indicators — p95 duration, `WallClockTime` shutdowns, pending-past-deadline) fires before the queue migration is forced.
-- **Reconciliation denominator (v2.11):** "green/amber/red" is computed against a **pinned** snapshot — the remindable visits in the lease-holding firing's *latest successful* target-date `/visits` fetch (`crm_visit_facts` with `purpose='visits_pre_send'`, else `visits_initial`; the catch-up's own pre-send is authoritative) — not the noon snapshot. So a staff-cancelled-after-noon visit can't read as red (it drops out of the denominator yet keeps its `sent` row) and a vanished visit can't read as green (the always-materialized row makes it `unaccounted`). The two walks are in §5.6.
-- **Ping-delivery is not run-state (v2.13):** a *failed* success-**ping** (network/monitor outage) does **not** change `reminder_days.health` — the DB-green reconciliation and the external heartbeat are independent signals. A green run whose success-ping didn't land is an **ops alert** (the monitor fires its own missed-ping alarm), not a re-opened/red day; conversely DB-green is **not** proof the monitor received the ping.
-- **Consequence:** A silent miss pages a human the same day with a dead-simple recovery; absence-detection no longer depends on the platform it watches. *(New dependency: §9.1, §9.4; config: §9.2.)*
+
+- **Decision:** Detect a missed/incorrect noon run with an **external**
+  cron-monitor (Healthchecks.io or Cronitor, free tier), independent of
+  Supabase. The run pings **start** (after claiming the lease), **fail**
+  (unrecoverable CRM/provider/reconciliation error), and **success only after
+  reconciliation is green/amber** (§5.6) — so the heartbeat **carries the
+  success-shape** (`target_date`, run id, counts, duration, deploy version), not
+  merely "I ran". Monitor: daily **Europe/Kyiv** schedule, **30-min grace**,
+  fail at **12:30 Kyiv**; payload is **counts only — no patient
+  names/phones/tokens/clinical data** (§4.5). **Alert path:** primary =
+  receptionist/clinic manager (Telegram or SMS + email), technical =
+  operator/developer, escalation = owner if unacknowledged ~15 min, with a
+  one-screen runbook ("noon run didn't complete → open dashboard, press _Message
+  next day_; if Supabase/dashboard is down, use the ClinicCards tomorrow list
+  and call patients"). A **4-number trust panel** (CRM visits/remindable · SMS
+  handled · problems · responses-so-far) is the non-technical daily proof; a
+  separate `/healthz` watches the confirm page.
+- **Context:** Sentry is _error_ monitoring; the scariest failure is the run
+  that **never starts** and throws nothing, and an absence-check living inside
+  Supabase shares fate with the thing that's down. This is the mechanism behind
+  §2.3#7's "runs even when nobody is watching". A **run-budget alert** (the §6.4
+  leading indicators — p95 duration, `WallClockTime` shutdowns,
+  pending-past-deadline) fires before the queue migration is forced.
+- **Reconciliation denominator (v2.11):** "green/amber/red" is computed against
+  a **pinned** snapshot — the remindable visits in the lease-holding firing's
+  _latest successful_ target-date `/visits` fetch (`crm_visit_facts` with
+  `purpose='visits_pre_send'`, else `visits_initial`; the catch-up's own
+  pre-send is authoritative) — not the noon snapshot. So a
+  staff-cancelled-after-noon visit can't read as red (it drops out of the
+  denominator yet keeps its `sent` row) and a vanished visit can't read as green
+  (the always-materialized row makes it `unaccounted`). The two walks are in
+  §5.6.
+- **Ping-delivery is not run-state (v2.13):** a _failed_ success-**ping**
+  (network/monitor outage) does **not** change `reminder_days.health` — the
+  DB-green reconciliation and the external heartbeat are independent signals. A
+  green run whose success-ping didn't land is an **ops alert** (the monitor
+  fires its own missed-ping alarm), not a re-opened/red day; conversely DB-green
+  is **not** proof the monitor received the ping.
+- **Consequence:** A silent miss pages a human the same day with a dead-simple
+  recovery; absence-detection no longer depends on the platform it watches.
+  _(New dependency: §9.1, §9.4; config: §9.2.)_
 
 ### ADR-014 — Destructive Cancel is a scoped capability flow, not a bare bearer-token write
-- **Decision:** A patient may **view** the reminder and **Confirm** with a single nonce-backed `POST`, but **Cancel** requires: a side-effect-free `GET`; **partial appointment detail** on the page; a **confirmation interstitial**; a **POST-only** action carrying a **signed, page-rendered nonce** (which also encodes the render fingerprint, §5.6); a **single-use lock** (`action_locked_at`); **expiry** at appointment start; the existing **re-fetch + fingerprint-compare** guard before the CRM `PUT` (ADR-007/§5.6); and a **mass-cancel circuit-breaker that halts writes** — **recalibrated as an ops control** to be **velocity-first** (hard-open at **≥4 cancels/10 min or ≥6/30 min**) with a **two-level daily anomaly** (amber warn at **≥`⌈0.4×sent⌉`**, hard-ceiling ack at **> `max(8, ⌈0.6×sent⌉)`**), counting **only valid nonce-backed cancel POSTs** (`response='cancel' and action_locked_at is not null`), so it halts an automated runaway *faster* than a flat daily count while not false-tripping a legitimate flu/snow-day spike; held cancels land in `pending_staff_review` and clear via **bulk-approve-safe** or `staff_closed_no_write` (§5.6, §6.2). *(Per-action source-fingerprint tiers were considered and rejected for v1 — they conflict with PII-minimization (ADR-016) and over-engineer a ~20/day control.)* Capability tokens are **128-bit CSPRNG** (set by ADR-005/§4.2), stored only as **HMAC digests**; the public Edge Fn reads via **fixed single-token RPCs** with RLS + no `anon` table grants. The same hardening covers the **footer opt-out** (nonce `POST`, never `GET`). When future app-channel callbacks replace the web-link surface, they must provide an equivalent explicit second-step Cancel confirmation or record `pending_staff_review`; provider webhook signatures authenticate transport, not deliberate patient intent.
-- **Context:** The token is a **bearer credential** (RFC 6750): possession = authority, no identity check, and SMS is not end-to-end — links are forwarded, screenshotted, scanned by carriers/Safe-Links, or tapped on a shared family phone. A bare `GET`/`POST` that cancels is one stray tap, one link-preview fetch, or one leaked URL away from emptying a day's calendar. The non-negotiable is **login-free, low-friction response**, so we harden the *capability* instead of replacing it with an account.
-- **Alternatives:** (a) bare bearer token cancels immediately — **rejected** (stray-tap / scanner / forwarding / shared-phone mass-cancel). (b) patient login / OTP — **rejected** (destroys the login-free UX the product depends on). (c) alert-only mass-cancel threshold — **rejected** (too late; must *halt* writes).
-- **Consequence:** Wrongful/automated cancellation becomes implausible without a login: a stray preview, forwarded link, stale appointment, scanner, or leaked token can't silently cancel. Confirm stays effectively one tap; Cancel is tap → confirm. New schema: `tracking_token_digest`, `token_expires_at`, `action_nonce_digest`, `action_locked_at`, held-cancel action outcomes (`pending_staff_review`, `staff_closed_no_write`), `cancellation_circuits` (§5.3). Touches §4.2, §5.2, §5.4, §5.5, §5.6, §6.2, §6.3; amends ADR-010. (CRM re-fetch field-matching + per-visit lock are ADR-007/ADR-012; this builds on them.)
-- **Data-layer enforcement (Data-Layer review, v2.9):** the locked properties are made **DB-enforced, not application-hoped**. Single-use is the `… where action_locked_at is null` CAS (§5.7c) + the `one_action_requires_lock` CHECK + the `reminder_messages_action_lock_guard` trigger that **rejects any un-lock or re-respond from any path** (§5.3) — so "a recorded action is irreversible; only staff-mediated change via an audited RPC" is a schema invariant. The public surface's privilege boundary is the dedicated **`dentino_confirm_api`** role (no table grants; `EXECUTE` on the four fixed `api` RPCs) — *not* `service_role`, which bypasses RLS (§6.3, ADR-019, Tension 1).
-- **Page-UX within these locked properties (Patient-Experience review, v2.7):** the mandated Cancel interstitial is designed **reschedule-first** — a one-tap `tel:` reschedule call is foregrounded *above* the destructive confirm (which is still the second, nonce-backed `POST`), and the token page is built as a **trust-and-accessibility surface** (inline-only branding/SVG, system fonts, **no-JS server-rendered form POST** with the nonce as a hidden field, ≥48 px tap targets, AA contrast, zoom enabled) — §5.2/§9.3. None of this relaxes the side-effect-free `GET`/`HEAD`, the interstitial, the single-use lock, expiry, the signed action nonce, the no-third-party-assets rule, or the mass-cancel circuit-breaker; the no-JS/no-asset design in fact *reinforces* them.
+
+- **Decision:** A patient may **view** the reminder and **Confirm** with a
+  single nonce-backed `POST`, but **Cancel** requires: a side-effect-free `GET`;
+  **partial appointment detail** on the page; a **confirmation interstitial**; a
+  **POST-only** action carrying a **signed, page-rendered nonce** (which also
+  encodes the render fingerprint, §5.6); a **single-use lock**
+  (`action_locked_at`); **expiry** at appointment start; the existing
+  **re-fetch + fingerprint-compare** guard before the CRM `PUT` (ADR-007/§5.6);
+  and a **mass-cancel circuit-breaker that halts writes** — **recalibrated as an
+  ops control** to be **velocity-first** (hard-open at **≥4 cancels/10 min or
+  ≥6/30 min**) with a **two-level daily anomaly** (amber warn at
+  **≥`⌈0.4×sent⌉`**, hard-ceiling ack at **> `max(8, ⌈0.6×sent⌉)`**), counting
+  **only valid nonce-backed cancel POSTs**
+  (`response='cancel' and action_locked_at is not null`), so it halts an
+  automated runaway _faster_ than a flat daily count while not false-tripping a
+  legitimate flu/snow-day spike; held cancels land in `pending_staff_review` and
+  clear via **bulk-approve-safe** or `staff_closed_no_write` (§5.6, §6.2).
+  _(Per-action source-fingerprint tiers were considered and rejected for v1 —
+  they conflict with PII-minimization (ADR-016) and over-engineer a ~20/day
+  control.)_ Capability tokens are **128-bit CSPRNG** (set by ADR-005/§4.2),
+  stored only as **HMAC digests**; the public Edge Fn reads via **fixed
+  single-token RPCs** with RLS + no `anon` table grants. The same hardening
+  covers the **footer opt-out** (nonce `POST`, never `GET`). When future
+  app-channel callbacks replace the web-link surface, they must provide an
+  equivalent explicit second-step Cancel confirmation or record
+  `pending_staff_review`; provider webhook signatures authenticate transport,
+  not deliberate patient intent.
+- **Context:** The token is a **bearer credential** (RFC 6750): possession =
+  authority, no identity check, and SMS is not end-to-end — links are forwarded,
+  screenshotted, scanned by carriers/Safe-Links, or tapped on a shared family
+  phone. A bare `GET`/`POST` that cancels is one stray tap, one link-preview
+  fetch, or one leaked URL away from emptying a day's calendar. The
+  non-negotiable is **login-free, low-friction response**, so we harden the
+  _capability_ instead of replacing it with an account.
+- **Alternatives:** (a) bare bearer token cancels immediately — **rejected**
+  (stray-tap / scanner / forwarding / shared-phone mass-cancel). (b) patient
+  login / OTP — **rejected** (destroys the login-free UX the product depends
+  on). (c) alert-only mass-cancel threshold — **rejected** (too late; must
+  _halt_ writes).
+- **Consequence:** Wrongful/automated cancellation becomes implausible without a
+  login: a stray preview, forwarded link, stale appointment, scanner, or leaked
+  token can't silently cancel. Confirm stays effectively one tap; Cancel is tap
+  → confirm. New schema: `tracking_token_digest`, `token_expires_at`,
+  `action_nonce_digest`, `action_locked_at`, held-cancel action outcomes
+  (`pending_staff_review`, `staff_closed_no_write`), `cancellation_circuits`
+  (§5.3). Touches §4.2, §5.2, §5.4, §5.5, §5.6, §6.2, §6.3; amends ADR-010. (CRM
+  re-fetch field-matching + per-visit lock are ADR-007/ADR-012; this builds on
+  them.)
+- **Data-layer enforcement (Data-Layer review, v2.9):** the locked properties
+  are made **DB-enforced, not application-hoped**. Single-use is the
+  `… where action_locked_at is null` CAS (§5.7c) + the
+  `one_action_requires_lock` CHECK + the `reminder_messages_action_lock_guard`
+  trigger that **rejects any un-lock or re-respond from any path** (§5.3) — so
+  "a recorded action is irreversible; only staff-mediated change via an audited
+  RPC" is a schema invariant. The public surface's privilege boundary is the
+  dedicated **`dentino_confirm_api`** role (no table grants; `EXECUTE` on the
+  four fixed `api` RPCs) — _not_ `service_role`, which bypasses RLS (§6.3,
+  ADR-019, Tension 1).
+- **Page-UX within these locked properties (Patient-Experience review, v2.7):**
+  the mandated Cancel interstitial is designed **reschedule-first** — a one-tap
+  `tel:` reschedule call is foregrounded _above_ the destructive confirm (which
+  is still the second, nonce-backed `POST`), and the token page is built as a
+  **trust-and-accessibility surface** (inline-only branding/SVG, system fonts,
+  **no-JS server-rendered form POST** with the nonce as a hidden field, ≥48 px
+  tap targets, AA contrast, zoom enabled) — §5.2/§9.3. None of this relaxes the
+  side-effect-free `GET`/`HEAD`, the interstitial, the single-use lock, expiry,
+  the signed action nonce, the no-third-party-assets rule, or the mass-cancel
+  circuit-breaker; the no-JS/no-asset design in fact _reinforces_ them.
 
 ### ADR-015 — Lawful basis = contract performance + healthcare-service management (the messaging flag is a preference, not the basis)
-- **Decision:** Treat reminders as **transactional service messages** under **GDPR Art. 6(1)(b) performance of a contract** (or documented **6(1)(f)**) + the **Art. 9(2)(h)** healthcare-management condition; under UA-DP, **Art. 11 transaction/contract execution** + the **Art. 7(2)(6)** health-service exception. Rename the boolean to **`sms_reminders_enabled`** — a **withdrawable communication preference**, not the lawful basis — and move provenance to an append-only **`consent_events`** audit (source, scope, legal_basis, version/proof, opt-out history).
-- **Context:** "No diagnosis = no PHI" is the wrong model: an identified person linked to a dental visit is **health data** (Art. 9 / UA special category). Consent must be freely given and withdrawable *without detriment*, which a reminder needed to administer a booked appointment is not — so consent is the wrong *primary* basis, though a documented notice/opt-out is still required and must be **demonstrable** (EDPB). A lone boolean can't answer "what/when/which wording/how opt-out."
-- **Alternatives:** consent as sole basis — **rejected** (withdrawal would block appointment administration; harder to evidence). A single undocumented boolean — **rejected** (not auditable). An enterprise consent platform — **rejected** (disproportionate at ~20/day; a minimal append-only event log suffices — consistent with the doc's lean-table stance).
-- **Consequence:** Defensible to a regulator with the smallest durable record; opt-out honored as a preference (§5.6 footer); the legacy base is imported as `source='legacy_import'` with staff attestation, not misrepresented as captured consent. Touches §4.5, §5.3, §6.2.
+
+- **Decision:** Treat reminders as **transactional service messages** under
+  **GDPR Art. 6(1)(b) performance of a contract** (or documented **6(1)(f)**) +
+  the **Art. 9(2)(h)** healthcare-management condition; under UA-DP, **Art. 11
+  transaction/contract execution** + the **Art. 7(2)(6)** health-service
+  exception. Rename the boolean to **`sms_reminders_enabled`** — a
+  **withdrawable communication preference**, not the lawful basis — and move
+  provenance to an append-only **`consent_events`** audit (source, scope,
+  legal_basis, version/proof, opt-out history).
+- **Context:** "No diagnosis = no PHI" is the wrong model: an identified person
+  linked to a dental visit is **health data** (Art. 9 / UA special category).
+  Consent must be freely given and withdrawable _without detriment_, which a
+  reminder needed to administer a booked appointment is not — so consent is the
+  wrong _primary_ basis, though a documented notice/opt-out is still required
+  and must be **demonstrable** (EDPB). A lone boolean can't answer
+  "what/when/which wording/how opt-out."
+- **Alternatives:** consent as sole basis — **rejected** (withdrawal would block
+  appointment administration; harder to evidence). A single undocumented boolean
+  — **rejected** (not auditable). An enterprise consent platform — **rejected**
+  (disproportionate at ~20/day; a minimal append-only event log suffices —
+  consistent with the doc's lean-table stance).
+- **Consequence:** Defensible to a regulator with the smallest durable record;
+  opt-out honored as a preference (§5.6 footer); the legacy base is imported as
+  `source='legacy_import'` with staff attestation, not misrepresented as
+  captured consent. Touches §4.5, §5.3, §6.2.
 
 ### ADR-016 — Minimize stored PII: don't persist phone numbers; concrete retention + automated purge
-- **Decision:** ClinicCards is the system of record, so Dentino **does not persist full phone numbers** — `run-reminders` fetches them per run, sends in memory, and discards; `patients` keeps only **`phone_hmac` + `phone_last4` + `phone_country`**. Raw provider/fetch payloads are short-lived. **Concrete retention windows** (§4.5) are enforced daily by a **`maintenance.purge_privacy()` `pg_cron`** job that writes a counts-only purge-audit row.
-- **Context:** A phone number linked to a healthcare appointment is sensitive, high-risk, and low-value to store when the CRM already holds it. GDPR Art. 5 (minimization + storage limitation) and UA-DP require justified, *enforced* retention — not "a retention policy" in the abstract. Raw inbound/fetch payloads are the highest-risk/lowest-value data.
-- **Alternatives:** store encrypted phones + purge after the send window — acceptable fallback if retries demand it (short-lived encrypted send queue, purged ≤24h), but fetch-per-run is cleaner. Keep raw payloads indefinitely for debug — **rejected** (PII liability); keep briefly, then delete/redact.
-- **Continuous minimization (Data-Layer review, v2.9 — Tension 6):** the promise now holds **at write time, not just after the purge**. `crm_fetch_log` and `inbound_events` store only **write-time-redacted** payloads (phone/phone2/email stripped to last-4-or-null before the row is written), so a full phone number is **never persisted** to Dentino's DB — not even transiently in a log; it lives only in `run-reminders`' in-memory send and in ClinicCards. The unused, key-unspecified `inbound_events.raw_encrypted` column is **dropped** (lowest-value/highest-risk); reconciliation's durable record is the **non-PII `crm_visit_facts`** ledger (§5.3), which can outlive the raw window. The retention purge becomes belt-and-suspenders behind redaction. **Pepper lifecycle (external review v2.12 — *partially* adopted, holding the lean line):** `TOKEN_PEPPER`/`PHONE_PEPPER` live in Vault, never in a table/GUC; the documented model is **accept-break-and-reissue** — rotation is a rare security event (in-flight tokens, ≤~36 h-lived, die and are re-issued on the next run; phone change-detection re-baselines once). The reviewer's **`pepper_versions` table + `*_pepper_version` columns are DECLINED for v1 as disproportionate** at ~20/day: token life is short and `phone_hmac` is not a lookup key, so versioned dual-verify buys almost nothing against ongoing complexity. The single cheap hedge — one nullable `token_pepper_version smallint` for zero-break token rotation — can be added later **iff** a no-disruption rotation requirement ever emerges; it does not at this scale. `phone_hmac` is **not** an identity/lookup key (non-unique, non-indexed; identity = `cliniccards_id`) — its sole use is detecting a changed number.
-- **Consequence:** Smallest own-copy of the most sensitive field; delivery callbacks match on `provider_message_id` (no phone needed); staff read full numbers live from ClinicCards. New schema (`crm_fetch_log`/`inbound_events` redacted-at-write + `purge_after`; `crm_visit_facts`; `maintenance.purge_*` owned by `dentino_maintenance_definer`, run as `dentino_maintenance_runner`, §6.3.3). Touches §4.4, §4.5, §5.3, §6.3, §9.
 
-### ADR-017 — Value is recovered-chair-time + staff-time-led & measured against the *manual* baseline; staff-load is a success bar; continuity via a designed-in manual backstop; a first-month stop-loss
-- **Decision:** Frame and run the project by its **business value**, not its cost. (1) **The business case is recovered-chair-time + staff-time-led, not cost-led, and benchmarked against the clinic's *current manual phone calls*:** the per-SMS price (~€0.05–0.08) and ~€60/mo all-in are the *small* numbers; the value is **empty slots prevented/refilled × contribution/slot + staff-€-saved** (§1 Value & ROI). Because **SMS ≈ phone reminders for attendance** (Cochrane CD007458), the *incremental* no-show drop vs the current process may be modest — the durable wins are **lower staff cost + faster, cleaner cancellation capture → refillable slots + a clean audit trail**. (2) **Value is measured, not assumed:** record **pre-go-live baselines** (no-show **and** empty-slot rate, manual-call minutes, slot contribution) ~4 weeks out, track them post, and surface a small owner **value panel** (no-show/empty-slot vs baseline · cancelled-slot refill rate · cancel-write-back SLA · delivery + action rate · staff-min saved) distinct from the operational trust panel (§5.2). (3) A **net-staff-time (staff-load) budget** is a first-class success criterion (§2.3 #10): the system must *remove* work, not relocate it into a triage queue — **breakeven ~22% action rate** if no-replies are still phoned, **≤30 staff-min/day at ≥55%** (§6.2); cheapest levers = a policy to **not chase no-replies** + batch-after-catch-up + one-click call-lists + bulk approvals + "**confirmed-by-link patients are not called**". (4) **Operational continuity rests on a designed-in manual backstop** (§4.4): ClinicCards + the phone never stop being available and the automation **never gates clinic operation**; add a **one-step pause/kill-switch**, a **complaint micro-runbook**, an **"if-the-builder-vanishes" handover note**, and a **monthly fallback drill** — proportionate to a solo-built, non-technically-operated single clinic. (5) **A first-month stop-loss** (§11): review at 5/10/20 clinic days; if action rate <35% or staff-time isn't ≥10 min/day below the measured baseline, the system is **value-red** — tune in order (priming → copy/sender trust → send-time → call-list workflow → selective manual calling), don't keep running it unchanged.
-- **Context:** Every prior review made the machine *safer or more correct*; none checked whether it **earns its keep and delivers its own why** (cut no-shows, free staff time — §2.1). Two facts make this non-obvious: the headline value is *conditional on action rate* (delivered-but-unactioned degrades to an audit-trail + call queue, §6.2), and the safety hardening that prevents catastrophes **also routes each exception to a human** — a great safety design can quietly create a part-time triage job. The honest finding: at ~20/day the exception queues are *small* (a few minutes/day), so the real staff-time risk is the no-reply chase policy; and the no-show-reduction value is *delivery-driven* and so largely survives a low action rate — two distinct effects that are easily conflated.
-- **Numbers (stated assumptions — §1, §6.2):** ~440 appts/mo. **Recovered chair-time:** a 2-pt empty-slot reduction × €75/slot ≈ €630/mo net (even 0.5-pt × €30 is positive) → pays for itself at ~2–3 recovered slots/mo. **Staff-time:** `new ≈ 10 + 45(1−A)` min/day vs a ~45-min baseline (`M_old=2.25` placeholder) → ~€30/mo at 55% — small in € (recovered chair-time dominates); breakeven ~22% (sensitive ~0–33% to the measured `M_old`). **Honest baseline = current phone calls** (SMS ≈ phone for attendance — Cochrane CD007458), so a no-show drop is measured, not claimed. Breaker recalibrated to velocity-first (≥4/10-min or ≥6/30-min) + daily amber/hard-ceiling (§5.6, ADR-014). The failure-cost ranking corrects the under-invested **lost-rebooking** path and names **silent staff non-adoption** as the highest-*expected*-cost mode (§5.6/§6.2).
-- **Alternatives:** an enterprise BI / analytics platform — **rejected** (disproportionate at ~20/day; the value panel is 3–4 numbers). Treating manual phoning as a *failure mode* rather than a designed-in backstop — **rejected** (it's the clinic's existing, reliable process and the cheapest continuity guarantee). A cost-led business case — **rejected** (undersells the value and mis-locates it). Building multi-tenant scaffolding now for hypothetical growth — incl. the external reviewer's proposal to add a `clinics` table + `clinic_id` to every core table (and into the token-HMAC context) as "migration insurance" — **rejected (strongly):** at greenfield there is nothing to retrofit (the data-layer pass writes the DDL fresh), so the insurance value ≈ 0 while the carrying cost is real (every unique index, RLS policy, RPC signature, and the token HMAC, complicated in a single-clinic system) — over-building for a hypothetical is its own failure. Runway is preserved by **config-not-constants** (already §9.2) + the clean single-purpose schema; a later move is a bounded `clinic_id`+RLS migration (§2.5/ADR-005). *(If the data-layer owner later judges a single `clinic_settings` config row worthwhile, that is config-not-constants, not tenant scaffolding — their call.)*
-- **Consequence:** the doc now states *why it's worth it*, *how to prove it*, and *when to stop if it isn't* (the §11 stop-loss); the biggest value-failure is named (**silent staff non-adoption**, §6.2) and budgeted against (the staff-load criterion + the §5.2 operating rules + the stop-loss). v1's single-tenant/SMS-only scope is affirmed correct for a static single clinic; a later multi-clinic move is a **bounded `clinic_id` + RLS migration** (more invasive than a channel-add, not a rebuild) — knowingly deferred. New owner actions in `docs/your-tasks.md` (full manual-baseline measurement, revenue-per-slot, the staff operating policy, the fallback drill, the value-panel/stop-loss review, the handover note, monthly ownership). Touches §1, §2.1, §2.3, §4.4, §5.2, §6.2, §6.4, §6.5, §9.2, §10, §11, ADR-005/014.
+- **Decision:** ClinicCards is the system of record, so Dentino **does not
+  persist full phone numbers** — `run-reminders` fetches them per run, sends in
+  memory, and discards; `patients` keeps only **`phone_hmac` + `phone_last4` +
+  `phone_country`**. Raw provider/fetch payloads are short-lived. **Concrete
+  retention windows** (§4.5) are enforced daily by a
+  **`maintenance.purge_privacy()` `pg_cron`** job that writes a counts-only
+  purge-audit row.
+- **Context:** A phone number linked to a healthcare appointment is sensitive,
+  high-risk, and low-value to store when the CRM already holds it. GDPR Art. 5
+  (minimization + storage limitation) and UA-DP require justified, _enforced_
+  retention — not "a retention policy" in the abstract. Raw inbound/fetch
+  payloads are the highest-risk/lowest-value data.
+- **Alternatives:** store encrypted phones + purge after the send window —
+  acceptable fallback if retries demand it (short-lived encrypted send queue,
+  purged ≤24h), but fetch-per-run is cleaner. Keep raw payloads indefinitely for
+  debug — **rejected** (PII liability); keep briefly, then delete/redact.
+- **Continuous minimization (Data-Layer review, v2.9 — Tension 6):** the promise
+  now holds **at write time, not just after the purge**. `crm_fetch_log` and
+  `inbound_events` store only **write-time-redacted** payloads
+  (phone/phone2/email stripped to last-4-or-null before the row is written), so
+  a full phone number is **never persisted** to Dentino's DB — not even
+  transiently in a log; it lives only in `run-reminders`' in-memory send and in
+  ClinicCards. The unused, key-unspecified `inbound_events.raw_encrypted` column
+  is **dropped** (lowest-value/highest-risk); reconciliation's durable record is
+  the **non-PII `crm_visit_facts`** ledger (§5.3), which can outlive the raw
+  window. The retention purge becomes belt-and-suspenders behind redaction.
+  **Pepper lifecycle (external review v2.12 — _partially_ adopted, holding the
+  lean line):** `TOKEN_PEPPER`/`PHONE_PEPPER` live in Vault, never in a
+  table/GUC; the documented model is **accept-break-and-reissue** — rotation is
+  a rare security event (in-flight tokens, ≤~36 h-lived, die and are re-issued
+  on the next run; phone change-detection re-baselines once). The reviewer's
+  **`pepper_versions` table + `*_pepper_version` columns are DECLINED for v1 as
+  disproportionate** at ~20/day: token life is short and `phone_hmac` is not a
+  lookup key, so versioned dual-verify buys almost nothing against ongoing
+  complexity. The single cheap hedge — one nullable
+  `token_pepper_version smallint` for zero-break token rotation — can be added
+  later **iff** a no-disruption rotation requirement ever emerges; it does not
+  at this scale. `phone_hmac` is **not** an identity/lookup key (non-unique,
+  non-indexed; identity = `cliniccards_id`) — its sole use is detecting a
+  changed number.
+- **Consequence:** Smallest own-copy of the most sensitive field; delivery
+  callbacks match on `provider_message_id` (no phone needed); staff read full
+  numbers live from ClinicCards. New schema (`crm_fetch_log`/`inbound_events`
+  redacted-at-write + `purge_after`; `crm_visit_facts`; `maintenance.purge_*`
+  owned by `dentino_maintenance_definer`, run as `dentino_maintenance_runner`,
+  §6.3.3). Touches §4.4, §4.5, §5.3, §6.3, §9.
+
+### ADR-017 — Value is recovered-chair-time + staff-time-led & measured against the _manual_ baseline; staff-load is a success bar; continuity via a designed-in manual backstop; a first-month stop-loss
+
+- **Decision:** Frame and run the project by its **business value**, not its
+  cost. (1) **The business case is recovered-chair-time + staff-time-led, not
+  cost-led, and benchmarked against the clinic's _current manual phone calls_:**
+  the per-SMS price (~€0.05–0.08) and ~€60/mo all-in are the _small_ numbers;
+  the value is **empty slots prevented/refilled × contribution/slot +
+  staff-€-saved** (§1 Value & ROI). Because **SMS ≈ phone reminders for
+  attendance** (Cochrane CD007458), the _incremental_ no-show drop vs the
+  current process may be modest — the durable wins are **lower staff cost +
+  faster, cleaner cancellation capture → refillable slots + a clean audit
+  trail**. (2) **Value is measured, not assumed:** record **pre-go-live
+  baselines** (no-show **and** empty-slot rate, manual-call minutes, slot
+  contribution) ~4 weeks out, track them post, and surface a small owner **value
+  panel** (no-show/empty-slot vs baseline · cancelled-slot refill rate ·
+  cancel-write-back SLA · delivery + action rate · staff-min saved) distinct
+  from the operational trust panel (§5.2). (3) A **net-staff-time (staff-load)
+  budget** is a first-class success criterion (§2.3 #10): the system must
+  _remove_ work, not relocate it into a triage queue — **breakeven ~22% action
+  rate** if no-replies are still phoned, **≤30 staff-min/day at ≥55%** (§6.2);
+  cheapest levers = a policy to **not chase no-replies** +
+  batch-after-catch-up + one-click call-lists + bulk approvals +
+  "**confirmed-by-link patients are not called**". (4) **Operational continuity
+  rests on a designed-in manual backstop** (§4.4): ClinicCards + the phone never
+  stop being available and the automation **never gates clinic operation**; add
+  a **one-step pause/kill-switch**, a **complaint micro-runbook**, an
+  **"if-the-builder-vanishes" handover note**, and a **monthly fallback drill**
+  — proportionate to a solo-built, non-technically-operated single clinic. (5)
+  **A first-month stop-loss** (§11): review at 5/10/20 clinic days; if action
+  rate <35% or staff-time isn't ≥10 min/day below the measured baseline, the
+  system is **value-red** — tune in order (priming → copy/sender trust →
+  send-time → call-list workflow → selective manual calling), don't keep running
+  it unchanged.
+- **Context:** Every prior review made the machine _safer or more correct_; none
+  checked whether it **earns its keep and delivers its own why** (cut no-shows,
+  free staff time — §2.1). Two facts make this non-obvious: the headline value
+  is _conditional on action rate_ (delivered-but-unactioned degrades to an
+  audit-trail + call queue, §6.2), and the safety hardening that prevents
+  catastrophes **also routes each exception to a human** — a great safety design
+  can quietly create a part-time triage job. The honest finding: at ~20/day the
+  exception queues are _small_ (a few minutes/day), so the real staff-time risk
+  is the no-reply chase policy; and the no-show-reduction value is
+  _delivery-driven_ and so largely survives a low action rate — two distinct
+  effects that are easily conflated.
+- **Numbers (stated assumptions — §1, §6.2):** ~440 appts/mo. **Recovered
+  chair-time:** a 2-pt empty-slot reduction × €75/slot ≈ €630/mo net (even
+  0.5-pt × €30 is positive) → pays for itself at ~2–3 recovered slots/mo.
+  **Staff-time:** `new ≈ 10 + 45(1−A)` min/day vs a ~45-min baseline
+  (`M_old=2.25` placeholder) → ~€30/mo at 55% — small in € (recovered chair-time
+  dominates); breakeven ~22% (sensitive ~0–33% to the measured `M_old`).
+  **Honest baseline = current phone calls** (SMS ≈ phone for attendance —
+  Cochrane CD007458), so a no-show drop is measured, not claimed. Breaker
+  recalibrated to velocity-first (≥4/10-min or ≥6/30-min) + daily
+  amber/hard-ceiling (§5.6, ADR-014). The failure-cost ranking corrects the
+  under-invested **lost-rebooking** path and names **silent staff non-adoption**
+  as the highest-_expected_-cost mode (§5.6/§6.2).
+- **Alternatives:** an enterprise BI / analytics platform — **rejected**
+  (disproportionate at ~20/day; the value panel is 3–4 numbers). Treating manual
+  phoning as a _failure mode_ rather than a designed-in backstop — **rejected**
+  (it's the clinic's existing, reliable process and the cheapest continuity
+  guarantee). A cost-led business case — **rejected** (undersells the value and
+  mis-locates it). Building multi-tenant scaffolding now for hypothetical growth
+  — incl. the external reviewer's proposal to add a `clinics` table +
+  `clinic_id` to every core table (and into the token-HMAC context) as
+  "migration insurance" — **rejected (strongly):** at greenfield there is
+  nothing to retrofit (the data-layer pass writes the DDL fresh), so the
+  insurance value ≈ 0 while the carrying cost is real (every unique index, RLS
+  policy, RPC signature, and the token HMAC, complicated in a single-clinic
+  system) — over-building for a hypothetical is its own failure. Runway is
+  preserved by **config-not-constants** (already §9.2) + the clean
+  single-purpose schema; a later move is a bounded `clinic_id`+RLS migration
+  (§2.5/ADR-005). _(If the data-layer owner later judges a single
+  `clinic_settings` config row worthwhile, that is config-not-constants, not
+  tenant scaffolding — their call.)_
+- **Consequence:** the doc now states _why it's worth it_, _how to prove it_,
+  and _when to stop if it isn't_ (the §11 stop-loss); the biggest value-failure
+  is named (**silent staff non-adoption**, §6.2) and budgeted against (the
+  staff-load criterion + the §5.2 operating rules + the stop-loss). v1's
+  single-tenant/SMS-only scope is affirmed correct for a static single clinic; a
+  later multi-clinic move is a **bounded `clinic_id` + RLS migration** (more
+  invasive than a channel-add, not a rebuild) — knowingly deferred. New owner
+  actions in `docs/your-tasks.md` (full manual-baseline measurement,
+  revenue-per-slot, the staff operating policy, the fallback drill, the
+  value-panel/stop-loss review, the handover note, monthly ownership). Touches
+  §1, §2.1, §2.3, §4.4, §5.2, §6.2, §6.4, §6.5, §9.2, §10, §11, ADR-005/014.
 
 ### ADR-018 — Total per-message state machine + stale-send reaper (no human-only-exit state)
-- **Decision:** `reminder_messages` has **one canonical `status × action_taken` state machine** (the §5.5 table) that is the single source of truth for the lifecycle; the §5.2/§5.6 prose and the §5.7 SQL are projections of it. Its governing invariant is **totality: every non-terminal status has a defined *automated* exit — no state is reachable-out only by a human.** Concretely, the limbo state `sending` (a claim taken before the provider call) is reaped to `send_unknown` by **three** independent triggers: (i) the next firing under the lease; (ii) an **on-steal sweep** — a firing that steals a dead holder's lease reaps that run's `sending` rows immediately, since the lease proves they are orphaned; and (iii) a **`pg_cron` `maintenance.reap_stale_sends()` backstop** that runs even if the Edge function never fires again — all on the predicate `status='sending' and send_claim_expires_at < now()`. Unresolved `send_unknown` is the *only* deliberately staff-owned send terminal, and that is deliberate safety (a possibly-sent SMS must never be blind-resent), not a stuck state; a later valid patient action is allowed because it proves delivery and promotes the row to `delivered`.
-- **Context:** Four prior passes each added an edge mechanism (a lease, a per-message claim, a supersede, a breaker) and each was internally correct, but the *composition* left two gaps no single review covered: a `sending` row had an automated exit **only if a later firing happened to run** (none is guaranteed), and the lease's `lock_heartbeat_at` was renewed but never *read* by the steal predicate (which used the 15-min `lock_expires_at`), so a dead holder blocked recovery for a full TTL. A state machine that looks total on a diagram can have an untrapped state in code; the fix is to make totality an explicit, tested invariant — and to make the steal predicate heartbeat-grace-based (§5.7a) so recovery is bounded by ~120 s, not ~15 min.
-- **Alternatives:** rely on the next firing alone — **rejected** (no later firing is guaranteed; the row becomes human-only-exit). A real queue/worker with built-in visibility-timeout redelivery (Temporal/SQS) — **rejected** for v1 (the §6.4 migration trigger governs that; a `pg_cron` sweep is the proportionate ~20/day equivalent, no new infra). Make a provider idempotency key the baseline and auto-retry `send_unknown` — **rejected** (the key is an unconfirmed build-time item (§10); the no-key `send_unknown`→staff path must be correct on its own, the key a pure optimization).
-- **Consequence:** No `reminder_messages` row can be stranded in a non-terminal state by any partial failure; recovery latency is bounded by one steal-grace (~120 s), not one lease-TTL; and the §5.5 table + invariants I1–I4 give `spec-to-tdd` a deterministic target (e.g. "kill the only firing mid-send → the `pg_cron` reaper transitions the row to `send_unknown` within one sweep, and the success ping never fires"). New mechanism: the `maintenance.reap_stale_sends()` `pg_cron` job (a maintenance function beside `maintenance.purge_privacy()`, run as `dentino_maintenance_runner` / owned by `dentino_maintenance_definer` — §6.3.3/§9.1/§9.3); **no new table, column, or send status** (`send_claim_expires_at`/`send_unknown` already exist). Builds on ADR-008/012/013/014; touches §5.2, §5.5, §5.6, §5.7, §6.4, §6.5, §9.
+
+- **Decision:** `reminder_messages` has **one canonical `status × action_taken`
+  state machine** (the §5.5 table) that is the single source of truth for the
+  lifecycle; the §5.2/§5.6 prose and the §5.7 SQL are projections of it. Its
+  governing invariant is **totality: every non-terminal status has a defined
+  _automated_ exit — no state is reachable-out only by a human.** Concretely,
+  the limbo state `sending` (a claim taken before the provider call) is reaped
+  to `send_unknown` by **three** independent triggers: (i) the next firing under
+  the lease; (ii) an **on-steal sweep** — a firing that steals a dead holder's
+  lease reaps that run's `sending` rows immediately, since the lease proves they
+  are orphaned; and (iii) a **`pg_cron` `maintenance.reap_stale_sends()`
+  backstop** that runs even if the Edge function never fires again — all on the
+  predicate `status='sending' and send_claim_expires_at < now()`. Unresolved
+  `send_unknown` is the _only_ deliberately staff-owned send terminal, and that
+  is deliberate safety (a possibly-sent SMS must never be blind-resent), not a
+  stuck state; a later valid patient action is allowed because it proves
+  delivery and promotes the row to `delivered`.
+- **Context:** Four prior passes each added an edge mechanism (a lease, a
+  per-message claim, a supersede, a breaker) and each was internally correct,
+  but the _composition_ left two gaps no single review covered: a `sending` row
+  had an automated exit **only if a later firing happened to run** (none is
+  guaranteed), and the lease's `lock_heartbeat_at` was renewed but never _read_
+  by the steal predicate (which used the 15-min `lock_expires_at`), so a dead
+  holder blocked recovery for a full TTL. A state machine that looks total on a
+  diagram can have an untrapped state in code; the fix is to make totality an
+  explicit, tested invariant — and to make the steal predicate
+  heartbeat-grace-based (§5.7a) so recovery is bounded by ~120 s, not ~15 min.
+- **Alternatives:** rely on the next firing alone — **rejected** (no later
+  firing is guaranteed; the row becomes human-only-exit). A real queue/worker
+  with built-in visibility-timeout redelivery (Temporal/SQS) — **rejected** for
+  v1 (the §6.4 migration trigger governs that; a `pg_cron` sweep is the
+  proportionate ~20/day equivalent, no new infra). Make a provider idempotency
+  key the baseline and auto-retry `send_unknown` — **rejected** (the key is an
+  unconfirmed build-time item (§10); the no-key `send_unknown`→staff path must
+  be correct on its own, the key a pure optimization).
+- **Consequence:** No `reminder_messages` row can be stranded in a non-terminal
+  state by any partial failure; recovery latency is bounded by one steal-grace
+  (~120 s), not one lease-TTL; and the §5.5 table + invariants I1–I4 give
+  `spec-to-tdd` a deterministic target (e.g. "kill the only firing mid-send →
+  the `pg_cron` reaper transitions the row to `send_unknown` within one sweep,
+  and the success ping never fires"). New mechanism: the
+  `maintenance.reap_stale_sends()` `pg_cron` job (a maintenance function beside
+  `maintenance.purge_privacy()`, run as `dentino_maintenance_runner` / owned by
+  `dentino_maintenance_definer` — §6.3.3/§9.1/§9.3); **no new table, column, or
+  send status** (`send_claim_expires_at`/`send_unknown` already exist). Builds
+  on ADR-008/012/013/014; touches §5.2, §5.5, §5.6, §5.7, §6.4, §6.5, §9.
 
 ### ADR-019 — Per-Edge-Function dedicated DB role + schema separation + RPC-only access (data layer)
-- **Decision:** The data layer's trust boundary is **privilege, not application discipline.** (1) **Schema separation:** base tables in a private **`app`** schema (never the API-exposed `public`), public RPCs in **`api`**, HMAC/secret helpers in **`private`**, purge/reaper in **`maintenance`**; only `api` is reachable through PostgREST/the Data API. (2) **A dedicated least-privilege login role per Edge Function**, named for it: the internet-public confirm fn = **`dentino_confirm_api`** (`LOGIN NOINHERIT NOBYPASSRLS`, zero table grants, `EXECUTE` on its four `api` RPCs only); `run-reminders` = **`dentino_run_api`**; the optional DLR callback = `dentino_sms_webhook_api`; the `pg_cron` purge/reaper = **`dentino_maintenance_runner`**. `service_role` (`BYPASSRLS`) is **CI/admin break-glass only — never an Edge-Function runtime credential**, least of all the public one. (3) **`SECURITY DEFINER` caller/definer split:** RPCs are owned by non-login non-superuser definers (`dentino_confirm_definer`, `dentino_maintenance_definer`) holding only the **column-scoped** grants their bodies need, with `search_path=''`; default `EXECUTE`-to-`PUBLIC` is revoked, then granted per caller role. (4) **Access is RPC/view-only for `anon`, `authenticated`, and the public fn** — no base-table grants; RLS `enable`d + `force`d on every `app` table as the backstop; the public role gets fail-closed `statement_timeout`/`lock_timeout`/`idle_in_transaction_session_timeout`.
-- **Context:** The earlier "the public function can use `service_role` as long as it only calls fixed RPCs and never `select *`" made the highest-risk surface depend on a coding convention; one stray query or a too-wide RPC projection would expose the whole patient table, because `service_role` bypasses RLS. Privilege-as-security holds when discipline slips; a caller with `SELECT` on nothing cannot enumerate patients regardless of code. Column-scoped definer grants extend the same principle inward: a future RPC that accidentally over-projects fails at the grant boundary, not at review.
-- **Alternatives:** `service_role` self-discipline — **rejected** (Tension 1). One shared low-privilege role for all functions — **rejected** (a webhook bug shouldn't reach the confirm surface's grants; per-function roles bound blast radius). Rely on RLS alone — **rejected** (`service_role`/owner paths bypass it; RLS is the backstop, least-privilege is the boundary).
-- **Consequence:** A code slip on the public route cannot enumerate or mutate beyond the four fixed RPCs; the grant matrix (§6.3.2) and the pgTAP gate (§6.5) make this *tested*, not asserted. New schema/role objects land in `0002_rls_policies.sql` (§9.3). Builds on ADR-014/016; touches §5.3, §5.4, §6.3 (+.1/.2/.3), §6.5, §9.
+
+- **Decision:** The data layer's trust boundary is **privilege, not application
+  discipline.** (1) **Schema separation:** base tables in a private **`app`**
+  schema (never the API-exposed `public`), public RPCs in **`api`**, HMAC/secret
+  helpers in **`private`**, purge/reaper in **`maintenance`**; only `api` is
+  reachable through PostgREST/the Data API. (2) **A dedicated least-privilege
+  login role per Edge Function**, named for it: the internet-public confirm fn =
+  **`dentino_confirm_api`** (`LOGIN NOINHERIT NOBYPASSRLS`, zero table grants,
+  `EXECUTE` on its four `api` RPCs only); `run-reminders` =
+  **`dentino_run_api`**; the optional DLR callback = `dentino_sms_webhook_api`;
+  the `pg_cron` purge/reaper = **`dentino_maintenance_runner`**. `service_role`
+  (`BYPASSRLS`) is **CI/admin break-glass only — never an Edge-Function runtime
+  credential**, least of all the public one. (3) **`SECURITY DEFINER`
+  caller/definer split:** RPCs are owned by non-login non-superuser definers
+  (`dentino_confirm_definer`, `dentino_maintenance_definer`) holding only the
+  **column-scoped** grants their bodies need, with `search_path=''`; default
+  `EXECUTE`-to-`PUBLIC` is revoked, then granted per caller role. (4) **Access
+  is RPC/view-only for `anon`, `authenticated`, and the public fn** — no
+  base-table grants; RLS `enable`d + `force`d on every `app` table as the
+  backstop; the public role gets fail-closed
+  `statement_timeout`/`lock_timeout`/`idle_in_transaction_session_timeout`.
+- **Context:** The earlier "the public function can use `service_role` as long
+  as it only calls fixed RPCs and never `select *`" made the highest-risk
+  surface depend on a coding convention; one stray query or a too-wide RPC
+  projection would expose the whole patient table, because `service_role`
+  bypasses RLS. Privilege-as-security holds when discipline slips; a caller with
+  `SELECT` on nothing cannot enumerate patients regardless of code.
+  Column-scoped definer grants extend the same principle inward: a future RPC
+  that accidentally over-projects fails at the grant boundary, not at review.
+- **Alternatives:** `service_role` self-discipline — **rejected** (Tension 1).
+  One shared low-privilege role for all functions — **rejected** (a webhook bug
+  shouldn't reach the confirm surface's grants; per-function roles bound blast
+  radius). Rely on RLS alone — **rejected** (`service_role`/owner paths bypass
+  it; RLS is the backstop, least-privilege is the boundary).
+- **Consequence:** A code slip on the public route cannot enumerate or mutate
+  beyond the four fixed RPCs; the grant matrix (§6.3.2) and the pgTAP gate
+  (§6.5) make this _tested_, not asserted. New schema/role objects land in
+  `0002_rls_policies.sql` (§9.3). Builds on ADR-014/016; touches §5.3, §5.4,
+  §6.3 (+.1/.2/.3), §6.5, §9.
 
 ### ADR-020 — Fenced side effects: a durable pre-call claim, a fenced owner token, a bounded expiry, and a reaper-or-staff terminal (implementation-readiness, external-reviewer reconciliation)
-- **Decision:** Generalize the lease/claim discipline into **one invariant the whole system obeys: no process may *commit* a side effect or its outcome unless it still holds the owning token.** Every protected write is `… where <owner_col> = <my_token> and <expected_status>`; **zero affected rows ⇒ I lost ownership ⇒ stop, do nothing further.** This **fences zombies** — a wall-clock-killed or lease-stolen invocation that resumes from an awaited HTTP call cannot claim or send another message, overwrite a reaped row, or re-acquire a stolen lease. It applies to: the day-lease heartbeat (`lock_token`, §5.7a); the per-message **send-outcome commit** (`update … where id=$id and status='sending' and send_claim_token=$tok`, so a zombie can't overwrite a `send_unknown` the reaper already wrote — §5.7b); supersede/change-notice writes, the reconciliation rollup, and the heartbeat-success ping (`lock_token`); and the per-visit CRM write lease (`crm_visit_write_locks.lock_token`, §5.7d). The corollary — **every external side effect has a durable pre-call claim plus a reaper or an explicit staff terminal** — extends the SMS path's crash protection (`sending → send_unknown`) to the **CRM write-back** (the patient-action → ClinicCards `PUT` dual-write gap): a row with `action_taken in ('cancelled','confirmed')` and `crm_writeback_ok is not true` is re-driven by a reaper (run-owned at start + before reconcile, plus the `pg_cron` sweep) that re-runs the **idempotent** guarded write-back. Because `PUT status=…` is idempotent, **no `crm_write_pending` state or claim column is needed** — the existing `crm_writeback_ok` boolean is the reaper predicate.
-- **Context:** Four prior passes added durable claims (day lease, send claim, per-visit write lease) but only *some* commits were fenced — the lease heartbeat and write-lease re-confirm were; the **send-outcome commit and the supersede/reconcile writes were not** — and the **patient-action CRM write had no reaper at all** (a crash after recording `cancelled` but before the `PUT` left a slot falsely blocked, human-only exit). A serverless runtime that can kill at 400 s and resume a continuation makes "the holder is still the holder" something you must *check*, not assume; Supabase documents `EdgeRuntime.waitUntil` continuations as killable, so completion needs durable state + fencing, not a background promise. Unifying discipline behind ADR-012 (lease), ADR-014 (write lease), ADR-018 (state-machine totality).
-- **Alternatives:** trust a killed worker never resumes — **rejected**. A real queue with visibility-timeout redelivery — **rejected for v1** (the §6.4 migration trigger governs that; fencing + `pg_cron` reapers are the proportionate ~20/day equivalent). A dedicated `crm_write_pending` outbox state + claim columns — **rejected** (the `PUT` is idempotent, so `crm_writeback_ok` suffices; new state would violate the lean stance).
-- **Consequence:** A zombie invocation is provably inert; no side effect's *outcome* can be double-written or silently lost; the CRM write-back joins the SMS path under one totality guarantee (no human-only-exit beyond the intended staff terminals — unresolved `send_unknown`, `pending_staff_review` / `staff_closed_no_write`, `error`, unknown-status, an unresolved cross-day disappearance — §5.6). `spec-to-tdd` gets one assertable rule: *for every protected write, a stale-token actor affects 0 rows and makes 0 external calls.* **No new table/column/send status** (reuses `lock_token` / `send_claim_token` / `crm_visit_write_locks.lock_token` / `crm_writeback_ok`). Builds on ADR-012/014/018; touches §5.2, §5.4, §5.6, §5.7, §6.4, §6.5.
+
+- **Decision:** Generalize the lease/claim discipline into **one invariant the
+  whole system obeys: no process may _commit_ a side effect or its outcome
+  unless it still holds the owning token.** Every protected write is
+  `… where <owner_col> = <my_token> and <expected_status>`; **zero affected rows
+  ⇒ I lost ownership ⇒ stop, do nothing further.** This **fences zombies** — a
+  wall-clock-killed or lease-stolen invocation that resumes from an awaited HTTP
+  call cannot claim or send another message, overwrite a reaped row, or
+  re-acquire a stolen lease. It applies to: the day-lease heartbeat
+  (`lock_token`, §5.7a); the per-message **send-outcome commit**
+  (`update … where id=$id and status='sending' and send_claim_token=$tok`, so a
+  zombie can't overwrite a `send_unknown` the reaper already wrote — §5.7b);
+  supersede/change-notice writes, the reconciliation rollup, and the
+  heartbeat-success ping (`lock_token`); and the per-visit CRM write lease
+  (`crm_visit_write_locks.lock_token`, §5.7d). The corollary — **every external
+  side effect has a durable pre-call claim plus a reaper or an explicit staff
+  terminal** — extends the SMS path's crash protection
+  (`sending → send_unknown`) to the **CRM write-back** (the patient-action →
+  ClinicCards `PUT` dual-write gap): a row with
+  `action_taken in ('cancelled','confirmed')` and `crm_writeback_ok is not true`
+  is re-driven by a reaper (run-owned at start + before reconcile, plus the
+  `pg_cron` sweep) that re-runs the **idempotent** guarded write-back. Because
+  `PUT status=…` is idempotent, **no `crm_write_pending` state or claim column
+  is needed** — the existing `crm_writeback_ok` boolean is the reaper predicate.
+- **Context:** Four prior passes added durable claims (day lease, send claim,
+  per-visit write lease) but only _some_ commits were fenced — the lease
+  heartbeat and write-lease re-confirm were; the **send-outcome commit and the
+  supersede/reconcile writes were not** — and the **patient-action CRM write had
+  no reaper at all** (a crash after recording `cancelled` but before the `PUT`
+  left a slot falsely blocked, human-only exit). A serverless runtime that can
+  kill at 400 s and resume a continuation makes "the holder is still the holder"
+  something you must _check_, not assume; Supabase documents
+  `EdgeRuntime.waitUntil` continuations as killable, so completion needs durable
+  state + fencing, not a background promise. Unifying discipline behind ADR-012
+  (lease), ADR-014 (write lease), ADR-018 (state-machine totality).
+- **Alternatives:** trust a killed worker never resumes — **rejected**. A real
+  queue with visibility-timeout redelivery — **rejected for v1** (the §6.4
+  migration trigger governs that; fencing + `pg_cron` reapers are the
+  proportionate ~20/day equivalent). A dedicated `crm_write_pending` outbox
+  state + claim columns — **rejected** (the `PUT` is idempotent, so
+  `crm_writeback_ok` suffices; new state would violate the lean stance).
+- **Consequence:** A zombie invocation is provably inert; no side effect's
+  _outcome_ can be double-written or silently lost; the CRM write-back joins the
+  SMS path under one totality guarantee (no human-only-exit beyond the intended
+  staff terminals — unresolved `send_unknown`, `pending_staff_review` /
+  `staff_closed_no_write`, `error`, unknown-status, an unresolved cross-day
+  disappearance — §5.6). `spec-to-tdd` gets one assertable rule: _for every
+  protected write, a stale-token actor affects 0 rows and makes 0 external
+  calls._ **No new table/column/send status** (reuses `lock_token` /
+  `send_claim_token` / `crm_visit_write_locks.lock_token` / `crm_writeback_ok`).
+  Builds on ADR-012/014/018; touches §5.2, §5.4, §5.6, §5.7, §6.4, §6.5.
 
 ### ADR-021 — No-reply nudge: a re-issued capability that never reuses or stores the raw token (deferred v1.1)
-- **Decision:** A v1.1 no-reply nudge is a **distinct** `message_kind='no_reply_nudge'`, fired **once** per `(visit_id, target_date)` to a delivered-but-unactioned recipient a few hours after the initial send, under its **own** partial-unique key, claimed/committed like any send (ADR-012), and **feature-flagged off** at launch. Because the raw token is **never stored** (only its HMAC digest — ADR-014/§6.3), the nudge **cannot reuse the initial token**; it **mints a fresh CSPRNG token and re-issues** the capability — expiring the prior token (`token_expires_at = now()`, the §5.5-I3 token-kill) so the appointment always has exactly **one live link**, while the single-use action CAS (§5.7c) guarantees **one** action across both SMSs. Same pre-send revalidation as the initial; never re-arms the ordinary-reminder idempotency key (ADR-008).
-- **Context:** corrects the v2.7 design's "the nudge reuses the same token", which is **impossible** under HMAC-only storage and would have created a second live token in violation of impl-readiness invariant **I3** (§5.5). The external Patient-Experience review surfaced it. Behavioral basis: a single well-timed nudge to non-responders is a reliable lift lever (Cochrane CD007458; multi-reminder RCTs), and ADR-017's economics say enable it if the measured action rate sits below the **~55–65% healthy band** (§6.2).
-- **Alternatives:** store the raw token to resend — **rejected** (breaks the HMAC-only posture, ADR-014). Keep **both** links live under a new appointment-day-level lock — **rejected for v1.1**: it improves the old-link UX but adds a cross-row lock and weakens the one-live-link invariant; revisit only if dead-old-link complaints become a measured problem.
-- **Consequence:** the nudge adds conversion without a second live capability or any double-send risk; **no new state** beyond the existing `message_kind` value + its partial-unique key; deferred to v1.1.
+
+- **Decision:** A v1.1 no-reply nudge is a **distinct**
+  `message_kind='no_reply_nudge'`, fired **once** per `(visit_id, target_date)`
+  to a delivered-but-unactioned recipient a few hours after the initial send,
+  under its **own** partial-unique key, claimed/committed like any send
+  (ADR-012), and **feature-flagged off** at launch. Because the raw token is
+  **never stored** (only its HMAC digest — ADR-014/§6.3), the nudge **cannot
+  reuse the initial token**; it **mints a fresh CSPRNG token and re-issues** the
+  capability — expiring the prior token (`token_expires_at = now()`, the §5.5-I3
+  token-kill) so the appointment always has exactly **one live link**, while the
+  single-use action CAS (§5.7c) guarantees **one** action across both SMSs. Same
+  pre-send revalidation as the initial; never re-arms the ordinary-reminder
+  idempotency key (ADR-008).
+- **Context:** corrects the v2.7 design's "the nudge reuses the same token",
+  which is **impossible** under HMAC-only storage and would have created a
+  second live token in violation of impl-readiness invariant **I3** (§5.5). The
+  external Patient-Experience review surfaced it. Behavioral basis: a single
+  well-timed nudge to non-responders is a reliable lift lever (Cochrane
+  CD007458; multi-reminder RCTs), and ADR-017's economics say enable it if the
+  measured action rate sits below the **~55–65% healthy band** (§6.2).
+- **Alternatives:** store the raw token to resend — **rejected** (breaks the
+  HMAC-only posture, ADR-014). Keep **both** links live under a new
+  appointment-day-level lock — **rejected for v1.1**: it improves the old-link
+  UX but adds a cross-row lock and weakens the one-live-link invariant; revisit
+  only if dead-old-link complaints become a measured problem.
+- **Consequence:** the nudge adds conversion without a second live capability or
+  any double-send risk; **no new state** beyond the existing `message_kind`
+  value + its partial-unique key; deferred to v1.1.
 
 ### ADR-022 — Visual design = extracted brand, re-implemented inline (no asset import)
-- **Decision:** Honour the Dentino brand by **extracting its design language into tokens** (`docs/design/design-tokens.json`) and **re-implementing it inline** on both surfaces — inline `<svg>` logo, inline `<style>`, Cyrillic-complete **system fonts**, `data:`/base64 only. **Never** import the live site's CSS/fonts/CDN. Brand colours are **contrast-adjusted to meet WCAG-AA** (muted `#8B8D8F`→`#51606F`; rose `#F23A5B` decorative-only); the confirm page stays a **calm single-purpose receipt**. Visual SoT = `docs/design/dentino-design-system.md` (+ `design-tokens.json` + the `mockups/`). **Builds on ADR-014.**
-- **Context:** the confirm page is served from the dedicated app-only origin `r.dentino.com.ua` with **no third-party assets** (§6.3) — any cross-origin CSS/font/image would break the asset rule and re-open the token-leak surface (referrer/history/logs/previews) the origin isolation exists to close. The brand (navy `#0A3576` + sparing rose, Gotham Pro, a tooth mark) was captured live (`getComputedStyle` + WCAG measurement, 2026-06-18); the site's muted grey (3.33:1) and rose (3.80:1) **fail AA for text**, so faithful ≠ literal.
-- **Alternatives:** link the clinic site's stylesheet/webfonts/images — **rejected** (third-party assets + token leak + XSS-origin coupling, ADR-014/§6.3). Ship brand colours unadjusted — **rejected** (sub-AA, §6.5). A webfont for fidelity — **rejected** (asset + low-end-Android cost; the system stack is Cyrillic-complete).
-- **Consequence:** brand recognition (trust-to-tap, §6.2) is preserved **within** the locked constraints; the tokens feed the confirm Edge Fn's inline CSS and the dashboard theme; `mockups/confirm-page.html` becomes the build reference + §6.5 Playwright seed. Touches §5.2/§5.8/§6.3/§6.5/§8/§9.3. *(Update 2026-06-19: the clinic provided the official vector logo in **white and black** — `docs/design/assets/Dentino-logo-{white,black}.{ai,eps,pdf}` — now the build-time source for the inline-SVG wordmark, rendered in the brand colours **black & white** (the logo is always black & white, never recoloured/tinted); the re-traced `logo.svg` becomes the fallback. The official mark is a two-tooth glyph + "DENTINO" + "BY RAK & RAK", monochrome — no rose accent in the logo itself.)*
+
+- **Decision:** Honour the Dentino brand by **extracting its design language
+  into tokens** (`docs/design/design-tokens.json`) and **re-implementing it
+  inline** on both surfaces — inline `<svg>` logo, inline `<style>`,
+  Cyrillic-complete **system fonts**, `data:`/base64 only. **Never** import the
+  live site's CSS/fonts/CDN. Brand colours are **contrast-adjusted to meet
+  WCAG-AA** (muted `#8B8D8F`→`#51606F`; rose `#F23A5B` decorative-only); the
+  confirm page stays a **calm single-purpose receipt**. Visual SoT =
+  `docs/design/dentino-design-system.md` (+ `design-tokens.json` + the
+  `mockups/`). **Builds on ADR-014.**
+- **Context:** the confirm page is served from the dedicated app-only origin
+  `r.dentino.com.ua` with **no third-party assets** (§6.3) — any cross-origin
+  CSS/font/image would break the asset rule and re-open the token-leak surface
+  (referrer/history/logs/previews) the origin isolation exists to close. The
+  brand (navy `#0A3576` + sparing rose, Gotham Pro, a tooth mark) was captured
+  live (`getComputedStyle` + WCAG measurement, 2026-06-18); the site's muted
+  grey (3.33:1) and rose (3.80:1) **fail AA for text**, so faithful ≠ literal.
+- **Alternatives:** link the clinic site's stylesheet/webfonts/images —
+  **rejected** (third-party assets + token leak + XSS-origin coupling,
+  ADR-014/§6.3). Ship brand colours unadjusted — **rejected** (sub-AA, §6.5). A
+  webfont for fidelity — **rejected** (asset + low-end-Android cost; the system
+  stack is Cyrillic-complete).
+- **Consequence:** brand recognition (trust-to-tap, §6.2) is preserved
+  **within** the locked constraints; the tokens feed the confirm Edge Fn's
+  inline CSS and the dashboard theme; `mockups/confirm-page.html` becomes the
+  build reference + §6.5 Playwright seed. Touches §5.2/§5.8/§6.3/§6.5/§8/§9.3.
+  _(Update 2026-06-19: the clinic provided the official vector logo in **white
+  and black** — `docs/design/assets/Dentino-logo-{white,black}.{ai,eps,pdf}` —
+  now the build-time source for the inline-SVG wordmark, rendered in the brand
+  colours **black & white** (the logo is always black & white, never
+  recoloured/tinted); the re-traced `logo.svg` becomes the fallback. The
+  official mark is a two-tooth glyph + "DENTINO" + "BY RAK & RAK", monochrome —
+  no rose accent in the logo itself.)_
 
 ### ADR-023 — Hermetic test harness: no-real-egress is a proven property, not a convention
-- **Decision:** Every dev/test/CI run is **hermetic by construction** — no real SMS is ever sent and no real ClinicCards write ever happens — and this is **enforced fail-closed**, not hoped. Three independent mechanisms compose: **(1) One network chokepoint** — all outbound HTTP (ClinicCards, SMS provider, DLR poll, Sentry, heartbeat) goes through a single injected `httpClient` in `_shared/http.ts`; `clinicCardsClient.ts`/`smsSender.ts` never call the global `fetch` directly. The chokepoint is the *only* seam tests replace, and they replace it with a **cassette player that THROWS on any unrecorded host/method/path** (nock-style "no match → error", never "pass through to network"). **(2) An `APP_ENV` env guard, checked at boot (Zod).** Under `APP_ENV ∈ ('test','dev','ci')` the config loader **hard-errors** if a real `CLINICCARDS_BASE_URL`/provider URL/real key shape is present, and forces `SEND_MODE='off'` (the stub sender — would-send intent recorded, never dispatched) + `CRM_WRITE_MODE='off'`; a `full`/live value under a test runner is a fatal boot error. (The *go-live* ladder that turns these back on for real is ADR-024/§6.6 — this ADR only guarantees the OFF default and that test code cannot flip it.) **(3) A CI egress-deny outer ring.** CI runs the suite with outbound network denied except `127.0.0.1`/the local Supabase ports (a network namespace / `unshare -n` wrapper or a deny-by-default proxy), so even a chokepoint bypass *cannot reach the internet* — it fails with a connection error (a **red test**, not a real-world action).
-- **Context:** the stub-sender convention covers the SMS path only and depends on every future author remembering it. A solo builder (or a coding agent) editing tired at midnight must be *unable* to fat-finger a real cancel into a test run. Fail-closed at three independent layers (chokepoint throws · env guard hard-errors · CI denies egress) means any single slip is caught by the next.
-- **Alternatives:** trust the stub sender — **rejected** (one stray `fetch`/Edge path escapes it). Let the cassette player fall through to the network on a miss (VCR "record" default) — **rejected** (that is exactly how a green suite makes a real call). A full mock framework at internal seams — **rejected** (tests would assert the mocks — §6.5/ADR damage rule); stub **only** at the true external boundary (the one `httpClient`).
-- **Consequence:** "no dev/test/CI run can touch a real patient" becomes a **tested invariant** (the no-egress gate, §6.5 — a deliberate un-stubbed call is asserted to throw), and the single chokepoint makes cassette drift-detection a one-place job (§6.5). The `SEND_MODE`/`CRM_WRITE_MODE`/`APP_ENV` flags are the **same chokepoint** the go-live ladder climbs (ADR-024/§6.6): this ADR guarantees writes/sends are OFF and unreachable in dev/test/CI; ADR-024 governs the human-authorized, reversible path that turns them on for real, rung by rung (the shadow-mode rung is the shared seam). Builds on ADR-014/016/019. Touches §5.2, §5.7, §6.5, §8, §9.2.
+
+- **Decision:** Every dev/test/CI run is **hermetic by construction** — no real
+  SMS is ever sent and no real ClinicCards write ever happens — and this is
+  **enforced fail-closed**, not hoped. Three independent mechanisms compose:
+  **(1) One network chokepoint** — all outbound HTTP (ClinicCards, SMS provider,
+  DLR poll, Sentry, heartbeat) goes through a single injected `httpClient` in
+  `_shared/http.ts`; `clinicCardsClient.ts`/`smsSender.ts` never call the global
+  `fetch` directly. The chokepoint is the _only_ seam tests replace, and they
+  replace it with a **cassette player that THROWS on any unrecorded
+  host/method/path** (nock-style "no match → error", never "pass through to
+  network"). **(2) An `APP_ENV` env guard, checked at boot (Zod).** Under
+  `APP_ENV ∈ ('test','dev','ci')` the config loader **hard-errors** if a real
+  `CLINICCARDS_BASE_URL`/provider URL/real key shape is present, and forces
+  `SEND_MODE='off'` (the stub sender — would-send intent recorded, never
+  dispatched) + `CRM_WRITE_MODE='off'`; a `full`/live value under a test runner
+  is a fatal boot error. (The _go-live_ ladder that turns these back on for real
+  is ADR-024/§6.6 — this ADR only guarantees the OFF default and that test code
+  cannot flip it.) **(3) A CI egress-deny outer ring.** CI runs the suite with
+  outbound network denied except `127.0.0.1`/the local Supabase ports (a network
+  namespace / `unshare -n` wrapper or a deny-by-default proxy), so even a
+  chokepoint bypass _cannot reach the internet_ — it fails with a connection
+  error (a **red test**, not a real-world action).
+- **Context:** the stub-sender convention covers the SMS path only and depends
+  on every future author remembering it. A solo builder (or a coding agent)
+  editing tired at midnight must be _unable_ to fat-finger a real cancel into a
+  test run. Fail-closed at three independent layers (chokepoint throws · env
+  guard hard-errors · CI denies egress) means any single slip is caught by the
+  next.
+- **Alternatives:** trust the stub sender — **rejected** (one stray `fetch`/Edge
+  path escapes it). Let the cassette player fall through to the network on a
+  miss (VCR "record" default) — **rejected** (that is exactly how a green suite
+  makes a real call). A full mock framework at internal seams — **rejected**
+  (tests would assert the mocks — §6.5/ADR damage rule); stub **only** at the
+  true external boundary (the one `httpClient`).
+- **Consequence:** "no dev/test/CI run can touch a real patient" becomes a
+  **tested invariant** (the no-egress gate, §6.5 — a deliberate un-stubbed call
+  is asserted to throw), and the single chokepoint makes cassette
+  drift-detection a one-place job (§6.5). The
+  `SEND_MODE`/`CRM_WRITE_MODE`/`APP_ENV` flags are the **same chokepoint** the
+  go-live ladder climbs (ADR-024/§6.6): this ADR guarantees writes/sends are OFF
+  and unreachable in dev/test/CI; ADR-024 governs the human-authorized,
+  reversible path that turns them on for real, rung by rung (the shadow-mode
+  rung is the shared seam). Builds on ADR-014/016/019. Touches §5.2, §5.7, §6.5,
+  §8, §9.2.
 
 ### ADR-024 — Live-clinic safety & staged go-live: read-only-until-go-live, off-by-default writes/sends, the mode ladder, the allowlist guard, credential separation
-- **Decision:** Dentino Lviv is a **live clinic with real patients booked months ahead**, so the build/test/rollout lifecycle is governed by lifecycle-safety guards *layered on top of* the runtime guards. **(1) Read-only-until-go-live:** two fail-closed mode flags — `SEND_MODE` (default `off`, checked in `smsSender`) and `CRM_WRITE_MODE` (default `off`, checked in the guarded write-back) — so the live ClinicCards key validates **reads** from day one while **no write and no send is reachable** until a deliberate, reversible human flip. **(2) A staged go-live ladder** `shadow → seed → canary → full` (§6.6), each rung with defined side-effects, an entry gate, and a one-flip rollback, driven by the two flags + the §4.4/ADR-017 pause switch, with the current mode shown on the trust-panel banner (§5.2). **(3) A fail-closed allowlist guard in code** at the same two chokepoints: a non-`full` mode refuses any send to a non-allowlisted number and any write to a non-allowlisted visit; an empty allowlist refuses **all** (fail-closed); only `full` lifts it. The allowlist holds only staff numbers + owner-created test visit-ids — **no patient PII** (ADR-016). **(4) Credential lifecycle / environment separation:** real keys live only in the deployed prod Vault; an `APP_ENV` boot guard hard-fails a `full`/live mode or a real base URL under `test`/`dev`; CI/tests use the stub sender + local Supabase + cassettes and never the real keys (ADR-023); the public confirm fn never receives `service_role` (ADR-019).
-- **Context:** every prior ADR protects the clinic from the system *misbehaving while correctly deployed*; none protects it from the *act of building/testing/rolling out*. Owner tasks A2/A3 (early live ClinicCards key "to validate against the live API") and C2 (SMS key at go-live) are the moments the live clinic becomes reachable by half-built code edited by a solo builder (and possibly many agents). The single clinic-wide ClinicCards key cannot be scoped read-only by the vendor in the general case (`GET` and `PUT` ride the same bearer), so read/write separation must be enforced **in our code**, fail-closed, at the one chokepoint each side effect passes through. The two catastrophic, irreversible, patient-visible failures (a wrongful Cancel/Confirm write; a real SMS before we intend one) must be made **physically impossible** before a human deliberately enables them, not merely unlikely.
-- **Alternatives:** rely on a vendor read-only key / sandbox tenant — **rejected as the primary mechanism** (unconfirmed; raised as §10 questions + used only as defense-in-depth if available). Discipline/convention ("we'll be careful not to point test code at prod") — **rejected** (the accident is exactly a slip of discipline; the guard must be code + fail-closed). Heavy multi-environment infra (blue/green, parallel prod) — **rejected** (disproportionate at ~20/day, solo; modes + flags + allowlists + one prod project suffice).
-- **Consequence:** the live read key delivers its A2/A3 value on day one; no dev/test/CI run can send a real SMS or write the real CRM; the first real-patient interaction is **deliberate, tiny, observed, and reversible** (canary, 1–3 appointments, staff watching); the dangerous states are off-by-default + fail-closed; advancing the ladder is a human-authorized, logged, reversible act. New config (§9.2): `APP_ENV`, `SEND_MODE`, `CRM_WRITE_MODE`, `SEND_ALLOWLIST`, `CRM_WRITE_ALLOWLIST`. New § (§6.6); new owner tasks (designated test patients, read-only-key question, ladder sign-offs — your-tasks A7/D1a/D1b). New `AGENTS.md` constitutional rule (RULE 3, alongside RULE 1/RULE 2). **Does not weaken any runtime guard and does not touch the 12:30 heartbeat or the manual backstop** — at `full` the existing guards govern. Builds on / composes with ADR-003/014/016/017/019/023; mirrored verbatim-in-intent by the `AGENTS.md` RULE 3. Touches §4.4, §5.2, §5.6, §6.5, §9.2, §10, §11.
+
+- **Decision:** Dentino Lviv is a **live clinic with real patients booked months
+  ahead**, so the build/test/rollout lifecycle is governed by lifecycle-safety
+  guards _layered on top of_ the runtime guards. **(1)
+  Read-only-until-go-live:** two fail-closed mode flags — `SEND_MODE` (default
+  `off`, checked in `smsSender`) and `CRM_WRITE_MODE` (default `off`, checked in
+  the guarded write-back) — so the live ClinicCards key validates **reads** from
+  day one while **no write and no send is reachable** until a deliberate,
+  reversible human flip. **(2) A staged go-live ladder**
+  `shadow → seed → canary → full` (§6.6), each rung with defined side-effects,
+  an entry gate, and a one-flip rollback, driven by the two flags + the
+  §4.4/ADR-017 pause switch, with the current mode shown on the trust-panel
+  banner (§5.2). **(3) A fail-closed allowlist guard in code** at the same two
+  chokepoints: a non-`full` mode refuses any send to a non-allowlisted number
+  and any write to a non-allowlisted visit; an empty allowlist refuses **all**
+  (fail-closed); only `full` lifts it. The allowlist holds only staff numbers +
+  owner-created test visit-ids — **no patient PII** (ADR-016). **(4) Credential
+  lifecycle / environment separation:** real keys live only in the deployed prod
+  Vault; an `APP_ENV` boot guard hard-fails a `full`/live mode or a real base
+  URL under `test`/`dev`; CI/tests use the stub sender + local Supabase +
+  cassettes and never the real keys (ADR-023); the public confirm fn never
+  receives `service_role` (ADR-019).
+- **Context:** every prior ADR protects the clinic from the system _misbehaving
+  while correctly deployed_; none protects it from the _act of
+  building/testing/rolling out_. Owner tasks A2/A3 (early live ClinicCards key
+  "to validate against the live API") and C2 (SMS key at go-live) are the
+  moments the live clinic becomes reachable by half-built code edited by a solo
+  builder (and possibly many agents). The single clinic-wide ClinicCards key
+  cannot be scoped read-only by the vendor in the general case (`GET` and `PUT`
+  ride the same bearer), so read/write separation must be enforced **in our
+  code**, fail-closed, at the one chokepoint each side effect passes through.
+  The two catastrophic, irreversible, patient-visible failures (a wrongful
+  Cancel/Confirm write; a real SMS before we intend one) must be made
+  **physically impossible** before a human deliberately enables them, not merely
+  unlikely.
+- **Alternatives:** rely on a vendor read-only key / sandbox tenant — **rejected
+  as the primary mechanism** (unconfirmed; raised as §10 questions + used only
+  as defense-in-depth if available). Discipline/convention ("we'll be careful
+  not to point test code at prod") — **rejected** (the accident is exactly a
+  slip of discipline; the guard must be code + fail-closed). Heavy
+  multi-environment infra (blue/green, parallel prod) — **rejected**
+  (disproportionate at ~20/day, solo; modes + flags + allowlists + one prod
+  project suffice).
+- **Consequence:** the live read key delivers its A2/A3 value on day one; no
+  dev/test/CI run can send a real SMS or write the real CRM; the first
+  real-patient interaction is **deliberate, tiny, observed, and reversible**
+  (canary, 1–3 appointments, staff watching); the dangerous states are
+  off-by-default + fail-closed; advancing the ladder is a human-authorized,
+  logged, reversible act. New config (§9.2): `APP_ENV`, `SEND_MODE`,
+  `CRM_WRITE_MODE`, `SEND_ALLOWLIST`, `CRM_WRITE_ALLOWLIST`. New § (§6.6); new
+  owner tasks (designated test patients, read-only-key question, ladder
+  sign-offs — your-tasks A7/D1a/D1b). New `AGENTS.md` constitutional rule (RULE
+  3, alongside RULE 1/RULE 2). **Does not weaken any runtime guard and does not
+  touch the 12:30 heartbeat or the manual backstop** — at `full` the existing
+  guards govern. Builds on / composes with ADR-003/014/016/017/019/023; mirrored
+  verbatim-in-intent by the `AGENTS.md` RULE 3. Touches §4.4, §5.2, §5.6, §6.5,
+  §9.2, §10, §11.
 
 ---
 
@@ -1517,211 +4450,1376 @@ automatedmessanger/
 ```
 
 ### 8.1 Files to Read (pattern inspiration, in `testproject1`)
-`migrations/0001_*.sql`, `packages/contracts-schema/src/index.ts`, `tests/fixtures/cassettes/*.json`, `apps/desktop/src/hooks/use-daemon.ts`.
+
+`migrations/0001_*.sql`, `packages/contracts-schema/src/index.ts`,
+`tests/fixtures/cassettes/*.json`, `apps/desktop/src/hooks/use-daemon.ts`.
 
 ### 8.2 Files to Modify
+
 None — greenfield project; nothing exists to modify yet.
 
 ### 8.3 New Files to Create
+
 All of the above (greenfield). Start order in §11.
 
 ### 8.4 Test Files Required
-`tests/unit/{templates,phone,tokens,actions,status-map}.test.ts`; `tests/integration/{run-reminders,confirm-page,write-back}.test.ts`; cassettes for ClinicCards + the SMS provider.
+
+`tests/unit/{templates,phone,tokens,actions,status-map}.test.ts`;
+`tests/integration/{run-reminders,confirm-page,write-back}.test.ts`; cassettes
+for ClinicCards + the SMS provider.
 
 ---
 
 ## 9. Dependencies & Prerequisites
 
 ### 9.1 New Dependencies (indicative)
+
 - **Runtime/framework:** TypeScript, Hono, Zod.
-- **Platform:** Supabase **Pro** (project + CLI), `pg_cron` (noon run + **daily privacy purge** (ADR-016) + the **stale-send reaper backstop** `maintenance.reap_stale_sends()` (ADR-018)) + `pg_net` (backup trigger / calling functions), `pgcrypto` (HMAC token/phone digests + `gen_random_uuid()` for lease/claim tokens, ADR-014/016); **(recommended) external scheduler** — Cloudflare Workers Cron (free) — as the primary trigger.
-- **Schemas + DB roles (least privilege, §6.3, ADR-019):** schemas `app` (base tables) / `api` (RPCs + `v_*` views) / `private` (HMAC helpers) / `maintenance` (purge + reaper). Roles: **`dentino_confirm_api`** (public confirm fn — `EXECUTE` on the 4 `api` RPCs, no table grants), **`dentino_confirm_definer`** (non-login non-superuser `SECURITY DEFINER` owner of the `api` RPCs + the Vault-pepper read, column-scoped grants only), **`dentino_run_api`** (elevated `run-reminders`; `service_role` acceptable for v1 as it is **not** internet-public), **`dentino_maintenance_definer`** (owner of `maintenance.purge_privacy()` + `maintenance.reap_stale_sends()`) + **`dentino_maintenance_runner`** (the `pg_cron` job login, `EXECUTE`-only), optional `dentino_sms_webhook_api` (ADR-016/018/019). `service_role` = CI/admin break-glass only. Created in `0002_rls_policies.sql`. (`pgsodium`/Vault AEAD only if an encrypted-payload need ever returns — ADR-016; Supabase no longer recommends new pgsodium usage, so prefer Vault — not in v1.)
-- **Test/CI:** `pgtap` for the SQL/RLS data-layer regression gate (§6.5) — asserts the grant matrix, definer hygiene, and single-winner concurrency on local Supabase.
-- **Messaging (v1):** a UA SMS provider's REST/JSON API — **TurboSMS** (primary) / **AlphaSMS** (fallback). App-channel SDKs (Telegram / WhatsApp / CPaaS) are added only in the deferred phase (§4.3).
+- **Platform:** Supabase **Pro** (project + CLI), `pg_cron` (noon run + **daily
+  privacy purge** (ADR-016) + the **stale-send reaper backstop**
+  `maintenance.reap_stale_sends()` (ADR-018)) + `pg_net` (backup trigger /
+  calling functions), `pgcrypto` (HMAC token/phone digests + `gen_random_uuid()`
+  for lease/claim tokens, ADR-014/016); **(recommended) external scheduler** —
+  Cloudflare Workers Cron (free) — as the primary trigger.
+- **Schemas + DB roles (least privilege, §6.3, ADR-019):** schemas `app` (base
+  tables) / `api` (RPCs + `v_*` views) / `private` (HMAC helpers) /
+  `maintenance` (purge + reaper). Roles: **`dentino_confirm_api`** (public
+  confirm fn — `EXECUTE` on the 4 `api` RPCs, no table grants),
+  **`dentino_confirm_definer`** (non-login non-superuser `SECURITY DEFINER`
+  owner of the `api` RPCs + the Vault-pepper read, column-scoped grants only),
+  **`dentino_run_api`** (elevated `run-reminders`; `service_role` acceptable for
+  v1 as it is **not** internet-public), **`dentino_maintenance_definer`** (owner
+  of `maintenance.purge_privacy()` + `maintenance.reap_stale_sends()`) +
+  **`dentino_maintenance_runner`** (the `pg_cron` job login, `EXECUTE`-only),
+  optional `dentino_sms_webhook_api` (ADR-016/018/019). `service_role` =
+  CI/admin break-glass only. Created in `0002_rls_policies.sql`.
+  (`pgsodium`/Vault AEAD only if an encrypted-payload need ever returns —
+  ADR-016; Supabase no longer recommends new pgsodium usage, so prefer Vault —
+  not in v1.)
+- **Test/CI:** `pgtap` for the SQL/RLS data-layer regression gate (§6.5) —
+  asserts the grant matrix, definer hygiene, and single-winner concurrency on
+  local Supabase.
+- **Messaging (v1):** a UA SMS provider's REST/JSON API — **TurboSMS** (primary)
+  / **AlphaSMS** (fallback). App-channel SDKs (Telegram / WhatsApp / CPaaS) are
+  added only in the deferred phase (§4.3).
 - **Dashboard:** Next.js + React (if separate) or a single Hono-served page.
-- **Ops:** Sentry SDK (errors); **external cron-monitor — Healthchecks.io or Cronitor (dead-man's-switch, free tier)**; ngrok/cloudflared (dev only).
+- **Ops:** Sentry SDK (errors); **external cron-monitor — Healthchecks.io or
+  Cronitor (dead-man's-switch, free tier)**; ngrok/cloudflared (dev only).
 
 ### 9.2 Configuration Changes (secrets)
-`CLINICCARDS_TOKEN`, `CLINICCARDS_BASE_URL`, `SMS_PROVIDER_API_KEY`, **`SMS_DLR_WEBHOOK_SECRET`** (TurboSMS webhook signature), **`SMS_PROVIDER`** (`turbosms`|`alphasms` route selector) + **`SMS_PROVIDER_BASE_URL`** (e.g. `api.turbosms.ua` — the §6.6 `APP_ENV` boot guard checks for a real provider URL), `SMS_SENDER_ID` ("Dentino"), `APP_BASE_URL` (`https://r.dentino.com.ua` — dedicated app-only origin, §6.3/ADR-014), `CLINIC_PHONE` (+380679876111), `SUPABASE_SERVICE_ROLE_KEY`, `TOKEN_PEPPER` (HMAC key for capability-token digests), `PHONE_PEPPER` (HMAC key for phone digests), `SENTRY_DSN`, `CLINIC_NAME`, **`HEALTHCHECKS_START_URL` / `HEALTHCHECKS_SUCCESS_URL` / `HEALTHCHECKS_FAIL_URL`** (or Cronitor equivalents), **`ALERT_PRIMARY_CONTACTS` / `ALERT_ESCALATION_CONTACTS`**, **`RUNBOOK_URL`**, and **`SMS_IDEMPOTENCY_MODE`** (`none` | `client_reference_only` | `strict_dedupe`; **`strict_dedupe` plausible via TurboSMS `sequence_id`** — ≤40-char key, 30-day same-key dedup, code 507 — pending the written provider guarantee that a repeated key cannot send a second SMS + the seed test; `none` stays the fallback baseline; only `strict_dedupe` permits an automatic same-key send-replay; §10/§5.6); **`APP_ENV`** (`dev`|`test`|`prod`, §6.6/ADR-024 — gates whether a live mode is even reachable; also `ci` for the §6.5 hermetic harness — ADR-023); **`SEND_MODE`** (`off`|`seed`|`canary`|`full`, default **off**, fail-closed; checked in `smsSender`); **`CRM_WRITE_MODE`** (`off`|`allowlist`|`full`, default **off**, fail-closed; checked in the guarded write-back); **`SEND_ALLOWLIST`** (staff E.164 numbers, comma-separated — no patient PII); **`CRM_WRITE_ALLOWLIST`** (owner-created test visit-ids). All five are Zod-validated at boot; the effective mode + allowlist sizes are logged each run and carried in the counts-only heartbeat (§6.6, ADR-024). All in Vault/env.
 
-**Per-Edge-Function DB-role credentials (ADR-019, §6.3).** Each Edge Function connects under its own least-privilege role — the confirm fn as `dentino_confirm_api`, `run-reminders` as `dentino_run_api`, the `pg_cron` purge/reaper as `dentino_maintenance_runner` — via **either** role-scoped connection strings (`CONFIRM_DB_URL` / `RUN_DB_URL` / `MAINTENANCE_DB_URL`, each its own Vault secret) **or** a role-claim JWT signed with the existing `SUPABASE_JWT_SECRET` so PostgREST `SET ROLE`s it (build-time choice, §10). The **public confirm fn never receives `SUPABASE_SERVICE_ROLE_KEY`.** Pepper secrets are version-named in Vault (`TOKEN_PEPPER_V1` / `PHONE_PEPPER_V1`). **No** raw-payload encryption-key env (`raw_encrypted` dropped — ADR-016) and **no** pepper-version var (versioned peppers declined; rotation = accept-break-and-reissue — §6.3).
+`CLINICCARDS_TOKEN`, `CLINICCARDS_BASE_URL`, `SMS_PROVIDER_API_KEY`,
+**`SMS_DLR_WEBHOOK_SECRET`** (TurboSMS webhook signature), **`SMS_PROVIDER`**
+(`turbosms`|`alphasms` route selector) + **`SMS_PROVIDER_BASE_URL`** (e.g.
+`api.turbosms.ua` — the §6.6 `APP_ENV` boot guard checks for a real provider
+URL), `SMS_SENDER_ID` ("Dentino"), `APP_BASE_URL` (`https://r.dentino.com.ua` —
+dedicated app-only origin, §6.3/ADR-014), `CLINIC_PHONE` (+380679876111),
+`SUPABASE_SERVICE_ROLE_KEY`, `TOKEN_PEPPER` (HMAC key for capability-token
+digests), `PHONE_PEPPER` (HMAC key for phone digests), `SENTRY_DSN`,
+`CLINIC_NAME`, **`HEALTHCHECKS_START_URL` / `HEALTHCHECKS_SUCCESS_URL` /
+`HEALTHCHECKS_FAIL_URL`** (or Cronitor equivalents), **`ALERT_PRIMARY_CONTACTS`
+/ `ALERT_ESCALATION_CONTACTS`**, **`RUNBOOK_URL`**, and
+**`SMS_IDEMPOTENCY_MODE`** (`none` | `client_reference_only` | `strict_dedupe`;
+**`strict_dedupe` plausible via TurboSMS `sequence_id`** — ≤40-char key, 30-day
+same-key dedup, code 507 — pending the written provider guarantee that a
+repeated key cannot send a second SMS + the seed test; `none` stays the fallback
+baseline; only `strict_dedupe` permits an automatic same-key send-replay;
+§10/§5.6); **`APP_ENV`** (`dev`|`test`|`prod`, §6.6/ADR-024 — gates whether a
+live mode is even reachable; also `ci` for the §6.5 hermetic harness — ADR-023);
+**`SEND_MODE`** (`off`|`seed`|`canary`|`full`, default **off**, fail-closed;
+checked in `smsSender`); **`CRM_WRITE_MODE`** (`off`|`allowlist`|`full`, default
+**off**, fail-closed; checked in the guarded write-back); **`SEND_ALLOWLIST`**
+(staff E.164 numbers, comma-separated — no patient PII);
+**`CRM_WRITE_ALLOWLIST`** (owner-created test visit-ids). All five are
+Zod-validated at boot; the effective mode + allowlist sizes are logged each run
+and carried in the counts-only heartbeat (§6.6, ADR-024). All in Vault/env.
+
+**Per-Edge-Function DB-role credentials (ADR-019, §6.3).** Each Edge Function
+connects under its own least-privilege role — the confirm fn as
+`dentino_confirm_api`, `run-reminders` as `dentino_run_api`, the `pg_cron`
+purge/reaper as `dentino_maintenance_runner` — via **either** role-scoped
+connection strings (`CONFIRM_DB_URL` / `RUN_DB_URL` / `MAINTENANCE_DB_URL`, each
+its own Vault secret) **or** a role-claim JWT signed with the existing
+`SUPABASE_JWT_SECRET` so PostgREST `SET ROLE`s it (build-time choice, §10). The
+**public confirm fn never receives `SUPABASE_SERVICE_ROLE_KEY`.** Pepper secrets
+are version-named in Vault (`TOKEN_PEPPER_V1` / `PHONE_PEPPER_V1`). **No**
+raw-payload encryption-key env (`raw_encrypted` dropped — ADR-016) and **no**
+pepper-version var (versioned peppers declined; rotation =
+accept-break-and-reissue — §6.3).
 
 ### 9.3 Migration Requirements
-Apply `0001_core_schema.sql` (tables incl. `crm_visit_facts`; the runtime indexes; the `one_action_requires_lock` CHECK + the `reminder_messages_action_lock_guard` single-use trigger — §5.3) + `0002_rls_policies.sql`. **`0002` is the security migration (ADR-019):** create the `app`/`api`/`private`/`maintenance` schemas and the dedicated roles (`dentino_confirm_api`/`dentino_confirm_definer`, `dentino_run_api`, `dentino_maintenance_runner`/`dentino_maintenance_definer` — §9.1); **default-deny** (`revoke all … from anon, authenticated` + `alter default privileges …`, `alter default privileges revoke execute on functions from public`); `enable`+`force row level security` on **every** `app` table; the per-role grants + RLS policies of the **§6.3.2 matrix**; the `api.v_board`/`api.v_needs_attention` `security_invoker` views (no token/nonce/claim digests); the **four** `SECURITY DEFINER` `api` RPCs (`search_path=''`, owner `dentino_confirm_definer`, `EXECUTE` to `dentino_confirm_api` only — §6.3.1, incl. `finish_reminder_action`); the public role's fail-closed `statement_timeout`/`lock_timeout`/`idle_in_transaction_session_timeout`; the audited staff admin RPCs (`update_message_template`, `resolve_held_cancels`, `reenable_sms_reminders`); and `maintenance.purge_privacy()` + `maintenance.reap_stale_sends()` (ADR-018: reaps an orphaned `sending` claim to `send_unknown` even if no Edge firing runs again — predicate `status='sending' and send_claim_expires_at < now()`) + their `pg_cron` jobs scheduled under `dentino_maintenance_runner` (`cron.schedule_in_database`, §6.3.3, ADR-014/016/018/019). **Config-table management (Tension 2):** `cliniccards_status_policy` is **migration-managed** — a C3 vendor answer ships as a tracked data migration (`0003_status_policy_*.sql`: a few-second `UPDATE`, no code change, instantly revertible), **never** a dashboard SQL-editor edit (ADR-003/011); `message_templates` is **admin-RPC-managed** (the staff template editor → `update_message_template`, audited). After any migration, regenerate `database.types.ts` (`supabase gen types`) and assert no drift. Seed `message_templates` with the **Ukrainian** default body `{{name}}, ваш візит: завтра {{date}} о {{time}}.\nПідтвердити/змінити: {{confirm_url}}. Тел: {{clinic_phone}}` (**130 chars = 2 segments** — `\n` is a real line break; the clinic phone rides in the default and renders **without spaces**, §4.2/v2.26.3) **plus** a name-overflow fallback `Ваш візит: завтра {{date}} о {{time}}.\nПідтвердити/змінити: {{confirm_url}}. Тел: {{clinic_phone}}` (**≈123 chars**, used only when a long `{{name}}` would overflow the **2-segment / ≤134-char** budget; the Cancel page also shows `{{clinic_phone}}`); set clinic settings via env/Vault (`CLINIC_NAME`, reminder hour). For the existing base, set `patients.sms_reminders_enabled` from clinic knowledge **and** write one `consent_events` row per patient (`source='legacy_import'`, batch/version/proof_ref) — ADR-015. **No full phone numbers backfilled** (HMAC + last-4 only, ADR-016); no `preferred_channel` in v1.
 
-**Patient-facing page & priming copy seeds (Patient-Experience review, §5.2/§5.8/§6.2; owner sign-off = task B1).** These are web-page strings (no SMS segment budget) and a staff script — drafts for owner approval, editable in `message_templates` where templated. The page **chrome** wrapping this copy — palette, type, logo, layout, the seven hard constraints — is the §5.8 brand system / `docs/design/` (ADR-022); see `docs/design/mockups/confirm-page.html` for the copy rendered in situ:
-- **Page "why you got this" line:** *«Ви отримали це повідомлення, бо у вас запланований запис у клініці Dentino, Львів.»*
-- **Anti-scam reassurance line (NBU-grounded; a high trust-to-tap lever — Patient-Experience external review):** *«Ми не просимо оплату, банківські дані, паролі або SMS-коди.»* — the page reads like a calm bank-confirmation receipt, not a marketing page.
-- **Confirm button:** *«Підтвердити запис»* · **Cancel button:** *«Скасувати запис»* (label + position distinguish them, not colour alone).
-- **Post-confirm closure page:** *«Дякуємо, {{name}}! Ваш запис підтверджено. Чекаємо вас завтра о {{time}} у Dentino.»*
-- **Cancel interstitial (reschedule-first; the second button is the locked nonce-backed POST — ADR-014):**
-  - heading *«Скасувати запис?»* · fact *«Ваш запис у Dentino: {{date}}, о {{time}}.»*
-  - **foregrounded reschedule block:** *«Потрібен інший час? Краще перенести, ніж скасувати — зателефонуйте нам:»* + one-tap call button *«☎ {{clinic_phone}}»* (`tel:` link)
-  - secondary destructive confirm: *«Скасувати запис без перенесення»* (the second nonce-backed `POST` — labelled so it reads as clearly distinct from rescheduling)
-  - safe back-out: *«← Ні, залишити запис»*
-- **Post-cancel mistake-recovery line (after a confirmed cancel):** *«Скасували помилково? Зателефонуйте — адміністратор допоможе: ☎ {{clinic_phone}}»* (`tel:` link, alongside the reschedule CTA).
-- **Post-cancel page (still offers reschedule):** *«Запис скасовано. Дякуємо, що повідомили нас. Хочете обрати інший час? Зателефонуйте: ☎ {{clinic_phone}}»* (`tel:` link).
-- **Footer opt-out (nonce-backed `POST`, §5.6):** *«Відписатися від нагадувань»* — followed by *«Щоб відновити нагадування, зверніться до реєстратури»* (re-subscribe is staff-only, ADR-015).
-- **Reception priming script (first-class engagement lever — D3, §6.2; say at booking):** *«Напередодні візиту ви отримаєте SMS від Dentino з посиланням r.dentino.com.ua — там можна підтвердити або скасувати запис. Якщо зручніше — просто зателефонуйте нам.»* Priming makes the link *expected*, which is the single biggest lever against smishing-suspicion drop-off.
+Apply `0001_core_schema.sql` (tables incl. `crm_visit_facts`; the runtime
+indexes; the `one_action_requires_lock` CHECK + the
+`reminder_messages_action_lock_guard` single-use trigger — §5.3) +
+`0002_rls_policies.sql`. **`0002` is the security migration (ADR-019):** create
+the `app`/`api`/`private`/`maintenance` schemas and the dedicated roles
+(`dentino_confirm_api`/`dentino_confirm_definer`, `dentino_run_api`,
+`dentino_maintenance_runner`/`dentino_maintenance_definer` — §9.1);
+**default-deny** (`revoke all … from anon, authenticated` +
+`alter default privileges …`,
+`alter default privileges revoke execute on functions from public`);
+`enable`+`force row level security` on **every** `app` table; the per-role
+grants + RLS policies of the **§6.3.2 matrix**; the
+`api.v_board`/`api.v_needs_attention` `security_invoker` views (no
+token/nonce/claim digests); the **four** `SECURITY DEFINER` `api` RPCs
+(`search_path=''`, owner `dentino_confirm_definer`, `EXECUTE` to
+`dentino_confirm_api` only — §6.3.1, incl. `finish_reminder_action`); the public
+role's fail-closed
+`statement_timeout`/`lock_timeout`/`idle_in_transaction_session_timeout`; the
+audited staff admin RPCs (`update_message_template`, `resolve_held_cancels`,
+`reenable_sms_reminders`); and `maintenance.purge_privacy()` +
+`maintenance.reap_stale_sends()` (ADR-018: reaps an orphaned `sending` claim to
+`send_unknown` even if no Edge firing runs again — predicate
+`status='sending' and send_claim_expires_at < now()`) + their `pg_cron` jobs
+scheduled under `dentino_maintenance_runner` (`cron.schedule_in_database`,
+§6.3.3, ADR-014/016/018/019). **Config-table management (Tension 2):**
+`cliniccards_status_policy` is **migration-managed** — a C3 vendor answer ships
+as a tracked data migration (`0003_status_policy_*.sql`: a few-second `UPDATE`,
+no code change, instantly revertible), **never** a dashboard SQL-editor edit
+(ADR-003/011); `message_templates` is **admin-RPC-managed** (the staff template
+editor → `update_message_template`, audited). After any migration, regenerate
+`database.types.ts` (`supabase gen types`) and assert no drift. Seed
+`message_templates` with the **Ukrainian** default body
+`{{name}}, ваш візит: завтра {{date}} о {{time}}.\nПідтвердити/змінити: {{confirm_url}}. Тел: {{clinic_phone}}`
+(**130 chars = 2 segments** — `\n` is a real line break; the clinic phone rides
+in the default and renders **without spaces**, §4.2/v2.26.3) **plus** a
+name-overflow fallback
+`Ваш візит: завтра {{date}} о {{time}}.\nПідтвердити/змінити: {{confirm_url}}. Тел: {{clinic_phone}}`
+(**≈123 chars**, used only when a long `{{name}}` would overflow the **2-segment
+/ ≤134-char** budget; the Cancel page also shows `{{clinic_phone}}`); set clinic
+settings via env/Vault (`CLINIC_NAME`, reminder hour). For the existing base,
+set `patients.sms_reminders_enabled` from clinic knowledge **and** write one
+`consent_events` row per patient (`source='legacy_import'`,
+batch/version/proof_ref) — ADR-015. **No full phone numbers backfilled** (HMAC +
+last-4 only, ADR-016); no `preferred_channel` in v1.
+
+**Patient-facing page & priming copy seeds (Patient-Experience review,
+§5.2/§5.8/§6.2; owner sign-off = task B1).** These are web-page strings (no SMS
+segment budget) and a staff script — drafts for owner approval, editable in
+`message_templates` where templated. The page **chrome** wrapping this copy —
+palette, type, logo, layout, the seven hard constraints — is the §5.8 brand
+system / `docs/design/` (ADR-022); see `docs/design/mockups/confirm-page.html`
+for the copy rendered in situ:
+
+- **Page "why you got this" line:** _«Ви отримали це повідомлення, бо у вас
+  запланований запис у клініці Dentino, Львів.»_
+- **Anti-scam reassurance line (NBU-grounded; a high trust-to-tap lever —
+  Patient-Experience external review):** _«Ми не просимо оплату, банківські
+  дані, паролі або SMS-коди.»_ — the page reads like a calm bank-confirmation
+  receipt, not a marketing page.
+- **Confirm button:** _«Підтвердити запис»_ · **Cancel button:** _«Скасувати
+  запис»_ (label + position distinguish them, not colour alone).
+- **Post-confirm closure page:** _«Дякуємо, {{name}}! Ваш запис підтверджено.
+  Чекаємо вас завтра о {{time}} у Dentino.»_
+- **Cancel interstitial (reschedule-first; the second button is the locked
+  nonce-backed POST — ADR-014):**
+  - heading _«Скасувати запис?»_ · fact _«Ваш запис у Dentino: {{date}}, о
+    {{time}}.»_
+  - **foregrounded reschedule block:** _«Потрібен інший час? Краще перенести,
+    ніж скасувати — зателефонуйте нам:»_ + one-tap call button _«☎
+    {{clinic_phone}}»_ (`tel:` link)
+  - secondary destructive confirm: _«Скасувати запис без перенесення»_ (the
+    second nonce-backed `POST` — labelled so it reads as clearly distinct from
+    rescheduling)
+  - safe back-out: _«← Ні, залишити запис»_
+- **Post-cancel mistake-recovery line (after a confirmed cancel):** _«Скасували
+  помилково? Зателефонуйте — адміністратор допоможе: ☎ {{clinic_phone}}»_
+  (`tel:` link, alongside the reschedule CTA).
+- **Post-cancel page (still offers reschedule):** _«Запис скасовано. Дякуємо, що
+  повідомили нас. Хочете обрати інший час? Зателефонуйте: ☎ {{clinic_phone}}»_
+  (`tel:` link).
+- **Footer opt-out (nonce-backed `POST`, §5.6):** _«Відписатися від нагадувань»_
+  — followed by _«Щоб відновити нагадування, зверніться до реєстратури»_
+  (re-subscribe is staff-only, ADR-015).
+- **Reception priming script (first-class engagement lever — D3, §6.2; say at
+  booking):** _«Напередодні візиту ви отримаєте SMS від Dentino з посиланням
+  r.dentino.com.ua — там можна підтвердити або скасувати запис. Якщо зручніше —
+  просто зателефонуйте нам.»_ Priming makes the link _expected_, which is the
+  single biggest lever against smishing-suspicion drop-off.
 
 ### 9.4 External Accounts / Lead-Time Prerequisites (start early)
+
 1. **ClinicCards API key** (owner-generated) — top tier confirmed, no gating.
-2. **TurboSMS account** (self-service web signup — no sales call) + **registered alpha sender ID `Dentino`** submitted free into the operators' national-names register (~10 business days; needs the clinic's ЄДРПОУ/ІПН — Vodafone guarantee letter only for ФОП) — the main external lead time.
-3. **DNS:** point the dedicated app-only subdomain `r.dentino.com.ua` at the engine (for the `/r/<token>` confirm link).
-4. **Supabase** project (EU region) **on Pro for production**; **Vercel** project (if separate dashboard); **Sentry** project.
-5. **External dead-man's-switch** — Healthchecks.io or Cronitor account (free tier; ~minutes to set up — one daily check); **(recommended)** a **Cloudflare** account for Workers Cron as the primary trigger. Low lead time, but create before go-live.
-6. *(Deferred — only when adding app channels, §4.3)* Meta Business Verification (weeks); Viber sender + UA template registration + monthly minimum; Telegram bot + opt-in onboarding.
+2. **TurboSMS account** (self-service web signup — no sales call) + **registered
+   alpha sender ID `Dentino`** submitted free into the operators' national-names
+   register (~10 business days; needs the clinic's ЄДРПОУ/ІПН — Vodafone
+   guarantee letter only for ФОП) — the main external lead time.
+3. **DNS:** point the dedicated app-only subdomain `r.dentino.com.ua` at the
+   engine (for the `/r/<token>` confirm link).
+4. **Supabase** project (EU region) **on Pro for production**; **Vercel**
+   project (if separate dashboard); **Sentry** project.
+5. **External dead-man's-switch** — Healthchecks.io or Cronitor account (free
+   tier; ~minutes to set up — one daily check); **(recommended)** a
+   **Cloudflare** account for Workers Cron as the primary trigger. Low lead
+   time, but create before go-live.
+6. _(Deferred — only when adding app channels, §4.3)_ Meta Business Verification
+   (weeks); Viber sender + UA template registration + monthly minimum; Telegram
+   bot + opt-in onboarding.
 
 ---
 
 ## 10. Open Questions
 
 ### Resolved (decisions made — see §1)
-C1/C2 and C3's **user decisions** are decided: confirm-via-link UX; ~20/day; ClinicCards **paid top tier** + Europe/Kyiv datetimes; **TurboSMS** (UA aggregator, self-service; AlphaSMS fallback) + sender **`Dentino`** + link on the clinic-owned confirm origin **`r.dentino.com.ua/r/<token>`** + reschedule phone **+380 67 987 6111**; **Ukrainian-only**; remind `PLANNED`+`NOT_CONFIRMED` (the seeded `cliniccards_status_policy` default — ADR-011); a valid Confirm action writes `CONFIRMED` when the status policy allows; no-reply = leave-as-is + flag; **one-page dashboard status board** (served by the engine). *(The remaining ClinicCards items — `Token` case, `date_edited`/optimistic-concurrency, exact status meanings, `visit_id` reuse — are **technical build-time confirmations**, not user decisions; see the next subsection.)*
+
+C1/C2 and C3's **user decisions** are decided: confirm-via-link UX; ~20/day;
+ClinicCards **paid top tier** + Europe/Kyiv datetimes; **TurboSMS** (UA
+aggregator, self-service; AlphaSMS fallback) + sender **`Dentino`** + link on
+the clinic-owned confirm origin **`r.dentino.com.ua/r/<token>`** + reschedule
+phone **+380 67 987 6111**; **Ukrainian-only**; remind `PLANNED`+`NOT_CONFIRMED`
+(the seeded `cliniccards_status_policy` default — ADR-011); a valid Confirm
+action writes `CONFIRMED` when the status policy allows; no-reply =
+leave-as-is + flag; **one-page dashboard status board** (served by the engine).
+_(The remaining ClinicCards items — `Token` case,
+`date_edited`/optimistic-concurrency, exact status meanings, `visit_id` reuse —
+are **technical build-time confirmations**, not user decisions; see the next
+subsection.)_
 
 ### Build-time confirmations (technical — handled during implementation, not user decisions)
-- ClinicCards: `Token` header case-sensitivity; whether `GET /visits` accepts `status`/`patient_id` filters; `/patients` pagination + **max-IDs/URL-length**; exact meaning of each visit status (and which UI labels — *Scheduled/Confirmed/Booked/Canceled/Moved* — map to which API strings); whether `GET /visits` exposes a stable **`date_edited`** (precision) and whether `PUT` honors an **optimistic-concurrency** primitive (ETag/`If-Match`/version/`date_edited` precondition) or a **status-only/`PATCH`** update; whether **`CANCELLED`-via-`PUT` stays in history/reports and is reversible** and whether **`DELETE` permanently removes** the visit; whether ClinicCards **reuses `visit_id`** on un-cancel/rebook and how a cross-day move is represented — all validated against the live API once the key is in (isolated behind `clinicCardsClient`). **(go-live-safety, ADR-024)** whether ClinicCards can issue a **read-only / scoped API key** (the single clinic-wide key in the reference suggests not — confirm), and whether a **separate test tenant / sandbox** exists. If neither: the read-only-until-go-live guarantee rests entirely on the §6.6 code chokepoints (the fail-closed `SEND_MODE`/`CRM_WRITE_MODE` flags + allowlist guard), and the only safe live-write target before go-live is **owner-created designated test patients/visits** (your-tasks A7) — never a real visit.
-- **TurboSMS** — confirm at signup / the §6.5 seed test (ADR-005); not build blockers. **(Highest) link-bearing-SMS acceptance + medical-content sign-off:** written TurboSMS confirmation that a link-bearing service SMS is accepted, plus the required medical-content sign-off (Terms §3). **Note:** SMS has **no** transactional-vs-advertising rate split and **no** mandatory template registry — both are **Viber-only** (code 416); the SMS rate lever is keeping `Dentino` **national**, and the content gate is the medical sign-off. **All-3-operator alpha coverage:** one alpha-name submission covers Kyivstar + Vodafone + lifecell (national register), not one operator. **Ported/MNP** delivery. **Per-operator price spread** within the 0.98–1.29 ₴ tier (budget at the high end). Plus: **cross-operator delivery + `Dentino` preservation** on Kyivstar/Vodafone UA/lifecell/ported numbers; **per-message delivery-status (webhook DLR)** timing; **TTL/expiry** behaviour; **rejection-reason codes**. *(The exact billing unit is **answered** — TurboSMS bills **per segment**.)* **Idempotency:** TurboSMS exposes a **`sequence_id`** key (≤40 chars, 30-day same-key dedup, code 507), so `SMS_IDEMPOTENCY_MODE='strict_dedupe'` is **plausible** — pending the written provider guarantee that a repeated key cannot send a second SMS (seed-tested). Express it as a 3-mode config — `SMS_IDEMPOTENCY_MODE = none | client_reference_only | strict_dedupe`; the **fallback baseline is `none`** (the no-key `send_unknown` → staff path, never auto-retried — not a build precondition, ADR-012/018, §5.6); only **`strict_dedupe`**, backed by that written guarantee, permits an automatic same-key replay — the other two always resolve a stale claim to `send_unknown`.
-- **ClinicCards cross-day-move detection (build-gate — ADR-006/008/020):** a target-date-only `GET /visits?from=target&to=target` **cannot** distinguish a visit *moved to another date* from one *cancelled/deleted*, so a reliable cross-day `reschedule_notice` needs ClinicCards to support **visit-by-`id` lookup** or to **return a moved placeholder**. Confirm at build; if neither exists, v1 **does not** auto-send a cross-day notice — it **kills the old token + flags staff** (the same-day `time_change_notice` is unaffected; ties to the §5.6 unresolved-disappearance rule).
-- DNS: point the engine's confirm-page origin before go-live — **the dedicated app-only subdomain `r.dentino.com.ua`** (origin-isolation from any CMS, §6.3/ADR-014; also the Delivery link-reputation-isolation host, §4.2). A path on the bare `dentino.com.ua` is acceptable only if provider testing forces it and that origin hosts no CMS/user-editable content; match `APP_BASE_URL` + the §4.2 URL pre-clearance to the chosen host.
-- **Supabase platform mechanics for the role model (Data-Layer, §6.3/ADR-019) — confirm at build:** how the public confirm function authenticates as `dentino_confirm_api` (a JWT carrying `{"role":"dentino_confirm_api"}` signed with the project JWT secret so PostgREST `SET ROLE`s it, vs a direct-connection role) and that `service_role` is **not** shipped to it; that a non-superuser `dentino_confirm_definer` can read exactly one Vault secret (`vault.decrypted_secrets` row-grant) and that `extensions.hmac()` (pgcrypto) + `gen_random_uuid()` are available; whether to keep HMAC in the DB (Vault pepper) or compute the digest in the Edge Function (pepper in env) — both keep the pepper out of the public role's reach; **whether this project exposes `cron.schedule_in_database(… username …)`** so the purge/reaper run as `dentino_maintenance_runner` (else fall back to an external scheduler → maintenance Edge Function connecting as that role — never `postgres`, §6.3.3); and that the staff/admin claim is sourced from immutable **`app_metadata`** (`raw_app_meta_data`), not `user_metadata`. (`pgtap` enables the §6.5 regression gate.)
+
+- ClinicCards: `Token` header case-sensitivity; whether `GET /visits` accepts
+  `status`/`patient_id` filters; `/patients` pagination +
+  **max-IDs/URL-length**; exact meaning of each visit status (and which UI
+  labels — _Scheduled/Confirmed/Booked/Canceled/Moved_ — map to which API
+  strings); whether `GET /visits` exposes a stable **`date_edited`** (precision)
+  and whether `PUT` honors an **optimistic-concurrency** primitive
+  (ETag/`If-Match`/version/`date_edited` precondition) or a
+  **status-only/`PATCH`** update; whether **`CANCELLED`-via-`PUT` stays in
+  history/reports and is reversible** and whether **`DELETE` permanently
+  removes** the visit; whether ClinicCards **reuses `visit_id`** on
+  un-cancel/rebook and how a cross-day move is represented — all validated
+  against the live API once the key is in (isolated behind `clinicCardsClient`).
+  **(go-live-safety, ADR-024)** whether ClinicCards can issue a **read-only /
+  scoped API key** (the single clinic-wide key in the reference suggests not —
+  confirm), and whether a **separate test tenant / sandbox** exists. If neither:
+  the read-only-until-go-live guarantee rests entirely on the §6.6 code
+  chokepoints (the fail-closed `SEND_MODE`/`CRM_WRITE_MODE` flags + allowlist
+  guard), and the only safe live-write target before go-live is **owner-created
+  designated test patients/visits** (your-tasks A7) — never a real visit.
+- **TurboSMS** — confirm at signup / the §6.5 seed test (ADR-005); not build
+  blockers. **(Highest) link-bearing-SMS acceptance + medical-content
+  sign-off:** written TurboSMS confirmation that a link-bearing service SMS is
+  accepted, plus the required medical-content sign-off (Terms §3). **Note:** SMS
+  has **no** transactional-vs-advertising rate split and **no** mandatory
+  template registry — both are **Viber-only** (code 416); the SMS rate lever is
+  keeping `Dentino` **national**, and the content gate is the medical sign-off.
+  **All-3-operator alpha coverage:** one alpha-name submission covers Kyivstar +
+  Vodafone + lifecell (national register), not one operator. **Ported/MNP**
+  delivery. **Per-operator price spread** within the 0.98–1.29 ₴ tier (budget at
+  the high end). Plus: **cross-operator delivery + `Dentino` preservation** on
+  Kyivstar/Vodafone UA/lifecell/ported numbers; **per-message delivery-status
+  (webhook DLR)** timing; **TTL/expiry** behaviour; **rejection-reason codes**.
+  _(The exact billing unit is **answered** — TurboSMS bills **per segment**.)_
+  **Idempotency:** TurboSMS exposes a **`sequence_id`** key (≤40 chars, 30-day
+  same-key dedup, code 507), so `SMS_IDEMPOTENCY_MODE='strict_dedupe'` is
+  **plausible** — pending the written provider guarantee that a repeated key
+  cannot send a second SMS (seed-tested). Express it as a 3-mode config —
+  `SMS_IDEMPOTENCY_MODE = none | client_reference_only | strict_dedupe`; the
+  **fallback baseline is `none`** (the no-key `send_unknown` → staff path, never
+  auto-retried — not a build precondition, ADR-012/018, §5.6); only
+  **`strict_dedupe`**, backed by that written guarantee, permits an automatic
+  same-key replay — the other two always resolve a stale claim to
+  `send_unknown`.
+- **ClinicCards cross-day-move detection (build-gate — ADR-006/008/020):** a
+  target-date-only `GET /visits?from=target&to=target` **cannot** distinguish a
+  visit _moved to another date_ from one _cancelled/deleted_, so a reliable
+  cross-day `reschedule_notice` needs ClinicCards to support **visit-by-`id`
+  lookup** or to **return a moved placeholder**. Confirm at build; if neither
+  exists, v1 **does not** auto-send a cross-day notice — it **kills the old
+  token + flags staff** (the same-day `time_change_notice` is unaffected; ties
+  to the §5.6 unresolved-disappearance rule).
+- DNS: point the engine's confirm-page origin before go-live — **the dedicated
+  app-only subdomain `r.dentino.com.ua`** (origin-isolation from any CMS,
+  §6.3/ADR-014; also the Delivery link-reputation-isolation host, §4.2). A path
+  on the bare `dentino.com.ua` is acceptable only if provider testing forces it
+  and that origin hosts no CMS/user-editable content; match `APP_BASE_URL` + the
+  §4.2 URL pre-clearance to the chosen host.
+- **Supabase platform mechanics for the role model (Data-Layer, §6.3/ADR-019) —
+  confirm at build:** how the public confirm function authenticates as
+  `dentino_confirm_api` (a JWT carrying `{"role":"dentino_confirm_api"}` signed
+  with the project JWT secret so PostgREST `SET ROLE`s it, vs a
+  direct-connection role) and that `service_role` is **not** shipped to it; that
+  a non-superuser `dentino_confirm_definer` can read exactly one Vault secret
+  (`vault.decrypted_secrets` row-grant) and that `extensions.hmac()`
+  (pgcrypto) + `gen_random_uuid()` are available; whether to keep HMAC in the DB
+  (Vault pepper) or compute the digest in the Edge Function (pepper in env) —
+  both keep the pepper out of the public role's reach; **whether this project
+  exposes `cron.schedule_in_database(… username …)`** so the purge/reaper run as
+  `dentino_maintenance_runner` (else fall back to an external scheduler →
+  maintenance Edge Function connecting as that role — never `postgres`, §6.3.3);
+  and that the staff/admin claim is sourced from immutable **`app_metadata`**
+  (`raw_app_meta_data`), not `user_metadata`. (`pgtap` enables the §6.5
+  regression gate.)
 
 ### Deferred (only when adding app channels — §4.3)
-- Viber per-message rate + monthly minimum; whether the clinic number can serve WhatsApp; app-channel (channel-named) consent wording.
+
+- Viber per-message rate + monthly minimum; whether the clinic number can serve
+  WhatsApp; app-channel (channel-named) consent wording.
 
 ### Assumptions Made
-- Low volume (tens/day); single clinic; messages are logistics-only (no clinical content).
-- Patient records are expected to contain UA mobile numbers often enough for SMS to be the universal-reach channel; the send path still records no/invalid mobile numbers and disabled reminder preferences as explicit `skipped` rows, so v1 needs no per-patient channel.
-- Reminders are **transactional service messages** under contract performance + healthcare-management (ADR-015), not consent-as-primary-basis; the clinic states reminder wording is covered by patient paperwork. Implementation stores a minimal `consent_events` evidence record (source, date/batch, version, scope, opt-out history); where exact legacy proof is unavailable, mark `legacy_import` + staff attestation rather than represent it as captured explicit consent. **A one-time legal sign-off (counsel) on the Art. 6(1)(b)+9(2)(h) framing and the page-only opt-out is recommended before go-live** (ADR-015; a clinic action item — your-tasks C3).
-- 12:00 Europe/Kyiv send **by default** (the reminder hour is configurable, §9.3; tunable for action rate — §6.2 engagement); next-day lead time. (DST handled by gating on local time, not a fixed UTC cron — so no drift.)
-- All date math ("tomorrow", `target_date`) is computed in **Europe/Kyiv**, and ClinicCards visit datetimes are assumed Kyiv-local (to be confirmed — see C3).
-- Appointments **booked or changed after a run fires** are caught by the **automatic late-afternoon catch-up** for the same `target_date` (ADR-006) — which **re-claims an already-`completed` day to re-scan** (a `completed` status never suppresses the catch-up — §4.4) — and, if needed, the manual "Message next day" button; idempotency sends only the newly-eligible ones (or one change notice). A **same-day** time change is caught directly; a **cross-day move** is subject to the §10 build-gate above — target-date-only polling can't see a visit that left the date, so absent ClinicCards visit-by-id lookup / moved-placeholders the old token is killed and staff are flagged rather than an automatic cross-day notice.
-- **The clinic is a static single site** (~20/day) for v1's purposes; multi-clinic is an explicit non-goal (§2.5). **Owner confirmed (2026-06-19): no growth expected** — the clinic just completed an expansion and is stable for the foreseeable future, so the single-tenant scope is **confirmed correct (not merely assumed)** and the `clinic_id` + RLS scaffolding stays deliberately unbuilt. If that ever changes, the bounded `clinic_id` + RLS migration (ADR-005/ADR-017) is the path — *not* built now.
-- **ROI / value framing (resolved — ADR-017):** the business case is **recovered chair-time + staff-time**, benchmarked against the clinic's **current manual phone process** (*not* "no reminders" — SMS ≈ phone for attendance, Cochrane CD007458), so the *incremental* no-show drop may be modest and is **measured pre/post, not assumed**. ROI is positive across the plausible range, so the clinic-specific inputs (no-show **and** empty-slot rate, manual-call minutes, slot contribution) refine the *reporting*, not the build decision — the owner measures them pre-go-live (your-tasks A5) so the value panel shows real numbers (§1, §5.2, §6.2).
-- **Mass-cancel breaker calibration (resolved — ADR-014):** velocity-first (≥4 cancels/10-min **or** ≥6/30-min) + a two-level daily anomaly (amber at ≥`⌈0.4×sent⌉`, hard-ceiling at > `max(8, ⌈0.6×sent⌉)`), counting **only valid nonce-backed cancel POSTs** (`response='cancel' and action_locked_at is not null`) — an ops control that won't false-trip a flu/snow day yet halts a runaway faster (§5.6). Per-action source-fingerprint tiers were rejected for v1 (PII + over-engineering at ~20/day).
-- **Data-layer model (resolved — Data-Layer review, v2.9 → external-review integration v2.12, ADR-019):** schema separation (`app`/`api`/`private`/`maintenance`) + a dedicated least-privilege login role **per Edge Function** (public confirm = **`dentino_confirm_api`**, no table grants, `EXECUTE` on **4** `api` RPCs incl. `finish_reminder_action`), **not** `service_role` (Tension 1, §6.3); config tables are **migration-managed** (`cliniccards_status_policy`) vs **admin-RPC-managed** (versioned `message_templates`, one-active partial-unique), resolving ADR-011↔ADR-003 (Tension 2); the canonical lease/claim/single-use/write-lock SQL is fixed in **§5.7** (lease TTL ~15 min w/ heartbeat-grace steal, per-visit write-lock TTL ~90–120 s); a lean non-PII **`crm_visit_facts`** ledger backs reconciliation (Tension 4, ADR-008 carve-out) and **carries `purpose`** (per-fetch-phase rows — the §5.6/§6.2 pinned denominator + vanished-detection need it; v2.15 fresh-eyes correction of a v2.12 over-trim); peppers live in Vault with documented rare-rotation semantics (**no `pepper_versions` table — disproportionate at ~20/day; declined holding the lean line**), and phones are **redacted at write time** so minimization is continuous (Tension 6, ADR-016).
+
+- Low volume (tens/day); single clinic; messages are logistics-only (no clinical
+  content).
+- Patient records are expected to contain UA mobile numbers often enough for SMS
+  to be the universal-reach channel; the send path still records no/invalid
+  mobile numbers and disabled reminder preferences as explicit `skipped` rows,
+  so v1 needs no per-patient channel.
+- Reminders are **transactional service messages** under contract performance +
+  healthcare-management (ADR-015), not consent-as-primary-basis; the clinic
+  states reminder wording is covered by patient paperwork. Implementation stores
+  a minimal `consent_events` evidence record (source, date/batch, version,
+  scope, opt-out history); where exact legacy proof is unavailable, mark
+  `legacy_import` + staff attestation rather than represent it as captured
+  explicit consent. **A one-time legal sign-off (counsel) on the Art.
+  6(1)(b)+9(2)(h) framing and the page-only opt-out is recommended before
+  go-live** (ADR-015; a clinic action item — your-tasks C3).
+- 12:00 Europe/Kyiv send **by default** (the reminder hour is configurable,
+  §9.3; tunable for action rate — §6.2 engagement); next-day lead time. (DST
+  handled by gating on local time, not a fixed UTC cron — so no drift.)
+- All date math ("tomorrow", `target_date`) is computed in **Europe/Kyiv**, and
+  ClinicCards visit datetimes are assumed Kyiv-local (to be confirmed — see C3).
+- Appointments **booked or changed after a run fires** are caught by the
+  **automatic late-afternoon catch-up** for the same `target_date` (ADR-006) —
+  which **re-claims an already-`completed` day to re-scan** (a `completed`
+  status never suppresses the catch-up — §4.4) — and, if needed, the manual
+  "Message next day" button; idempotency sends only the newly-eligible ones (or
+  one change notice). A **same-day** time change is caught directly; a
+  **cross-day move** is subject to the §10 build-gate above — target-date-only
+  polling can't see a visit that left the date, so absent ClinicCards
+  visit-by-id lookup / moved-placeholders the old token is killed and staff are
+  flagged rather than an automatic cross-day notice.
+- **The clinic is a static single site** (~20/day) for v1's purposes;
+  multi-clinic is an explicit non-goal (§2.5). **Owner confirmed (2026-06-19):
+  no growth expected** — the clinic just completed an expansion and is stable
+  for the foreseeable future, so the single-tenant scope is **confirmed correct
+  (not merely assumed)** and the `clinic_id` + RLS scaffolding stays
+  deliberately unbuilt. If that ever changes, the bounded `clinic_id` + RLS
+  migration (ADR-005/ADR-017) is the path — _not_ built now.
+- **ROI / value framing (resolved — ADR-017):** the business case is **recovered
+  chair-time + staff-time**, benchmarked against the clinic's **current manual
+  phone process** (_not_ "no reminders" — SMS ≈ phone for attendance, Cochrane
+  CD007458), so the _incremental_ no-show drop may be modest and is **measured
+  pre/post, not assumed**. ROI is positive across the plausible range, so the
+  clinic-specific inputs (no-show **and** empty-slot rate, manual-call minutes,
+  slot contribution) refine the _reporting_, not the build decision — the owner
+  measures them pre-go-live (your-tasks A5) so the value panel shows real
+  numbers (§1, §5.2, §6.2).
+- **Mass-cancel breaker calibration (resolved — ADR-014):** velocity-first (≥4
+  cancels/10-min **or** ≥6/30-min) + a two-level daily anomaly (amber at
+  ≥`⌈0.4×sent⌉`, hard-ceiling at > `max(8, ⌈0.6×sent⌉)`), counting **only valid
+  nonce-backed cancel POSTs**
+  (`response='cancel' and action_locked_at is not null`) — an ops control that
+  won't false-trip a flu/snow day yet halts a runaway faster (§5.6). Per-action
+  source-fingerprint tiers were rejected for v1 (PII + over-engineering at
+  ~20/day).
+- **Data-layer model (resolved — Data-Layer review, v2.9 → external-review
+  integration v2.12, ADR-019):** schema separation
+  (`app`/`api`/`private`/`maintenance`) + a dedicated least-privilege login role
+  **per Edge Function** (public confirm = **`dentino_confirm_api`**, no table
+  grants, `EXECUTE` on **4** `api` RPCs incl. `finish_reminder_action`), **not**
+  `service_role` (Tension 1, §6.3); config tables are **migration-managed**
+  (`cliniccards_status_policy`) vs **admin-RPC-managed** (versioned
+  `message_templates`, one-active partial-unique), resolving ADR-011↔ADR-003
+  (Tension 2); the canonical lease/claim/single-use/write-lock SQL is fixed in
+  **§5.7** (lease TTL ~15 min w/ heartbeat-grace steal, per-visit write-lock TTL
+  ~90–120 s); a lean non-PII **`crm_visit_facts`** ledger backs reconciliation
+  (Tension 4, ADR-008 carve-out) and **carries `purpose`** (per-fetch-phase rows
+  — the §5.6/§6.2 pinned denominator + vanished-detection need it; v2.15
+  fresh-eyes correction of a v2.12 over-trim); peppers live in Vault with
+  documented rare-rotation semantics (**no `pepper_versions` table —
+  disproportionate at ~20/day; declined holding the lean line**), and phones are
+  **redacted at write time** so minimization is continuous (Tension 6, ADR-016).
 
 ---
 
 ## 11. Next Steps
 
 ### Immediate Actions
-1. **(You) TurboSMS:** self-register on turbosms.ua (no sales call) + submit alpha sender **`Dentino`** into the national-names register + get **medical-content sign-off** (email TurboSMS the reminder text; SMS has no Viber-style template registry to register) (needs the clinic's ЄДРПОУ/ІПН — Vodafone guarantee letter only for ФОП; ~10 business days — the main lead time).
-2. **(You) ClinicCards:** generate the API key + 1-call smoke test (`GET /visits?from=tomorrow&to=tomorrow`); ask support the §10 build-time items (Token case, filters, pagination).
+
+1. **(You) TurboSMS:** self-register on turbosms.ua (no sales call) + submit
+   alpha sender **`Dentino`** into the national-names register + get
+   **medical-content sign-off** (email TurboSMS the reminder text; SMS has no
+   Viber-style template registry to register) (needs the clinic's ЄДРПОУ/ІПН —
+   Vodafone guarantee letter only for ФОП; ~10 business days — the main lead
+   time).
+2. **(You) ClinicCards:** generate the API key + 1-call smoke test
+   (`GET /visits?from=tomorrow&to=tomorrow`); ask support the §10 build-time
+   items (Token case, filters, pagination).
 3. **(You) DNS:** point `r.dentino.com.ua` at the engine (for `/r/<token>`).
-4. **(Me) Build** the testable local system (schema → `clinicCardsClient` + cassettes → `run-reminders` dry-run → `smsSender` stub → confirm page → status-board dashboard).
-5. **(Together) Go live — climb the §6.6 ladder, do not jump to full:** (1) **Shadow** (real ClinicCards read, zero side effects) → prove selection/render against real data; (2) **Seed** (the §6.5 deliverability seed test, cross-operator, 3 days, staff numbers only, write-off) as a go/no-go gate; (3) **Canary** (1–3 real appointments, write allowlisted, staff watching); (4) **Full** (~20/day, write-back on). Each rung has an entry gate + a one-flip rollback + the pause switch (§6.6, ADR-024). The keys go into Vault at the start of Shadow but **writes/sends stay off-by-default + fail-closed** until each rung's human flip; brief reception to tell patients at booking *"you'll get an SMS from `Dentino` with a `r.dentino.com.ua` link to confirm or cancel"*.
-6. **(Together) First-month stop-loss & value review (ADR-017):** review at **5 / 10 / 20 clinic days** against the pre-go-live baselines (your-tasks A5). **If the delivered→action rate is <35%, or daily staff-time isn't ≥10 min below the measured manual baseline, the system is value-red — do not keep running it unchanged.** Tune *in order*: (1) reception priming script; (2) SMS copy + sender trust; (3) send time; (4) the no-reply call-list workflow; (5) selective manual calling for high-value/long no-replies. The clinic always retains the manual phone process as the designed backstop (§4.4), so a pause is never a service outage.
+4. **(Me) Build** the testable local system (schema → `clinicCardsClient` +
+   cassettes → `run-reminders` dry-run → `smsSender` stub → confirm page →
+   status-board dashboard).
+5. **(Together) Go live — climb the §6.6 ladder, do not jump to full:** (1)
+   **Shadow** (real ClinicCards read, zero side effects) → prove
+   selection/render against real data; (2) **Seed** (the §6.5 deliverability
+   seed test, cross-operator, 3 days, staff numbers only, write-off) as a
+   go/no-go gate; (3) **Canary** (1–3 real appointments, write allowlisted,
+   staff watching); (4) **Full** (~20/day, write-back on). Each rung has an
+   entry gate + a one-flip rollback + the pause switch (§6.6, ADR-024). The keys
+   go into Vault at the start of Shadow but **writes/sends stay off-by-default +
+   fail-closed** until each rung's human flip; brief reception to tell patients
+   at booking _"you'll get an SMS from `Dentino` with a `r.dentino.com.ua` link
+   to confirm or cancel"_.
+6. **(Together) First-month stop-loss & value review (ADR-017):** review at **5
+   / 10 / 20 clinic days** against the pre-go-live baselines (your-tasks A5).
+   **If the delivered→action rate is <35%, or daily staff-time isn't ≥10 min
+   below the measured manual baseline, the system is value-red — do not keep
+   running it unchanged.** Tune _in order_: (1) reception priming script; (2)
+   SMS copy + sender trust; (3) send time; (4) the no-reply call-list workflow;
+   (5) selective manual calling for high-value/long no-replies. The clinic
+   always retains the manual phone process as the designed backstop (§4.4), so a
+   pause is never a service outage.
 
 ### Recommended Pipeline (continue the doc chain)
+
 ```
 /research-to-spec
 Research: docs/research/2026-06-16-dentino-appointment-messaging-research.md
 ```
-Then `spec-to-tdd` → `spec-to-strategy` → `beads-from-sources` → `beads-to-execution`.
+
+Then `spec-to-tdd` → `spec-to-strategy` → `beads-from-sources` →
+`beads-to-execution`.
 
 ### Suggested Build Sequence (MVP-first, vertical slices)
-Each slice is gated by its row in the **§6.5 ladder↔build-slice map** (the smoke rung that proves it is wired + the CI-tier column that proves it is done); the whole sequence runs hermetically (`SEND_MODE='off'`/`CRM_WRITE_MODE='off'` — ADR-023), and only after slice 7 does the **§6.6 go-live ladder** (`shadow → seed → canary → full`, ADR-024) turn real sends/writes on, rung by rung.
-1. Supabase project (EU) + `0001_core_schema.sql` + seed Ukrainian SMS templates.
+
+Each slice is gated by its row in the **§6.5 ladder↔build-slice map** (the smoke
+rung that proves it is wired + the CI-tier column that proves it is done); the
+whole sequence runs hermetically (`SEND_MODE='off'`/`CRM_WRITE_MODE='off'` —
+ADR-023), and only after slice 7 does the **§6.6 go-live ladder**
+(`shadow → seed → canary → full`, ADR-024) turn real sends/writes on, rung by
+rung.
+
+1. Supabase project (EU) + `0001_core_schema.sql` + seed Ukrainian SMS
+   templates.
 2. `clinicCardsClient` + cassette tests (read + cancel).
-3. `run-reminders` (fetch → filter remindable → upsert patients → create reminder rows) with idempotency — **dry-run mode** (no real sends).
-4. `smsSender` + the **confirm/cancel page** end-to-end (send SMS w/ link → tap → record → CRM write-back + footer opt-out).
-5. Dashboard (one page): **status board** (tomorrow's appts grouped by Confirmed / Cancelled / No reply) + "Message next day" button.
-6. **Scheduler + reliability spine** — multi-fire noon-window trigger (external Cloudflare Workers Cron and/or `pg_cron` backup) gated on Kyiv local time; the **`reminder_days` lease + per-message claim**; the **external dead-man's-switch** (Healthchecks/Cronitor) with start/fail/success pings + alert path + runbook (§4.4, ADR-003/012/013).
-7. Hardening: **end-of-run self-reconciliation + the 4-number trust panel**, per-visit CRM write lease, SMS-balance/low-balance alert, template-editor validation, failure injection, retention.
-8. *(Later, §4.3)* add Viber/WhatsApp/Telegram behind the same `send()` interface when volume/UX justifies.
+3. `run-reminders` (fetch → filter remindable → upsert patients → create
+   reminder rows) with idempotency — **dry-run mode** (no real sends).
+4. `smsSender` + the **confirm/cancel page** end-to-end (send SMS w/ link → tap
+   → record → CRM write-back + footer opt-out).
+5. Dashboard (one page): **status board** (tomorrow's appts grouped by Confirmed
+   / Cancelled / No reply) + "Message next day" button.
+6. **Scheduler + reliability spine** — multi-fire noon-window trigger (external
+   Cloudflare Workers Cron and/or `pg_cron` backup) gated on Kyiv local time;
+   the **`reminder_days` lease + per-message claim**; the **external
+   dead-man's-switch** (Healthchecks/Cronitor) with start/fail/success pings +
+   alert path + runbook (§4.4, ADR-003/012/013).
+7. Hardening: **end-of-run self-reconciliation + the 4-number trust panel**,
+   per-visit CRM write lease, SMS-balance/low-balance alert, template-editor
+   validation, failure injection, retention.
+8. _(Later, §4.3)_ add Viber/WhatsApp/Telegram behind the same `send()`
+   interface when volume/UX justifies.
 
 ### Pre-requisites for go-live
-ClinicCards key confirmed (C3); C1/C2 decided; Supabase + UA SMS provider accounts created + alpha sender ID registered; secrets in Vault. Go-live is then **climbing the §6.6 ladder** (shadow → seed → canary → full, ADR-024), not a single flip: keys enter Vault at the start of Shadow but `SEND_MODE`/`CRM_WRITE_MODE` stay off-by-default + fail-closed, advanced only by the human sign-offs at each rung (your-tasks D1a/C4/D1b).
+
+ClinicCards key confirmed (C3); C1/C2 decided; Supabase + UA SMS provider
+accounts created + alpha sender ID registered; secrets in Vault. Go-live is then
+**climbing the §6.6 ladder** (shadow → seed → canary → full, ADR-024), not a
+single flip: keys enter Vault at the start of Shadow but
+`SEND_MODE`/`CRM_WRITE_MODE` stay off-by-default + fail-closed, advanced only by
+the human sign-offs at each rung (your-tasks D1a/C4/D1b).
 
 ---
 
 ## Appendices
 
 ### A. Glossary
-- **CPaaS** — Communications Platform as a Service (Infobip, Sinch, TurboSMS, Messaggio…): one API to multiple messaging channels.
-- **BSP** — (WhatsApp) Business Solution Provider: a Meta partner reselling/hosting Cloud API.
-- **Alphanumeric sender ID (alpha name)** — a branded SMS "From" (e.g. `Dentino`); in Ukraine must be registered with operators and is **one-way** (no replies).
-- **SMS segment** — one SMS = 160 Latin (GSM-7) or **70 Cyrillic (UCS-2)** characters; longer text is split into multiple billed segments (**multi-part Cyrillic = 67 chars/segment** after UDH overhead).
-- **Confirm link / confirm page** — the per-appointment URL (`https://r.dentino.com.ua/r/<token>`) and the Edge-Function page it opens; `GET` renders current facts only, while nonce-backed `POST` actions capture Confirm/Cancel since UA SMS is one-way (ADR-010/014).
-- **Capability token** — the raw 128-bit bearer token carried only in the SMS URL; the database stores only `tracking_token_digest`.
-- **Response** — the patient's Confirm/Cancel action recorded from a valid nonce-backed `POST /action`; SMS replies are not used in v1.
-- **Remindable** — a ClinicCards visit whose status policy says it should receive an appointment reminder.
-- **Sendable** — a remindable visit whose patient has an enabled SMS-reminder preference and a valid mobile number.
-- **No-show** — a patient who neither attends nor cancels; the core cost the system exists to reduce (a lost chair-hour = lost revenue). The baseline rate is measured pre-go-live (ADR-017).
-- **Action rate** — the fraction of *delivered* reminders that yield a recorded Confirm/Cancel (the nonce-backed POST, not page views or raw link taps — §5.4); the secondary (slot-reuse / staff-time) benefit scales with it (§6.2).
-- **Value panel** — the owner-facing dashboard view, distinct from the operational trust panel: no-shows vs baseline · slots freed early by link-cancels · delivery + action rate — the "is it working?" proof (§5.2, ADR-017).
-- **Designed-in manual backstop** — the clinic's standing ability to run the day from the ClinicCards list + phone; the automation is layered on top and never gates clinic operation, so every failure degrades to "fall back to the manual list" (§4.4, ADR-017).
-- **Velocity breaker** — the mass-cancel circuit-breaker's primary rule: **≥4 cancels/10-min or ≥6/30-min** halts CRM writes (with a two-level daily anomaly — amber at ≥`⌈0.4×sent⌉`, hard-ceiling at > `max(8, ⌈0.6×sent⌉)`), counting only valid nonce-backed cancel POSTs (`response='cancel' and action_locked_at is not null`), distinguishing a runaway from a legitimate high-cancel day (§5.6, ADR-014).
-- **Empty slot / recovered chair-time** — a paid-for appointment slot left unfilled (a no-show **or** an un-refilled late cancel); the core economic loss the system reduces by preventing no-shows and capturing cancellations early enough to refill (§1, ADR-017).
-- **Refill rate** — the fraction of link-cancelled slots the clinic rebooks before the appointment time; the metric that turns a captured cancellation into recovered revenue (§5.2 value panel).
-- **Staff non-adoption** — the value-failure where the system works but reception keeps phoning everyone, so staff cost is unchanged *and* they now run software; the highest-*expected*-cost failure mode (§6.2), countered by the staff-load budget + operating rules + stop-loss.
-- **Stop-loss (value)** — the first-month earn-its-keep gate: review at 5/10/20 clinic days and, if action rate <35% or staff-time isn't ≥10 min/day below the manual baseline, treat the system as value-red and tune (§11, ADR-017).
-- **Firing / run** — a scheduled or manual invocation is a firing; the `reminder_days(target_date)` lease makes only one firing actively process the target date as the run.
-- **Business Messages (Viber)** — phone-addressable transactional Viber product via partners (vs subscription-only Viber Bot).
-- **Utility template (WhatsApp)** — pre-approved non-promotional template (appointment reminders) usable outside the 24h window.
-- **Customer-service window (24h)** — period after a user messages you during which free-form replies are allowed/free.
-- **`pg_cron`** — Postgres extension for scheduled jobs (used for backup triggers plus daily privacy purge).
-- **Idempotency key** — a uniqueness constraint or provider reference that dedupes retries; this design also uses a `reminder_days` lease and per-message claim because outbound SMS is a side effect a DB key alone cannot protect.
-- **`service_role`** — Supabase's privileged key that **bypasses RLS**; used only by the non-public `run-reminders`, never shipped to the internet-public confirm function (§6.3).
-- **`dentino_confirm_api`** — the dedicated least-privilege login role the internet-public confirm Edge Function authenticates as: `EXECUTE` on exactly the four `api` token/action RPCs, **no** table privileges, so it cannot enumerate patients even if code slips (ADR-014/019, §6.3, Tension 1). Reserved counterpart: **`dentino_confirm_definer`** (the non-login `SECURITY DEFINER` owner of those RPCs); engine = `dentino_run_api`; purge/reaper = `dentino_maintenance_runner`/`_definer`.
-- **`SECURITY DEFINER` RPC** — a Postgres function that runs with its *owner's* privileges, not the caller's; here owned by a non-login non-superuser (`dentino_confirm_definer` / `dentino_maintenance_definer`) holding only column-scoped grants, with `SET search_path = ''`, so a near-zero-privilege caller can invoke fixed, audited operations and nothing else (§6.3.1, ADR-019).
-- **Schema separation (ADR-019)** — base tables in private `app`, public RPCs in `api`, HMAC/secret helpers in `private`, purge/reaper in `maintenance`; only `api` is reachable through PostgREST/the Data API, so base tables are never directly exposed.
-- **`crm_visit_facts`** — the lean, non-PII reconciliation ledger (visit id · status · remindable · time) the run derives once per fetch, so reconciliation joins a typed relation instead of re-parsing raw jsonb and the audit answer survives the raw-payload purge; not a CRM mirror/CDC table (ADR-008 carve-out, §5.3, Tension 4).
-- **Pepper** — a secret HMAC key held in Supabase Vault (`TOKEN_PEPPER`, `PHONE_PEPPER`), never stored in a DB row; rotation is a rare event that invalidates existing digests (§6.3, ADR-016).
-- **CDP** — Chrome DevTools Protocol (the browser-automation method in `testproject1`; not used here).
+
+- **CPaaS** — Communications Platform as a Service (Infobip, Sinch, TurboSMS,
+  Messaggio…): one API to multiple messaging channels.
+- **BSP** — (WhatsApp) Business Solution Provider: a Meta partner
+  reselling/hosting Cloud API.
+- **Alphanumeric sender ID (alpha name)** — a branded SMS "From" (e.g.
+  `Dentino`); in Ukraine must be registered with operators and is **one-way**
+  (no replies).
+- **SMS segment** — one SMS = 160 Latin (GSM-7) or **70 Cyrillic (UCS-2)**
+  characters; longer text is split into multiple billed segments (**multi-part
+  Cyrillic = 67 chars/segment** after UDH overhead).
+- **Confirm link / confirm page** — the per-appointment URL
+  (`https://r.dentino.com.ua/r/<token>`) and the Edge-Function page it opens;
+  `GET` renders current facts only, while nonce-backed `POST` actions capture
+  Confirm/Cancel since UA SMS is one-way (ADR-010/014).
+- **Capability token** — the raw 128-bit bearer token carried only in the SMS
+  URL; the database stores only `tracking_token_digest`.
+- **Response** — the patient's Confirm/Cancel action recorded from a valid
+  nonce-backed `POST /action`; SMS replies are not used in v1.
+- **Remindable** — a ClinicCards visit whose status policy says it should
+  receive an appointment reminder.
+- **Sendable** — a remindable visit whose patient has an enabled SMS-reminder
+  preference and a valid mobile number.
+- **No-show** — a patient who neither attends nor cancels; the core cost the
+  system exists to reduce (a lost chair-hour = lost revenue). The baseline rate
+  is measured pre-go-live (ADR-017).
+- **Action rate** — the fraction of _delivered_ reminders that yield a recorded
+  Confirm/Cancel (the nonce-backed POST, not page views or raw link taps —
+  §5.4); the secondary (slot-reuse / staff-time) benefit scales with it (§6.2).
+- **Value panel** — the owner-facing dashboard view, distinct from the
+  operational trust panel: no-shows vs baseline · slots freed early by
+  link-cancels · delivery + action rate — the "is it working?" proof (§5.2,
+  ADR-017).
+- **Designed-in manual backstop** — the clinic's standing ability to run the day
+  from the ClinicCards list + phone; the automation is layered on top and never
+  gates clinic operation, so every failure degrades to "fall back to the manual
+  list" (§4.4, ADR-017).
+- **Velocity breaker** — the mass-cancel circuit-breaker's primary rule: **≥4
+  cancels/10-min or ≥6/30-min** halts CRM writes (with a two-level daily anomaly
+  — amber at ≥`⌈0.4×sent⌉`, hard-ceiling at > `max(8, ⌈0.6×sent⌉)`), counting
+  only valid nonce-backed cancel POSTs
+  (`response='cancel' and action_locked_at is not null`), distinguishing a
+  runaway from a legitimate high-cancel day (§5.6, ADR-014).
+- **Empty slot / recovered chair-time** — a paid-for appointment slot left
+  unfilled (a no-show **or** an un-refilled late cancel); the core economic loss
+  the system reduces by preventing no-shows and capturing cancellations early
+  enough to refill (§1, ADR-017).
+- **Refill rate** — the fraction of link-cancelled slots the clinic rebooks
+  before the appointment time; the metric that turns a captured cancellation
+  into recovered revenue (§5.2 value panel).
+- **Staff non-adoption** — the value-failure where the system works but
+  reception keeps phoning everyone, so staff cost is unchanged _and_ they now
+  run software; the highest-_expected_-cost failure mode (§6.2), countered by
+  the staff-load budget + operating rules + stop-loss.
+- **Stop-loss (value)** — the first-month earn-its-keep gate: review at 5/10/20
+  clinic days and, if action rate <35% or staff-time isn't ≥10 min/day below the
+  manual baseline, treat the system as value-red and tune (§11, ADR-017).
+- **Firing / run** — a scheduled or manual invocation is a firing; the
+  `reminder_days(target_date)` lease makes only one firing actively process the
+  target date as the run.
+- **Business Messages (Viber)** — phone-addressable transactional Viber product
+  via partners (vs subscription-only Viber Bot).
+- **Utility template (WhatsApp)** — pre-approved non-promotional template
+  (appointment reminders) usable outside the 24h window.
+- **Customer-service window (24h)** — period after a user messages you during
+  which free-form replies are allowed/free.
+- **`pg_cron`** — Postgres extension for scheduled jobs (used for backup
+  triggers plus daily privacy purge).
+- **Idempotency key** — a uniqueness constraint or provider reference that
+  dedupes retries; this design also uses a `reminder_days` lease and per-message
+  claim because outbound SMS is a side effect a DB key alone cannot protect.
+- **`service_role`** — Supabase's privileged key that **bypasses RLS**; used
+  only by the non-public `run-reminders`, never shipped to the internet-public
+  confirm function (§6.3).
+- **`dentino_confirm_api`** — the dedicated least-privilege login role the
+  internet-public confirm Edge Function authenticates as: `EXECUTE` on exactly
+  the four `api` token/action RPCs, **no** table privileges, so it cannot
+  enumerate patients even if code slips (ADR-014/019, §6.3, Tension 1). Reserved
+  counterpart: **`dentino_confirm_definer`** (the non-login `SECURITY DEFINER`
+  owner of those RPCs); engine = `dentino_run_api`; purge/reaper =
+  `dentino_maintenance_runner`/`_definer`.
+- **`SECURITY DEFINER` RPC** — a Postgres function that runs with its _owner's_
+  privileges, not the caller's; here owned by a non-login non-superuser
+  (`dentino_confirm_definer` / `dentino_maintenance_definer`) holding only
+  column-scoped grants, with `SET search_path = ''`, so a near-zero-privilege
+  caller can invoke fixed, audited operations and nothing else (§6.3.1,
+  ADR-019).
+- **Schema separation (ADR-019)** — base tables in private `app`, public RPCs in
+  `api`, HMAC/secret helpers in `private`, purge/reaper in `maintenance`; only
+  `api` is reachable through PostgREST/the Data API, so base tables are never
+  directly exposed.
+- **`crm_visit_facts`** — the lean, non-PII reconciliation ledger (visit id ·
+  status · remindable · time) the run derives once per fetch, so reconciliation
+  joins a typed relation instead of re-parsing raw jsonb and the audit answer
+  survives the raw-payload purge; not a CRM mirror/CDC table (ADR-008 carve-out,
+  §5.3, Tension 4).
+- **Pepper** — a secret HMAC key held in Supabase Vault (`TOKEN_PEPPER`,
+  `PHONE_PEPPER`), never stored in a DB row; rotation is a rare event that
+  invalidates existing digests (§6.3, ADR-016).
+- **CDP** — Chrome DevTools Protocol (the browser-automation method in
+  `testproject1`; not used here).
 
 ### B. References (selected, all verified during research)
-- ClinicCards: `https://documenter.getpostman.com/view/29513893/2s9YBxZbqY`; `https://cliniccards.com/en/help/api-settings`
-- Telegram Bot API: `https://core.telegram.org/bots/api`; deep-linking `https://core.telegram.org/bots/features#deep-linking`; Gateway `https://core.telegram.org/gateway`
-- WhatsApp Cloud API: `https://developers.facebook.com/docs/whatsapp/cloud-api/guides/set-up-webhooks`; templates `https://developers.facebook.com/docs/whatsapp/message-templates/guidelines`; rate card (Oct 2025) `https://www.gupshup.ai/resources/wp-content/uploads/2025/10/USD_Oct2025.pdf`
-- Viber: REST Bot API `https://developers.viber.com/docs/api/rest-bot-api/`; Business Messages `https://www.infobip.com/docs/viber/business-messages`; pricing `https://help.smsbat.com/billing/viber-pricing/`, `https://turbosms.ua/en/viber.html`
-- CPaaS: `https://www.infobip.com/docs/messages-api`; Sinch Conversation API `https://developers.sinch.com/docs/conversation/`; TurboSMS `https://turbosms.ua/en/api.html`; Messaggio `https://messaggio.com/`
-- Delivery/stack: Supabase Cron `https://supabase.com/docs/guides/functions/schedule-functions`; Supabase MCP `https://supabase.com/docs/guides/ai-tools/mcp`; Hono `https://hono.dev`
-- UA messenger usage: Socis poll `https://en.interfax.com.ua/news/general/1154600.html`; DataReportal `https://datareportal.com/reports/digital-2025-ukraine`
-- Appointment-reminder evidence (Business-Viability review — the baseline-honesty basis): SMS reminders improve attendance vs **no** reminders but are **~similar to phone reminders** — Cochrane CD007458 `https://www.cochrane.org/evidence/CD007458_mobile-phone-messaging-reminders-attendance-healthcare-appointments`; meta-analysis `https://jhmhp.amegroups.org/article/view/10215/html`
+
+- ClinicCards: `https://documenter.getpostman.com/view/29513893/2s9YBxZbqY`;
+  `https://cliniccards.com/en/help/api-settings`
+- Telegram Bot API: `https://core.telegram.org/bots/api`; deep-linking
+  `https://core.telegram.org/bots/features#deep-linking`; Gateway
+  `https://core.telegram.org/gateway`
+- WhatsApp Cloud API:
+  `https://developers.facebook.com/docs/whatsapp/cloud-api/guides/set-up-webhooks`;
+  templates
+  `https://developers.facebook.com/docs/whatsapp/message-templates/guidelines`;
+  rate card (Oct 2025)
+  `https://www.gupshup.ai/resources/wp-content/uploads/2025/10/USD_Oct2025.pdf`
+- Viber: REST Bot API `https://developers.viber.com/docs/api/rest-bot-api/`;
+  Business Messages `https://www.infobip.com/docs/viber/business-messages`;
+  pricing `https://help.smsbat.com/billing/viber-pricing/`,
+  `https://turbosms.ua/en/viber.html`
+- CPaaS: `https://www.infobip.com/docs/messages-api`; Sinch Conversation API
+  `https://developers.sinch.com/docs/conversation/`; TurboSMS
+  `https://turbosms.ua/en/api.html`; Messaggio `https://messaggio.com/`
+- Delivery/stack: Supabase Cron
+  `https://supabase.com/docs/guides/functions/schedule-functions`; Supabase MCP
+  `https://supabase.com/docs/guides/ai-tools/mcp`; Hono `https://hono.dev`
+- UA messenger usage: Socis poll
+  `https://en.interfax.com.ua/news/general/1154600.html`; DataReportal
+  `https://datareportal.com/reports/digital-2025-ukraine`
+- Appointment-reminder evidence (Business-Viability review — the
+  baseline-honesty basis): SMS reminders improve attendance vs **no** reminders
+  but are **~similar to phone reminders** — Cochrane CD007458
+  `https://www.cochrane.org/evidence/CD007458_mobile-phone-messaging-reminders-attendance-healthcare-appointments`;
+  meta-analysis `https://jhmhp.amegroups.org/article/view/10215/html`
 
 ### C. Change Log
-- 2026-06-27 — v2.26.3 — **Default SMS reminder copy revised (owner decision; docs-only, no ADR/decision-spine change).** The owner finalised the default reminder body as `{{name}}, ваш візит: завтра {{date}} о {{time}}.\nПідтвердити/змінити: {{confirm_url}}. Тел: {{clinic_phone}}` (rendered **130 chars = 2 UCS-2 segments**: «Олено, ваш візит: завтра 18.06 о 14:30.⏎Підтвердити/змінити: …/r/8xP4… . Тел: +380679876111»). Three changes from the v2.14 default: (1) the clinic-name `{{clinic}}:` lead → the generic **«ваш візит»** (clinic identity still carried by the `Dentino` sender + the `r.dentino.com.ua` link, so no identity is lost); (2) a **line break** (1 UCS-2 char) splits the appointment line from the action line; (3) `{{clinic_phone}}` renders **without spaces** (`+380679876111`, 13 chars vs 16) — segment-saving **and** more reliable tap-to-call auto-linkification, matching the confirm page's existing `tel:+380679876111` href. The old general "compact" fallback is **retired** (the default now fits 2 segments on its own); the **only** remaining fallback is the **name-overflow** variant («Ваш візит: …», drops `{{name}}`, ≈123 chars), triggered solely when a rendered first name ≳10 chars (`default = 125 + len(name)`) would exceed 134. The v1.1 no-reply nudge (§4.2) is harmonised to the same style (`{{name}}, підтвердіть ваш візит …`, ≈120 chars). **No schema/state-machine/spine impact** — `{{clinic}}` remains an *available* renderer variable (§5.3 DDL / §8 `templates.ts`), just unused by the shipped bodies; the canonical copy lives only in §4.2 + the DB `message_templates` seed (cite-don't-copy). **Touched (live docs):** header, §1 (Decisions — SMS phone/bodies), §4.2 (default + fallback + nudge), `docs/your-tasks.md` B1. **Not touched:** §5.3/§8 (`{{clinic}}` stays an available variable), the confirm-page/dashboard chrome (`docs/design/**` — the page already uses `tel:+380679876111`; its spaced *display* of the number is page formatting, out of this SMS-body scope), and the **frozen audit trail** (`docs/planmaxer/**`, `docs/harmonymaxer/**`, prior Change Log entries) — all keep the prior copy as the historically-accurate value of the day. No new ADR; ADR-001…024 unchanged.
-- 2026-06-27 — v2.26.2 — **Alpha sender renamed `DentinoLviv` → `Dentino` (owner decision; docs-only, no ADR/decision-spine change).** The owner submitted the 7-char alpha sender **`Dentino`** to TurboSMS (cabinet screenshot 2026-06-27: sender `Dentino`, description "Стоматологія у місті Львів", state = pending TurboSMS moderation → operator registration), choosing the cleaner 7-char brand over the 11-char `DentinoLviv` — the city is carried by the TurboSMS sender **description**, not the sender line. Config **`SMS_SENDER_ID` `"DentinoLviv"` → `"Dentino"`**; the national-tariff rate lever is unchanged (keep `Dentino` **national**, not international at 5.95 ₴/SMS). Pure rename — **no ADR added/changed, no schema/state-machine/spine impact**; the `smsSender` adapter (ADR-005) + `config-not-constants` (§9.2) mean the value lives only in env + this doc. **Touched (live docs):** header, §1 (Quick Stats sender), §4.2 (sender identity — the old "11 chars = the max; a space would make 12" rationale is dropped, since 7 chars sits well within the ≤11 alphanumeric max), §8/§9.2 (`SMS_SENDER_ID` value), `docs/your-tasks.md` A1, `docs/your-tasks-turbosms-signup.md` (EN + UK), `docs/vendor/turbosms/API-REFERENCE.md`, `README.md`, `docs/design/README.md`, memory (`key-decisions`, `sms-provider-turbosms`, `MEMORY.md`). **Layermaxxer pipeline unaffected** — the strategy/beads/execution prompts cite this doc and reference `_shared/sender.ts` + env, never the literal name (cite-don't-copy). **Not touched** (frozen audit trail): `docs/planmaxer/**`, `docs/harmonymaxer/**`, the 2026-06-22 pivot handoff, and prior Change Log entries — all keep `DentinoLviv` as the historically-accurate value of the day.
-- 2026-06-27 — v2.26.1 — **TurboSMS SMS-preclearance correction + Kyivstar vendor dir removed (no ADR change; no decision reversed).** Deep vendor research (`docs/vendor/turbosms/` — full `API-REFERENCE.md` + raw official-doc captures) showed the v2.26 "register a transactional template" SMS pre-clearance framing was **wrong for SMS**: a template registry the text must match (rejection code `416`) and a transactional-vs-advertising **rate** split are **Viber-only**. For **SMS** there is no template registry; pre-clearance is **alpha-name moderation + written medical-content sign-off (Terms §3) + promo-free text**, and the rate lever is keeping `DentinoLviv` **national**. Reframed verify-gate #1 in **§4.2, ADR-005, §10, §9.3**, plus **`your-tasks.md` A1 + the TurboSMS signup guide**. Also **deleted the `docs/vendor/kyivstar/` collection** (Kyivstar-direct dropped at v2.26; "Kyivstar" remains only as a delivery *operator*, the ADR-005 rejected-alternative, and this change-log history). README/AGENTS unchanged (v2.26 baseline). **Touched:** header, §4.2, §10, §9.3, ADR-005, Appendix C.
-- 2026-06-22 — v2.26 — **SMS provider pivot: Kyivstar-direct → TurboSMS (owner-approved; no new ADR — ADR-005 rewritten in place).** The original plan named **Kyivstar-direct** as a *conditional default* with a UA aggregator as the co-equal fallback, decision deferred to the C4 seed test. Live 2026 research across **TurboSMS / Mobizon / Messaggio / SMS-Fly / SMSClub / AlphaSMS / Kyivstar-direct** showed cost is a **wash at this volume** (~₴1,500–2,400/mo across the field; Kyivstar's edge ≈ €1–2/mo), so the field collapses to a **capability** decision: **TurboSMS** wins on **self-service signup (no sales call), a free alpha name `DentinoLviv` into the operators' national-names register, webhook DLR + rejection codes, a `sequence_id` idempotency key (≤40 chars, 30-day dedup, code 507 → enables `SMS_IDEMPOTENCY_MODE='strict_dedupe'`), transactional-template URL pre-clearance, a single SMS rate, and no SMS monthly floor (1 UAH min top-up).** **AlphaSMS** is the documented **fallback route** (the only other UA aggregator to explicitly confirm links-allowed + webhook DLR; ~20% pricier), preserving the primary+fallback routing redundancy ADR-005 always wanted — now **without Kyivstar-direct**. **SMS-only re-confirmed:** Viber via TurboSMS was re-checked and **rejected** at ~20/day — its floor is **₴9,000/mo → ₴10,367 (€200) from 1 Jul 2026** (Viber moves to EUR billing; native Confirm/Cancel buttons are promotional-tier + floor-gated), making it ~4–7× costlier; the TurboSMS-Viber own-sender crossover is **~150–170/day** (a floorless shared **"INFORMER"** sender ~₴300/mo and TurboSMS "Viber surveys" are recorded as **future levers only above ~150/day**, not v1). **Open verify-gates (confirm at signup / C4 seed test — not build blockers):** (1) **transactional-link classification** — written manager confirmation the link-bearing template stays transactional (not reclassified to advertising); (2) one alpha submission covers **Kyivstar + Vodafone + lifecell** (national register); (3) **ported/MNP** delivery; (4) per-operator price spread within the 0.98–1.29 ₴ tier. The **exact billing unit is now answered** (TurboSMS bills **per segment**) and removed from the §10 gate list. **Config:** `KYIVSTAR_API_KEY` → **`SMS_PROVIDER_API_KEY`**, new **`SMS_DLR_WEBHOOK_SECRET`**, optional **`SMS_PROVIDER`** (`turbosms`|`alphasms`) + **`SMS_PROVIDER_BASE_URL`**; `SMS_IDEMPOTENCY_MODE` upgraded to "`strict_dedupe` plausible via `sequence_id`" (`none` stays the fallback baseline). The pricing band (~€30–45/mo SMS; ~€53–68/mo all-in) is **unchanged** (TurboSMS actual ≈ €27–32/mo SMS, within the conservative ceiling). Docs-only — **no code/schema/migrations affected** (the `smsSender` adapter already abstracts the route, ADR-005). **Touched:** header, §1 (Key Rec #5, Decisions, Quick Stats), §3.3, §4.2 (sender/cost/provider), §4.4, §5.4, §6.6 creds, **ADR-005 (routing sub-decision + consequence + deferred-Viber note)**, §8 (file map + `.env.example`), §9.1, §9.2, §9.4, §10 (resolved + build-time gates), §11, Appendix C; satellites README / AGENTS.md / `.gitignore` / `docs/your-tasks.md`; new `docs/vendor/turbosms/API-REFERENCE.md`; memory. **Not touched** (frozen audit trail): `docs/planmaxer/**`, `docs/harmonymaxer/**`, prior Change Log entries (the v2.22 / v2.3 entries that mention Kyivstar-direct are historical and left as-is), the Kyivstar vendor Postman JSON (RULE 1 — superseded-note only). No new ADR; ADR-001…024 unchanged; the SMS-only channel strategy and channel-agnostic spine are intact.
-- 2026-06-19 — v2.25.2 — **Owner-decisions integration (no ADR added or reversed).** Baked owner answers to `docs/your-tasks.md` into the plan. **A6:** the clinic provided the official vector logo in **white and black** (`docs/design/assets/Dentino-logo-{white,black}.{ai,eps,pdf}`) — recorded in **§5.8**, **ADR-022**, and the **§8** file map as the build-time inline-SVG source (recoloured navy; the re-traced `logo.svg` is now the fallback; the official mark is a two-tooth glyph + "DENTINO" + "BY RAK & RAK", monochrome — no rose). **B4:** **§10** updated — owner confirms **no growth expected** (clinic just expanded), so the single-tenant scope is confirmed correct and the `clinic_id`/RLS scaffolding stays deliberately unbuilt (reinforces ADR-005/017). **A4:** no plan change (develop-on-Free→Pro-at-go-live already in ADR-003/§4.4). **A5:** the owner made the manual-phone baseline operationally optional/lightweight — captured in `docs/your-tasks.md` + memory, but per owner the **plan is deliberately left unchanged** (ADR-017 already states ROI does not gate on the baseline). README/AGENTS stay at the v2.25 baseline. **Touched:** header, §5.8, §8, §10, ADR-022, Appendix C.
-- 2026-06-18 — v2.25.1 — **Fresh-eyes correctness pass (no architectural change; no ADR added or renumbered; no locked decision reopened).** A meticulous re-read surfaced two arithmetic/consistency defects in the business-economics numbers plus one in a deferred-channel illustration; all fixed in place. **(1) Staff-time breakeven *sensitivity* (§6.2 / ADR-017 "Numbers").** Under the documented model `new = O + N·(1−A)·M_no_reply` (O=10, N=20, M_no_reply=2.25) vs `old = N·M_old`, the breakeven at `M_old=2.0` is **~33%**, not ~40% — and the doc's own ~0% low endpoint at `M_old=3.0` only holds with `M_no_reply` held fixed, which mathematically caps the high endpoint at 33%. Corrected ~40%→~33% (§6.2) and the range 0–40%→~0–33% (ADR-017); the headline breakeven (~22% at the `M_old=2.25` placeholder) was already correct and is unchanged. **(2) Month-basis mismatch (§4.2).** The same ~20/day was annualized as ~600 sends (×30 calendar days) for the SMS cost but ~440 appts (×22 operating days) for the ROI/staff models. The cost figure errs *high* (the safe direction for a business case), so the headline ~€30–45/mo SMS / ~€53–68/mo all-in are kept as a deliberately conservative ceiling — with the dual basis now stated explicitly, so 440-vs-600 is no longer a silent contradiction. **(3) Deferred §4.3 WhatsApp illustration** aligned to the clinic's real scale (~1,000→~600 reminders/mo; ~$21→~$13). **Touched:** §4.2, §4.3, §6.2, ADR-017, Appendix C. README/AGENTS/memory remain at the **v2.25** baseline (a patch changes neither ADR-001…024 nor any locked decision). Prior detailed v2.x entries remain below as the audit trail (the v2.10 entry that introduced the 0–40% breakeven-sensitivity figure is left as historical record; v2.14's separate "<40% = product failure" reference is an unrelated, already-rejected threshold).
-- 2026-06-18 — v2.25 — **Live-Clinic Production Safety & Staged Go-Live integration (planmaxer iter-2) — new ADR-024.** Closed the highest-consequence, lowest-glamour gap: the runtime guards protect the clinic from the system *misbehaving while correctly deployed*, but nothing protected it from the *act of building/testing/rolling out* once the live ClinicCards key (A2/A3) and SMS key (C2) come within reach of half-built code. **New ADR-024 (live-clinic safety & staged go-live)** + **new §6.6** add a lifecycle-safety layer *on top of* the runtime guards: **(1) read-only-until-go-live** — two fail-closed mode flags `SEND_MODE` (checked in `smsSender`) and `CRM_WRITE_MODE` (checked in the guarded write-back), both default **off**, so the live key validates reads day-one while no write/send is reachable until a human flip; **(2) a staged ladder** `shadow → seed → canary → full`, each rung with side-effects/entry-gate/one-flip-rollback, driven by the two flags + the §4.4/ADR-017 pause switch, with the first real-*write* flip behind a one-time typed confirmation token; **(3) a fail-closed allowlist guard in code** at the same two chokepoints (non-`full` refuses a non-allowlisted send/write; empty allowlist refuses all; only `full` lifts it; allowlist holds only staff numbers + owner-created test visit-ids, no patient PII); **(4) credential lifecycle / env separation** (real keys only in prod Vault; an `APP_ENV` boot guard hard-fails a `full`/live mode or a real base URL under `test`/`dev`; CI stores no real keys; `db push`/`deploy`-against-prod is a deliberate human act; public confirm fn never gets `service_role`). **§9.2** adds `APP_ENV`/`SEND_MODE`/`CRM_WRITE_MODE`/`SEND_ALLOWLIST`/`CRM_WRITE_ALLOWLIST`. **§5.2** trust panel gains the always-visible current-mode banner (SHADOW/SEED/CANARY/LIVE) + shadow/seed row annotations. **§6.5** security go-live gate gains the guard assertions; **§10** raises the read-only-key / sandbox / designated-test-patient questions; **§11** rewrites "Go live" to climb the ladder. **AGENTS.md** gains **RULE 3** ("Dentino is a live clinic — no real patient may be touched by the build", constitutional, alongside RULE 1/2) + a reinforcing "This Project" line; **README** + **your-tasks** (A7 designated test patients + read-only-key question; D1a shadow sign-off; D1b canary→full sign-off) synced. The `SEND_MODE`/`CRM_WRITE_MODE`/`APP_ENV` flags are the **same chokepoint** as the v2.24 §6.5 no-egress harness (ADR-023) — the harness denies egress in CI, the mode flags deny the side effect in prod-until-go-live. **Touched:** header, §5.2, §6.5, **+§6.6 (new)**, §9.2, §10, §11, **+ADR-024**, Appendix C, AGENTS.md (RULE 3 + "This Project" + "Key Source of Truth" line corrected to v2.25/ADR-001…024), README, `docs/your-tasks.md`. No locked decision reopened; ADR-001…024 contiguous; one mode vocabulary (`SEND_MODE`/`CRM_WRITE_MODE`/`APP_ENV`) reconciled across §5.2/§6.5/§6.6/§9.2 (holistic pass).
-- 2026-06-18 — v2.24 — **Test Strategy & Hermetic Test Harness integration (planmaxer iter-2) — new ADR-023.** Turned §6.5 from a strong *checklist* into a *layered strategy* so "green CI = safe to ship" is defensible and "no dev/test/CI run can touch a real patient" is a property the harness **fails closed** on. **New ADR-023 (hermetic harness / no-real-egress is a proven property)**: one outbound-HTTP chokepoint (`_shared/http.ts`) replaced in test by a cassette player that THROWS on any unrecorded request, an `APP_ENV` Zod boot guard that hard-errors a real base URL/live key under `test/dev/ci` (forcing `SEND_MODE='off'`/`CRM_WRITE_MODE='off'`), and a CI egress-deny outer ring. **§6.5 restructured** with: the hermetic-harness/no-egress proof (incl. the first-class `tests/integration/no-egress.test.ts`), cassette lifecycle + explicit opt-in READ-ONLY drift-detection (`deno task contract:verify`, never `PUT`/`DELETE`), a three-rung smoke ladder (pure / DB-only pgTAP / single-message dry-run) + a ladder↔§11-build-slice map, four determinism hooks (clock `app.now()`+`_shared/clock.ts`, seeded `tokens.ts` RNG, two-firing concurrency driver, Kyiv/DST fixture matrix), adversarial suite A (confirm-page/write-back: auto-fetch immunity, nonce/token fuzzing, double-POST, TOCTOU, write-lease, breaker velocity-vs-drip, reaper) and suite B (SMS render: segment-budget property, link integrity, golden-file Cyrillic, Kyiv mis-substitution), and a fast→slow **CI gate ladder** + per-slice definition-of-done with the **no-egress** and **schema↔`database.types.ts` no-drift** checks as first-class non-skippable gates. **§8** names the new seams (`http.ts`, `clock.ts`, `tokens.ts` injected `rng`, `tests/harness/`, `tests/pgtap/`, `tests/fixtures/sms-golden/`, sanitized cassettes). **§5.7** adds the inert-in-prod `app.now()` test seam (no mechanism change to the one-winner proofs). **AGENTS.md** "Stage Validation Test Gate" adds the `ubs` chokepoint grep, `tests/pgtap`, the no-egress test, and the two-first-class-gates paragraph. **Touched:** header, §5.7, §6.5, §8, **+ADR-023**, Appendix C, AGENTS.md, README. No locked decision reopened; ADR-001…023 contiguous. The `SEND_MODE`/`CRM_WRITE_MODE`/`APP_ENV` flags are the shared seam the iteration-2 go-live ladder (ADR-024/§6.6) climbs.
-- 2026-06-18 — v2.23 — **Visual design & brand system codified (design recon).** Captured the Dentino brand from the live site (`dentino.com.ua` — WordPress / theme `bamboo` / `lang="uk"`) via Playwright `getComputedStyle` extraction + in-browser WCAG measurement, then re-implemented it inline as a reusable, constraint-compliant design system under **new ADR-022 (extract-not-link, builds on ADR-014)**. Added **§5.8 Visual Design & Brand System** (visual SoT = `docs/design/dentino-design-system.md` + `design-tokens.json`; locked palette w/ **measured** contrast — navy `#0A3576`/11.77:1, ink `#14213A`/16.05:1, muted `#51606F`/6.46:1 [**darkened** from the site's sub-AA `#8B8D8F`/3.33:1], rose `#F23A5B` **decorative-only** [3.80:1 fails AA text]; Cyrillic-complete **system-font stack** substituting the site's Gotham Pro webfonts; re-traced inline-SVG wordmark; the seven hard confirm-page constraints restated). Cross-referenced **§5.2** (confirm + dashboard rows → §5.8/tokens), **§6.5** (accessibility-acceptance bullet now cites the concrete measured ratios/sizes/targets + the `confirm-page.html` seed), **§8** (added `docs/design/` subtree), **§9.3** (page chrome → §5.8). Built two reviewable mockups (`docs/design/mockups/{confirm-page.html,dashboard.html}`) — the confirm page **passes all seven gates** (0 external refs, 1 runtime request, 0 script, ≈4.4 KB gzipped, ≥6.46:1 contrast, `lang="uk"`, ≥48 px targets); **owner-approved 2026-06-18**. Synced README + `docs/your-tasks.md` (+ a light owner task: provide the official `DentinoLviv` vector logo + brand colours). **Touched:** header, §5.2, §5.8 (new), §6.5, §8, §9.3, **+ADR-022**, Appendix C, README, `docs/your-tasks.md`. No locked decision reopened; ADR-001…022 contiguous.
-- 2026-06-18 — v2.22 — **Build-readiness clarifications (pre-`research-to-spec`; no architectural change).** Tightened two build-facing specifics after verifying the external API docs live (TurboSMS + Kyivstar-direct both publish complete REST APIs — OAuth2 `clientId`/`secretKey` → `POST /sms` + `GET /sms/:msgId` DLR for Kyivstar; `message/send.json` + `sequence_id` idempotency for TurboSMS; ClinicCards' only reference is the JS-rendered Postman documenter at `cliniccards.com/api`, transcribed in §4.1). **(1)** Added a **browser-E2E tooling** paragraph to §6.5 (mirrored in AGENTS.md): **Playwright (`@playwright/test`)** as the deterministic CI regression + accessibility harness for both web surfaces (JS-disabled context proves the no-JS form POST; network/CPU throttling = low-end-Android-over-mobile-data; device emulation = ≥48 px / 200 % zoom; axe-core = WCAG-AA), the security/least-privilege invariants as HTTP/contract + pgTAP tests *below* the browser, and an **agentic browser** (`agent-browser` skill / computer-use) reserved for exploratory trust-QA. **(2)** Renamed §11 "Pre-requisites for **Implementation**" → "Pre-requisites for **go-live**" so the keys/accounts line can't be misread as a build blocker (the build runs against cassettes + stub/real sender + local Supabase, no keys). Synced `docs/your-tasks.md` with a "how this is sequenced" note. **Touched:** header, §6.5, §11, Appendix C, README, `docs/your-tasks.md`, AGENTS.md.
-- 2026-06-18 — v2.21 — **Consolidated Planmaxer iteration-1 final sync.** Closed the documentation-sync layer after the four iteration-1 review domains (Implementation-Readiness, Data-Layer Engineering, Patient-Experience Engagement, Business-Viability/Ops Economics), the cross-plan unification passes, and the architectural-coherence pass. Status/header, README, owner action list, Appendix references, and project memory now point at one final iteration-1 state: ADR-001…021 contiguous; §10 current; the authoritative state machine, claim-time token minting, superseded-token kill, migration-managed status policy, audited template admin RPC, velocity-first mass-cancel breaker, staff-load/value framing, and no-reply nudge token re-issue decision are integrated. Prior detailed v2.x entries remain below as the audit trail. **Touched:** document header/ToC, README, `docs/your-tasks.md`, Appendix C, auto-memory.
-- 2026-06-18 — v2.20 — **Architectural coherence pass (planmaxer Step 3).** Walked the post-iteration-1 system end to end and found two spec-level seams worth tightening before `research-to-spec`: (1) token minting must be claim-time, not durable materialization-time, because the raw token is never stored and cannot be reconstructed from `tracking_token_digest`; §5.2/§5.7b/§6.5 now state that `pending` rows are tokenless, the claimer writes only digest+expiry, the §5.3 CHECK requires every claimed/live send row (`sending`/`sent`/`delivered`/`send_unknown`) to carry digest+expiry, and a crash after claim conservatively reaps to `send_unknown`. (2) changed-appointment partial failure is now explicit: supersede + replacement notice insertion are one lease-owned transaction, old token killed, replacement unresolved until sent/action-proven, and reconciliation/heartbeat cannot false-green through the gap. Added §6.1a as the architecture verdict: the mechanisms compose, the state machine is authoritative, and the weakest point remains patient action rate plus staff adoption. **Touched:** §5.2, §5.3, §5.6–§5.7, §6.1a, §6.4–§6.5, Appendix C.
-- 2026-06-17 — v2.19 — **Third fresh-eyes cross-plan unification pass (planmaxer Step 2 rerun).** Re-read the live SOT after v2.18 against the four iter-1 handoffs and found the active thresholds, ADR numbering, and cost/value framing already aligned. **Corrections:** (1) made the §5.2 trust-panel green/amber text match §5.6 exactly: green means every current remindable is sendable/accepted; amber is accounted-but-staff-work. (2) clarified `cancellation_circuits.status`: `open` stores hard-stop conditions only, while daily amber is derived from valid cancel intents and not a schema state. (3) separated footer opt-out from the Confirm/Cancel `action_taken` lifecycle so `/action?action=unsubscribe` writes consent/preference only and does not consume the single-use appointment capability. (4) restated the config mutation invariant in ADR-011: status policy = git-tracked data migration, templates = audited admin RPC, never raw dashboard SQL. (5) promoted §5.7a–d labels to resolvable subheadings. **Touched:** §5.2–§5.7, ADR-011, Appendix C.
-- 2026-06-17 — v2.18 — **Second fresh-eyes cross-plan unification pass (planmaxer Step 2 rerun).** Re-read the live research doc again after v2.17 and fixed the remaining cross-section seams the first cleanup missed. **Corrections:** (1) removed stale "compact fallback only" phone-placement wording from §1/§4.2/§5.2/§6.2 so every live section agrees that `{{clinic_phone}}` rides in both default and compact SMS bodies plus the page; (2) made "action rate" the canonical KPI term in the live body and Appendix A, reserving raw taps/page views as non-metrics because `GET` is side-effect-free and scanner-contaminated; (3) reconciled `pending_staff_review` with the schema by adding explicit `action_taken='staff_closed_no_write'` for staff-closed held cancels instead of overloading `none`, and renamed the staff admin path to `resolve_held_cancels`; (4) tightened the mass-cancel count predicate to the schema-backed valid-cancel-intent form (`response='cancel' and action_locked_at is not null`), so breaker-held intents remain counted without a new column; (5) added `{{clinic_phone}}` to the §8 `templates.ts` file-map contract. **Touched:** §1, §2.1, §4.2, §5.2–§5.6, §6.2–§6.5, ADR-014/017/018/020, §8, Appendix A/C.
-- 2026-06-17 — v2.17 — **Cross-plan unification cleanup (planmaxer Step 2).** Re-read the v2.16 research doc fresh for contradictions left by the four iter-1 integrations. **Corrections:** (1) removed the stale "row edit, not redeploy" wording around `cliniccards_status_policy`; status policy changes are tracked data migrations, while templates remain audited admin-RPC edits. (2) finalized ADR-021's no-reply nudge model as **re-issue/kill** (fresh token, prior token expired, one live link), removing the lingering "both links live / exact choice TBD" text. (3) aligned the schema with the state machine: `action_taken` is now `not null default 'none'`, `message_templates` lists `{{clinic_phone}}`, and the redundant `cancellation_circuits.cancel_count` column is removed because breaker counts are derived from valid cancel POSTs. (4) made the §5.5 diagram show `pending → sending → sent/delivered/failed/send_unknown`, tightened I2 and reconciliation predicates, and added the missing fenced send-outcome SQL (`send_claim_token` guarded commit) required by ADR-020. (5) cleaned stale ADR-numbering notes in the live ADRs; ADR-001…021 are contiguous. **Touched:** §4.1–§4.2, §5.3, §5.5–§5.7, ADR-018–021, Appendix C.
-- 2026-06-17 — v2.16 — **Holistic unification correction (planmaxer iter-1 final pass).** Re-read the full research doc, owner task list, README, and all four iteration-1 handoffs as one system instead of four domain-local patches. **Corrections:** (1) reconciled the `reminder_days` completed-day rule with ADR-006/012/020 — duplicate completed `initial` firings no-op, but scheduled `catchup` and dashboard/manual passes may intentionally re-claim a completed day to re-scan for late bookings/changes; added `reminder_runs.pass_kind` and made `POST /run-reminders` accept/default it. (2) made the automatic catch-up's first ordinary message kind explicit as `catchup_reminder`, with the existing ordinary-reminder unique key preserving "one ordinary reminder per appointment per day." (3) resolved a state-machine contradiction around `send_unknown`: unresolved `send_unknown` remains staff-owned and is never blind-retried, but a valid nonce-backed patient action proves delivery, promotes the row to `delivered`/resolved-by-action, and removes it from the red unresolved-send bucket before the normal CRM write-back path. **Touched:** §2.3, §4.4, §5.2–§5.7, §6.5, ADR-012/018/020, Appendix C, and `docs/your-tasks.md`.
-- 2026-06-17 — v2.15 — **Data-Layer fresh-eyes correction + surrounding-doc sync (planmaxer iter-1).** Re-read the data-layer sections with fresh eyes on the v2.14 base and synced the surrounding docs to the ADR-019 role/schema model. **One real correction:** restored the **load-bearing `crm_visit_facts.purpose`** column (+ PK → `(run_id, cliniccards_visit_id, purpose)`) that v2.12 wrongly trimmed — §5.6 *and* §6.2 reconciliation read `purpose='visits_pre_send' … falling back to visits_initial`, and the "vanished-unresolved → red" check must distinguish a visit in the *latest* fetch from one only in an earlier fetch (a single row per visit can't express that). Corrected the v2.12 Change Log line accordingly. **Sync:** §8 `0002` description now lists the 4 `api` RPCs + staff config admin RPCs + `maintenance.reap_stale_sends()` via `cron.schedule_in_database`; §9.2 adds the **per-Edge-Function DB-role credentials** (`CONFIRM_DB_URL`/`RUN_DB_URL`/`MAINTENANCE_DB_URL` or a role-claim JWT; public fn never gets `service_role`; Vault peppers version-named; **no** encryption-key env since `raw_encrypted` was dropped; **no** pepper-version var); §10 build-time already carries the per-function-role / `schedule_in_database` / `app_metadata` confirmations and the resolved data-layer bullet now notes `purpose`; §6.3.2 matrix cell `null raw`→`null raw_redacted`. **Cross-pass reconciliation:** documented the **v1.1 nudge schema delta** in §5.3 — ADR-021's `message_kind='no_reply_nudge'` is **not** in the v1 CHECK (lean/deferred); enabling it is a small v1.1 data migration that adds the CHECK value + its own partial-unique key (no v1 bloat). README unchanged (security/stack summary still accurate). No new ADR. Touched §5.3 (`crm_visit_facts`, nudge note), §6.3.2, §8, §9.2, §10, Appendix C + the v2.12 entry; review file updated. *(Holistic pass: verify `crm_visit_facts.purpose` exists and the iter-1 ADR sequence 017–021 is reconciled.)*
-- 2026-06-17 — v2.14 — **Patient-Experience external-reviewer reconciliation (planmaxer iter-1).** Integrated the canonical Patient-Experience review (GPT-Pro/Claude, with UA-fraud / Cochrane / PLOS / WCAG-2.2 citations) on top of v2.13, judging each proposed change (agree / partial / disagree); much was already in the v2.7 self-pass, so this folds in the **net-new + one real bug fix**. **Adopted:** **(1) the clinic phone in the _default_ SMS** (not only the compact fallback) — it fits 2 segments once the lead is tightened (`{{clinic}}:` + **"Підтвердити/змінити"**; 131 chars), as a trust signal + link-averse path + reschedule channel (§4.2/§9.3); **(2) an explicit anti-scam page line** *«Ми не просимо оплату, банківські дані, паролі або SMS-коди»* (NBU-grounded — the page reads like a bank-confirmation receipt, not a marketing page; §5.2/§6.3/§9.3); **(3) the no-reply-nudge TOKEN FIX — new ADR-021:** the v2.7 claim that the nudge "reuses the same token" was **impossible** (the raw token is never stored) and would have violated invariant I3 — corrected to **mint-new-token + re-issue** (kill the prior token; the single-use CAS spans both SMSs) across §4.2/§5.5/§6.2; **(4) a no-reply reason-tag enum** to locate the engagement leak cheaply without scanner-prone GET telemetry (§5.2/§6.2); **(5)** a sharper send-time A/B (12:00 vs ~15:30; dual same-day-actionable metric) + the **~55–65% healthy band** framing (§6.2/§2.3 #9). **Rejected / partial:** moving the **default send 12:00→13:00** (kept 12:00 — it agrees with §4.4/ADR-013 and the weak timing evidence doesn't justify the churn); **"<40% = product failure"** (contradicts ADR-017 — value is delivery-driven; the value-red line stays **<35% for 5 days**, §2.3 #10/ADR-017). Clarified the named-vs-terse default copy as a B1/holistic refinement (several 2-segment wordings exist). Touched §2.3, §4.2, §5.2, §5.5, §6.2, §6.3, §9.3, **+ADR-021**. *(Landed on the settled v2.13 base, after the holistic pass paused; all four external-reviewer reconciliations are now in. Numbering: ADR-017–020 were taken by the other iter-1 passes, so this pass is **ADR-021** — the holistic pass reconciles the sequence. Full verdicts + char-verified edits: `active/reviews/review-patient-experience-engagement.md`.)*
-- 2026-06-17 — v2.13 — **Implementation-Readiness external-reviewer reconciliation (planmaxer iter-1).** Integrated the canonical Implementation-Readiness review on top of v2.12 (which already held my v2.11 first pass), judging each proposed change (agree / partial / disagree). Roughly half was **already integrated by the v2.11 self-pass** (heartbeat-grace lease steal, synchronous run, superseded-token kill, no-key `send_unknown` baseline + three-trigger reaper/ADR-018, pinned reconciliation denominator + state-machine table), and the review's breaker section reviewed the **flat-count** mechanism that v2.8/v2.10 already replaced with velocity-first — so those were **confirmed, not reworked**. **Adopted the genuine net-new (composition seams a v2.6-era review surfaces): (1) Fenced side effects — new ADR-020:** *no process commits a side effect or its outcome unless it still holds the owning token* (`… where <owner_col>=<my_token> and <expected_status>`; 0 rows ⇒ stop) — fences a wall-clock-killed/lease-stolen **zombie** on the day-lease heartbeat, the **send-outcome commit** (`send_claim_token`), the supersede/reconcile/heartbeat writes, and the per-visit write lease; its corollary extends crash protection to the **CRM write-back** (§5.6 reaper on the existing `crm_writeback_ok` — **no** new `crm_write_pending` state, since the `PUT` is idempotent). **(2) `completed` ≠ "no more passes today"** (§4.4/ADR-006): the late-afternoon catch-up + manual firings **re-claim** a `completed` day and re-scan CRM for late bookings — a real composition bug (`no_op_completed` would silently drop them); idempotency blocks dup sends *(adds `reminder_runs.pass_kind` — data-layer: reconcile)*. **(3) Reconciliation precision** (§5.6): account by the *current `appointment_fingerprint`* (a stale `sent` row can't account for a moved appt), and an **unresolved disappearance** (visit gone from the latest fetch with no terminal/write-back/move reason) is **red**, not silently green. **(4) Cross-day-move build-gate** (§10): a target-date-only `GET /visits` can't tell *moved* from *cancelled/deleted* — absent ClinicCards visit-by-id lookup/moved-placeholders, v1 does **not** auto-send a cross-day `reschedule_notice` (kills the old token + flags staff). **(5) `SMS_IDEMPOTENCY_MODE` = none|client_reference_only|strict_dedupe** (baseline `none`; only `strict_dedupe` + written proof permits replay). **(6) Absolute run deadline** (§6.4): stop new sends by ~330–360 s, reconcile/fail before the 400 s cap. **Rejected (held the lean line):** the reviewer's **8-column breaker counter split** (regresses the velocity-first breaker, which already counts only valid nonce-backed cancel POSTs + breaker-exempt bulk-approve-safe); a dedicated **`crm_write_pending`/`crm_write_unknown` state** + claim columns (the idempotent `PUT` makes `crm_writeback_ok` sufficient); a dedicated post-send **`visits_reconcile`** fetch (the latest-`visits_pre_send` pin is adequate at ~20/day). **New ADR-020** (fenced side effects). Deferred to the holistic pass (the data-layer pass was concurrently restructuring the RPC surface): the §5.4 `/prepare`+`/action` "reject superseded / require current CRM start" predicates and the §5.7a/§5.7b canonical-SQL detail — all captured with exact diffs in `active/reviews/review-implementation-readiness.md`. Touched §4.4, §5.2, §5.6, §6.4, §10, +ADR-020. *(Landed on the v2.12 data-layer base, concurrent with the data-layer reconciliation + holistic pass; ADR-017/018/019 were taken, so this pass's new decision is ADR-020 — the holistic pass reconciles the iter-1 ADR sequence.)*
-- 2026-06-17 — v2.12 — **Data-Layer external-reviewer reconciliation (planmaxer iter-1).** Integrated the canonical Data-Layer review on top of v2.11 (which already held my v2.9 first pass), judging each proposed change (agree / partial / disagree). **Adopted (strong):** **schema separation** — base tables → private **`app`**, RPCs → **`api`**, HMAC helpers → **`private`**, purge/reaper → **`maintenance`**; only `api` is Data-API-exposed (§5.3 note/§6.3/**new ADR-019**); **caller/definer split + `dentino_*` per-Edge-Function role taxonomy** (public confirm = `dentino_confirm_api`, zero table grants; RPCs owned by non-login `dentino_confirm_definer` with **column-scoped** grants; engine = `dentino_run_api`; `service_role` = break-glass only); a **fourth RPC `finish_reminder_action`** (the no-table-grant caller can't record `crm_writeback_ok` after its CRM PUT without it — closes a real hole in "exactly 3 RPCs", §5.4/§6.3.1); **versioned `message_templates`** (the `unique(key,channel,language)`+`active` combo was self-contradictory → **one-active partial-unique** + `version`, provenance→`audit_log`, §5.3); an initial live-token CHECK (tightened/renamed in v2.20), a **`provider_message_id` partial-unique** (DLR dedupe), the **bytea-digest** recommendation, **`force` RLS**, fail-closed **role `statement_timeout`/`lock_timeout`/`idle_in_transaction_session_timeout`**, **`app_metadata`-sourced staff claims**, and **`cron.schedule_in_database` under `dentino_maintenance_runner`** (never `postgres`) with the external-scheduler fallback (§6.3.1/.2/.3, §10); extended the §6.5 **pgTAP gate** (4th RPC, schema-exposure, role timeouts); the **pgsodium-pending-deprecation** note (prefer Vault). **Partially adopted (trimmed to the lean line):** `crm_visit_facts` gains `cliniccards_patient_id` + `appointment_fingerprint` (declined `policy_terminal`/`policy_unknown`/`fetch_log_id` — derivable; **`purpose` was also declined here but that was an error — restored in v2.15, since §5.6/§6.2 reconciliation consumes it**); `crm_fetch_log` gains an explicit `purge_after` + optional integrity `raw_sha256`. **Rejected (firmly, holding ADR-008/012's lean stance):** the **`pepper_versions` table + `*_pepper_version` columns** — disproportionate at ~20/day (tokens are ≤~36 h-lived; `phone_hmac` is not a lookup key), so the documented **accept-break-and-reissue** rotation stands, with a single optional `token_pepper_version` hedge noted for a future zero-disruption need (ADR-016/§6.3); the `crm_fetch_log.contains_pii` flag (the write-time-redaction invariant makes it permanently false — a dead column). **Renamed** v2.9's `confirm_public`/`reminder_api_owner`/`maintenance_owner` → the `dentino_*` taxonomy in the live body (the v2.9 Change Log entry keeps the original names as history). **New ADR-019** (per-Edge-Function dedicated role + schema separation + RPC-only access — took the next free number after impl-readiness's ADR-018). Touched §4.5, §5.3, §5.4, §6.3 (+.1/.2/.3), §6.5, §8, §9.1, §9.3, §10, Appendix A, ADR-003/011/016/018, **+ADR-019**. No locked decision reopened. *(The holistic pass reconciles the iter-1 ADR sequence — note ADR-017 was retitled by business-viability.)*
-- 2026-06-17 — v2.11 — **Implementation-Readiness & Spec-Precision integration (planmaxer iter-1).** Reviewed whether v2.x is *buildable as written* — emergent bugs at the **seams between** the independently-added mechanisms (lease, claim, supersede, breaker, reconciliation), and gaps that would force a `research-to-spec`/`spec-to-tdd` author to guess. **Adopted: (1) Reconciled lease lifecycle** — the steal predicate is now **heartbeat-grace-based** (`now() − lock_heartbeat_at > 120 s`, renewed ≤30 s) with the 15-min `lock_expires_at` as an absolute backstop, so a wall-clock-killed holder (≤400 s) is reclaimed in ~120 s not ~15 min; the run is **synchronous** (no `202`/`waitUntil` — the external heartbeat, not the HTTP status, proves completion) — §5.2/§5.7a/§6.4/ADR-012. **(2) Superseded-token kill** — superseding a row sets `token_expires_at = now()` and the single-use CAS refuses `/action` on a `superseded_at is not null` row, so two live tokens can never point at one visit and a late DLR can't resurrect a superseded row — §5.2/§5.5/§5.6/§5.7c/ADR-008. **(3) Stale-send reaper made total** — the no-idempotency-key `send_unknown` path is the **baseline** (the key a pure optimization), and a `sending` claim now has **three** automated exits (next-firing, **on-steal** reap, and a new `pg_cron` `maintenance.reap_stale_sends()` **backstop**) so no row is ever human-only-exit — §5.6/§5.7b/§9/**new ADR-018**. **(4) Pinned reconciliation denominator** — `current_remindable` = the lease-holder's *latest successful* target-date fetch (`crm_visit_facts purpose='visits_pre_send'`, else `visits_initial`), with per-status accounting and two walked scenarios (staff-cancelled-after-noon → green; moved-then-superseded → green) so "green" provably means "every currently-remindable appointment is handled" — §5.6/ADR-013. **(5) Single authoritative state machine** — added the canonical `status × action_taken` state-transition table + four assertable invariants (single-use; **no human-only-exit**; supersede-kills-capability; action-implies-delivery) to §5.5, and made the §6.5 'induced shortfall' + reaper/steal/supersede tests deterministic. **Confirmed (not reworked):** the mass-cancel breaker counting/approval semantics were already fully resolved by the v2.8/v2.10 velocity-first recalibration. **New ADR-018** (total state machine + reaper); **no new table/column/status** (the reaper is a `maintenance` function beside `purge_privacy()`). Touched §5.2, §5.5, §5.6, §5.7, §6.1, §6.4, §6.5, §9.1, §9.3, §10, ADR-008/012/013. *(Landed on the v2.10 base, concurrent with the business-viability external-reviewer reconciliation; ADR-017 was taken by business-viability so this pass's new decision is ADR-018 — the holistic pass reconciles ADR numbering/ordering.)*
-- 2026-06-17 — v2.10 — **Business-Viability external-reviewer reconciliation (planmaxer iter-1).** Integrated the canonical Business-Viability review on top of v2.9, judging each proposed change (agree / partial / disagree). **Adopted:** the **baseline-honesty correction** — the real baseline is the clinic's *current phone calls*, not "no reminders" (SMS ≈ phone for attendance — Cochrane CD007458), so the honest dominant value is **recovered chair-time + staff-time + faster cancel capture + audit trail**, with any no-show drop *measured*, not claimed (§1, §2.3 #11, §6.2, ADR-017); the reviewer's more rigorous **staff-time model** (`new ≈ 10 + 45(1−A)`; **breakeven ~22%**, sensitive 0–40% to the unmeasured manual-call time; operating thresholds <35% danger / ≥55% win; ≤30 staff-min/day target — §6.2, §2.3 #10); an **empty-slot / recovered-chair-time ROI** framing with sensitivity (§1); a **two-velocity-tier breaker** (hard-open ≥4/10-min **or** ≥6/30-min; daily **amber** ≥⌈0.4×sent⌉ vs **hard-ceiling** > max(8,⌈0.6×sent⌉); count only valid cancel POSTs) reconciled across §5.3/§5.6/§6.2/§6.5/§10/ADR-014; **stronger write-back escalation** (≤2 idempotent auto-retries, pin above no-reply, ClinicCards deep link, SLA, end-of-day owner report — §5.6/§6.2); **silent staff non-adoption** named the highest-*expected*-cost failure (§6.2) + a **first-month stop-loss** (review at 5/10/20 days; <35% action or <10 min/day saved = value-red — §11/ADR-017); **staff-workflow rules** + an expanded **value panel** (§5.2); a **continuity drill + green/amber/red one-pager + password vault + per-failure fallback** (§4.4); owner tasks (`your-tasks`). **Rejected (firmly):** the reviewer's proposal to add a `clinics` table + `clinic_id` to every table now — over-building at greenfield (insurance value ≈0, real carrying cost); runway stays **config-not-constants** (ADR-017/§2.5/ADR-005). **Also rejected:** per-action source-fingerprint breaker tiers (conflict with PII-minimization, ADR-016; over-engineered at ~20/day). Touched §1, §2.1, §2.3, §4.4, §5.2, §5.3 (comment), §5.6, §6.2, §6.4, §6.5, §10, §11, ADR-005/014/017, Appendix A/B. *(Landed on the v2.9 data-layer base, concurrent with the implementation-readiness pass; the holistic pass reconciles ordering/ADR numbering.)*
-- 2026-06-17 — v2.9 — **Data-Layer Engineering integration (planmaxer iter-1).** Reviewed §5.3 as real Postgres-on-Supabase a senior engineer would build and defend. **(1) Public-function privilege boundary (Tension 1):** rejected the "`service_role` self-discipline" stance for the internet-public confirm function — it now authenticates as a dedicated **`confirm_public`** role with `EXECUTE` on exactly three RPCs and **zero** table grants (a code slip can't enumerate patients); added the **RPC SQL security contract** (`search_path=''`, token-only param, fixed projection, Vault pepper, identical not-found/expired return — §6.3.1) and a per-Edge-Function role convention. **(2) Config-edit contradiction (Tension 2):** resolved ADR-011↔ADR-003 — `cliniccards_status_policy` is **migration-managed** (tracked data migration, not "a row edit, not a redeploy"), `message_templates` is **admin-RPC-managed** (audited staff editor); stated the hot-edit boundary. **(3) Concurrency SQL (Tension 3):** added **§5.7** with the canonical race-free lease claim/steal, per-message `FOR UPDATE SKIP LOCKED` claim + stale-claim reaper, single-use action CAS, and per-visit write-lock steal — each with a one-winner proof and the no-advisory-lock-across-HTTP rule; encoded the `completed`-only-when-green lease-reclaim invariant. **(4) Indexes + reconciliation (Tension 4):** added the runtime index set keyed to the real read/write paths (board, needs-attention, run join, purge) and flagged the superfluous ones; added the lean non-PII **`crm_visit_facts`** reconciliation ledger so reconciliation joins a typed relation instead of re-parsing raw jsonb and survives the purge (an explicit ADR-008 carve-out). **(5) Grant matrix + purge role (Tension 5):** added the full **role × table × operation** grant/RLS matrix (§6.3.2), default-deny preamble, `security_invoker` staff views, staff admin RPCs, and the dedicated non-superuser **`maintenance_owner`** for `pg_cron` (§6.3.3). **(6) PII at rest (Tension 6):** phones now **redacted at write time** in `crm_fetch_log`/`inbound_events` (continuous, not eventual, minimization); dropped the unused `inbound_events.raw_encrypted`; clarified `phone_hmac` is non-identity/non-indexed; documented pepper-in-Vault rotation. **Extras (#7):** a single-use **irreversibility trigger** + CHECK make ADR-014's lock DB-enforced; a **pgTAP/RLS regression gate** added to §6.5. Touched §4.5, §5.3, §5.4, §5.7 (new), §6.3 (+§6.3.1/.2/.3), §6.5, §8, §9.1, §9.3, §10, ADR-003/008/011/012/014/016. No locked decision reopened. *(Landed on the v2.8 base; the holistic pass reconciles ordering/ADR numbering with the pending implementation-readiness pass.)*
-- 2026-06-17 — v2.8 — **Business-Viability & Operational-Economics integration (planmaxer iter-1).** Applied the lens no prior review did — *does the hardened system earn its keep and deliver its why (cut no-shows, free staff time)?* Added the missing **no-show-led ROI model** (§1 Value & ROI; ≈€130–740/mo recovered vs ~€60 cost; pays for itself at ~2–3 prevented no-shows/mo) and the **net-staff-time model + ~12% action rate breakeven** (§6.2; later tightened to ~22% after baseline correction), finding that at ~20/day the safety machinery's exception queues are *small* — the real staff-time risk is the no-reply chase policy, and the no-show value is *delivery-driven* so it largely survives low action rate. **Recalibrated the mass-cancel breaker** from a flat daily count (`max(3,⌈0.25×sent⌉)`) to **velocity-primary (≥4 cancels/10-min) + a high daily-ceiling backstop (> `max(8,⌈0.6×sent⌉)`)** so it won't false-trip a flu/snow day yet halts a runaway faster — reconciled across §5.3/§5.6/§6.2/§6.5/ADR-014 (no schema change; velocity computed from `responded_at`). **Fixed the under-invested lost-rebooking path:** a Cancel write-back is idempotent, so **auto-retry** it (unlike a send) then escalate hard (dedicated alert + top-of-needs-attention + red reconciliation) — §5.6, with a **failure-cost ranking** in §6.2. Added two **success criteria** (staff-load budget #10; measured no-show reduction #11), an owner **value panel** (§5.2), an **operational-continuity** plan (designed-in manual backstop + kill-switch + complaint micro-runbook + handover note, §4.4), and the **trajectory verdict** (v1's single-tenant/SMS-only scope is right for a static clinic; multi-clinic is a bounded `clinic_id`+RLS migration, not built now). New **ADR-017**. Updated `docs/your-tasks.md`. Touched §1, §2.1, §2.3, §4.4, §5.2, §5.3 (comment), §6.2, §6.4, §6.5, §10, ADR-005/014. *(Landed on the v2.7 patient-experience base, ahead of the iter-1 data-layer & implementation-readiness passes; the holistic pass reconciles ADR numbering/ordering.)*
-- 2026-06-17 — v2.7 — **Patient Experience & Engagement integration (planmaxer iter-1).** Attacked the doc's own #1 residual risk — patient action rate after delivery — from the behavioral/UX side. Named the conversion funnel's biggest leak (**trust-to-tap**, given UA smishing-wariness) and promoted **reception priming** to a first-class rollout artifact. Designed the previously-undesigned **confirm page** as a trust + accessibility surface achievable within the locked no-third-party-assets rule (inline-SVG/system-font branding, "why you got this", partial-detail as the strongest anti-phishing proof, **no-JavaScript server-rendered form POST**, ≥48 px tap targets, AA contrast, zoom enabled, `tel:` links). Redesigned the **Cancel interstitial reschedule-first** (foreground a one-tap reschedule call above the destructive confirm) + a reschedule-offering **post-cancel page** to convert cancels→retained appointments — all *within* ADR-014's locked security gate. Kept Confirm strictly one tap + added warm closure pages. Affirmed the **12:00 send default** (same-day staff window; cancels surfaced early) with the honest KPI = **action ÷ delivered by template/hour** (GET views are scanner-contaminated, so not counted). **Pre-designed the v1.1 no-reply nudge** as a safe lever (own `message_kind`/partial-unique key; later corrected by ADR-021 to mint a fresh token and re-issue the capability, because the raw token is never stored). Added Ukrainian copy seeds (interstitial, closure pages, priming script) to §9.3 for owner sign-off (task B1). Touched §2.2–§2.3, §4.2, §5.2, §6.2, §9.3, ADR-010/014. *(Landed on the v2.6 base ahead of the iter-1 data-layer & implementation-readiness passes; UX/copy edits are orthogonal to the schema/state-machine, and the holistic pass reconciles ordering.)*
-- 2026-06-17 — v2.6 — **Planmaxer integrations consolidated + holistic sync.** Collapsed the Delivery, CRM Sync, Reliability, and Security passes into one internally consistent design. Final v1 story: `https://r.dentino.com.ua/r/<token>` carries a full-entropy 128-bit capability token stored only as an HMAC digest; `GET` renders only; Confirm/Cancel are nonce-backed `POST` actions; Cancel adds the interstitial, single-use lock, expiry, live CRM revalidation, per-visit CRM write lease, and mass-cancel circuit-breaker. Reconciled cost/segment numbers, terminology, §/ADR references, idempotency (`(visit_id, target_date)` + change-notice fingerprint + `reminder_days` lease + per-message claim), channel-agnostic app-channel extension rules, the weakest remaining risk (patient action rate after delivery), Appendix metadata, and `docs/your-tasks.md`.
-- 2026-06-17 — v2.5 — **Security, Consent & Compliance integration.** Added ADR-014/015/016: scoped capability flow for destructive Cancel, POST-only auto-fetch-immune actions, dedicated app-only origin, RLS/RPC least privilege, contract-performance + healthcare-management lawful basis, `sms_reminders_enabled` as a preference, append-only `consent_events`, staff-only re-enable, no stored full phone numbers, retention windows, and daily privacy purge.
-- 2026-06-17 — v2.4 — **Reliability & Operations integration.** Added ADR-012/013 and amended ADR-003: Supabase Pro mandatory for production, git-controlled deploys, external dead-man's-switch, optional external scheduler, `reminder_days` processing lease, per-message `sending` claim, commit-before-send ordering, `send_unknown` handling, self-reconciliation, and the dashboard trust panel.
-- 2026-06-17 — v2.3 — **Delivery & Reach integration.** Kept SMS-only v1 and ADR-010's link-based capture while hardening UA delivery: Kyivstar-direct is conditional on cross-operator sender preservation, per-message DLRs, billing confirmation, and URL-template preclearance; otherwise use a UA-native SMS aggregator. Locked the 2-segment / ≤134 UCS-2 budget, 128-bit token, clinic-phone fallback, 3-day seed test, and the current SMS/Viber cost model.
-- 2026-06-17 — v2.2 — **CRM Sync & Correctness integration.** Added appointment fingerprint/change notices, pre-send revalidation, guarded Confirm/Cancel write-back, `PUT status=CANCELLED` as default with `DELETE` as staff-approved fallback, `crm_fetch_log`, always-materialized skipped rows, `send_unknown`, automatic afternoon catch-up, and ADR-011's data-driven status policy.
-- 2026-06-16 — v2.1 — **Dashboard refinement + decisions locked (Harmonymaxer run 002).** Expanded the staff dashboard into a one-page live status board plus single "Message next day" button; folded in then-confirmed business decisions; reframed §10 into resolved, build-time technical, and deferred questions. Later Planmaxer integrations superseded the early link/cost/security details.
-- 2026-06-16 — v2.0 — **SMS-only pivot harmonized (Harmonymaxer run 001).** Repointed v1 to SMS via a UA-local provider with confirm/cancel link capture, removed app-channel discovery/router work from v1, preserved Viber/WhatsApp/Telegram as deferred §4.3 enhancements, and rewrote ADR-005/010.
-- 2026-06-16 — v1.6 — Consent/feasibility verification for the original app-channel research: WhatsApp/Viber can accept documented offline consent for business messaging, while Telegram cannot cold-message users even with consent. Preserved as background for deferred §4.3 channels.
-- 2026-06-16 — v1.5 — Security/correctness review for the original multi-channel design: strengthened token entropy, spoofing-risk handling, changed-response behavior, CRM-state rechecks, raw-event retention, and opt-out mechanics. Superseded by v2.5's SMS-link capability flow and lawful-basis model.
-- 2026-06-16 — v1.4 — Cost/build refinements for the original app-channel plan: corrected Viber minimums, aligned the build sequence with the multi-fire noon window, added a safe template fallback, and documented late-booking coverage limits.
-- 2026-06-16 — v1.3 — Schema and operations review: corrected appointment-vs-patient reminder wording, added self-healing noon-window firings, clarified timezone risk, and refined early channel/message-state modeling. Superseded where v2.x removed app-channel state from v1.
-- 2026-06-16 — v1.2 — Correctness review: added the remindable-status filter, tightened appointment-day counters, flagged ClinicCards timezone, required CRM re-fetch before write-back, recommended EU data residency, and fixed the §8 structure.
-- 2026-06-16 — v1.1 — Critical review pass. Fixed DST direction, moved idempotency to appointment-day semantics, added `target_date`, flagged Supabase Free pause risk, refined early consent/reach assumptions, and cleaned cost/channel comparisons.
+
+- 2026-06-27 — v2.26.3 — **Default SMS reminder copy revised (owner decision;
+  docs-only, no ADR/decision-spine change).** The owner finalised the default
+  reminder body as
+  `{{name}}, ваш візит: завтра {{date}} о {{time}}.\nПідтвердити/змінити: {{confirm_url}}. Тел: {{clinic_phone}}`
+  (rendered **130 chars = 2 UCS-2 segments**: «Олено, ваш візит: завтра 18.06 о
+  14:30.⏎Підтвердити/змінити: …/r/8xP4… . Тел: +380679876111»). Three changes
+  from the v2.14 default: (1) the clinic-name `{{clinic}}:` lead → the generic
+  **«ваш візит»** (clinic identity still carried by the `Dentino` sender + the
+  `r.dentino.com.ua` link, so no identity is lost); (2) a **line break** (1
+  UCS-2 char) splits the appointment line from the action line; (3)
+  `{{clinic_phone}}` renders **without spaces** (`+380679876111`, 13 chars
+  vs 16) — segment-saving **and** more reliable tap-to-call auto-linkification,
+  matching the confirm page's existing `tel:+380679876111` href. The old general
+  "compact" fallback is **retired** (the default now fits 2 segments on its
+  own); the **only** remaining fallback is the **name-overflow** variant («Ваш
+  візит: …», drops `{{name}}`, ≈123 chars), triggered solely when a rendered
+  first name ≳10 chars (`default = 125 + len(name)`) would exceed 134. The v1.1
+  no-reply nudge (§4.2) is harmonised to the same style
+  (`{{name}}, підтвердіть ваш візит …`, ≈120 chars). **No
+  schema/state-machine/spine impact** — `{{clinic}}` remains an _available_
+  renderer variable (§5.3 DDL / §8 `templates.ts`), just unused by the shipped
+  bodies; the canonical copy lives only in §4.2 + the DB `message_templates`
+  seed (cite-don't-copy). **Touched (live docs):** header, §1 (Decisions — SMS
+  phone/bodies), §4.2 (default + fallback + nudge), `docs/your-tasks.md` B1.
+  **Not touched:** §5.3/§8 (`{{clinic}}` stays an available variable), the
+  confirm-page/dashboard chrome (`docs/design/**` — the page already uses
+  `tel:+380679876111`; its spaced _display_ of the number is page formatting,
+  out of this SMS-body scope), and the **frozen audit trail**
+  (`docs/planmaxer/**`, `docs/harmonymaxer/**`, prior Change Log entries) — all
+  keep the prior copy as the historically-accurate value of the day. No new ADR;
+  ADR-001…024 unchanged.
+- 2026-06-27 — v2.26.2 — **Alpha sender renamed `DentinoLviv` → `Dentino` (owner
+  decision; docs-only, no ADR/decision-spine change).** The owner submitted the
+  7-char alpha sender **`Dentino`** to TurboSMS (cabinet screenshot 2026-06-27:
+  sender `Dentino`, description "Стоматологія у місті Львів", state = pending
+  TurboSMS moderation → operator registration), choosing the cleaner 7-char
+  brand over the 11-char `DentinoLviv` — the city is carried by the TurboSMS
+  sender **description**, not the sender line. Config **`SMS_SENDER_ID`
+  `"DentinoLviv"` → `"Dentino"`**; the national-tariff rate lever is unchanged
+  (keep `Dentino` **national**, not international at 5.95 ₴/SMS). Pure rename —
+  **no ADR added/changed, no schema/state-machine/spine impact**; the
+  `smsSender` adapter (ADR-005) + `config-not-constants` (§9.2) mean the value
+  lives only in env + this doc. **Touched (live docs):** header, §1 (Quick Stats
+  sender), §4.2 (sender identity — the old "11 chars = the max; a space would
+  make 12" rationale is dropped, since 7 chars sits well within the ≤11
+  alphanumeric max), §8/§9.2 (`SMS_SENDER_ID` value), `docs/your-tasks.md` A1,
+  `docs/your-tasks-turbosms-signup.md` (EN + UK),
+  `docs/vendor/turbosms/API-REFERENCE.md`, `README.md`, `docs/design/README.md`,
+  memory (`key-decisions`, `sms-provider-turbosms`, `MEMORY.md`). **Layermaxxer
+  pipeline unaffected** — the strategy/beads/execution prompts cite this doc and
+  reference `_shared/sender.ts` + env, never the literal name (cite-don't-copy).
+  **Not touched** (frozen audit trail): `docs/planmaxer/**`,
+  `docs/harmonymaxer/**`, the 2026-06-22 pivot handoff, and prior Change Log
+  entries — all keep `DentinoLviv` as the historically-accurate value of the
+  day.
+- 2026-06-27 — v2.26.1 — **TurboSMS SMS-preclearance correction + Kyivstar
+  vendor dir removed (no ADR change; no decision reversed).** Deep vendor
+  research (`docs/vendor/turbosms/` — full `API-REFERENCE.md` + raw official-doc
+  captures) showed the v2.26 "register a transactional template" SMS
+  pre-clearance framing was **wrong for SMS**: a template registry the text must
+  match (rejection code `416`) and a transactional-vs-advertising **rate** split
+  are **Viber-only**. For **SMS** there is no template registry; pre-clearance
+  is **alpha-name moderation + written medical-content sign-off (Terms §3) +
+  promo-free text**, and the rate lever is keeping `DentinoLviv` **national**.
+  Reframed verify-gate #1 in **§4.2, ADR-005, §10, §9.3**, plus
+  **`your-tasks.md` A1 + the TurboSMS signup guide**. Also **deleted the
+  `docs/vendor/kyivstar/` collection** (Kyivstar-direct dropped at v2.26;
+  "Kyivstar" remains only as a delivery _operator_, the ADR-005
+  rejected-alternative, and this change-log history). README/AGENTS unchanged
+  (v2.26 baseline). **Touched:** header, §4.2, §10, §9.3, ADR-005, Appendix C.
+- 2026-06-22 — v2.26 — **SMS provider pivot: Kyivstar-direct → TurboSMS
+  (owner-approved; no new ADR — ADR-005 rewritten in place).** The original plan
+  named **Kyivstar-direct** as a _conditional default_ with a UA aggregator as
+  the co-equal fallback, decision deferred to the C4 seed test. Live 2026
+  research across **TurboSMS / Mobizon / Messaggio / SMS-Fly / SMSClub /
+  AlphaSMS / Kyivstar-direct** showed cost is a **wash at this volume**
+  (~₴1,500–2,400/mo across the field; Kyivstar's edge ≈ €1–2/mo), so the field
+  collapses to a **capability** decision: **TurboSMS** wins on **self-service
+  signup (no sales call), a free alpha name `DentinoLviv` into the operators'
+  national-names register, webhook DLR + rejection codes, a `sequence_id`
+  idempotency key (≤40 chars, 30-day dedup, code 507 → enables
+  `SMS_IDEMPOTENCY_MODE='strict_dedupe'`), transactional-template URL
+  pre-clearance, a single SMS rate, and no SMS monthly floor (1 UAH min
+  top-up).** **AlphaSMS** is the documented **fallback route** (the only other
+  UA aggregator to explicitly confirm links-allowed + webhook DLR; ~20%
+  pricier), preserving the primary+fallback routing redundancy ADR-005 always
+  wanted — now **without Kyivstar-direct**. **SMS-only re-confirmed:** Viber via
+  TurboSMS was re-checked and **rejected** at ~20/day — its floor is **₴9,000/mo
+  → ₴10,367 (€200) from 1 Jul 2026** (Viber moves to EUR billing; native
+  Confirm/Cancel buttons are promotional-tier + floor-gated), making it ~4–7×
+  costlier; the TurboSMS-Viber own-sender crossover is **~150–170/day** (a
+  floorless shared **"INFORMER"** sender ~~₴300/mo and TurboSMS "Viber surveys"
+  are recorded as **future levers only above ~150/day**, not v1). **Open
+  verify-gates (confirm at signup / C4 seed test — not build blockers):** (1)
+  **transactional-link classification** — written manager confirmation the
+  link-bearing template stays transactional (not reclassified to advertising);
+  (2) one alpha submission covers **Kyivstar + Vodafone + lifecell** (national
+  register); (3) **ported/MNP** delivery; (4) per-operator price spread within
+  the 0.98–1.29 ₴ tier. The **exact billing unit is now answered** (TurboSMS
+  bills **per segment**) and removed from the §10 gate list. **Config:**
+  `KYIVSTAR_API_KEY` → **`SMS_PROVIDER_API_KEY`**, new
+  **`SMS_DLR_WEBHOOK_SECRET`**, optional **`SMS_PROVIDER`**
+  (`turbosms`|`alphasms`) + **`SMS_PROVIDER_BASE_URL`**; `SMS_IDEMPOTENCY_MODE`
+  upgraded to "`strict_dedupe` plausible via `sequence_id`" (`none` stays the
+  fallback baseline). The pricing band (~~€30–45/mo SMS; ~€53–68/mo all-in) is
+  **unchanged** (TurboSMS actual ≈ €27–32/mo SMS, within the conservative
+  ceiling). Docs-only — **no code/schema/migrations affected** (the `smsSender`
+  adapter already abstracts the route, ADR-005). **Touched:** header, §1 (Key
+  Rec #5, Decisions, Quick Stats), §3.3, §4.2 (sender/cost/provider), §4.4,
+  §5.4, §6.6 creds, **ADR-005 (routing sub-decision + consequence +
+  deferred-Viber note)**, §8 (file map + `.env.example`), §9.1, §9.2, §9.4, §10
+  (resolved + build-time gates), §11, Appendix C; satellites README / AGENTS.md
+  / `.gitignore` / `docs/your-tasks.md`; new
+  `docs/vendor/turbosms/API-REFERENCE.md`; memory. **Not touched** (frozen audit
+  trail): `docs/planmaxer/**`, `docs/harmonymaxer/**`, prior Change Log entries
+  (the v2.22 / v2.3 entries that mention Kyivstar-direct are historical and left
+  as-is), the Kyivstar vendor Postman JSON (RULE 1 — superseded-note only). No
+  new ADR; ADR-001…024 unchanged; the SMS-only channel strategy and
+  channel-agnostic spine are intact.
+- 2026-06-19 — v2.25.2 — **Owner-decisions integration (no ADR added or
+  reversed).** Baked owner answers to `docs/your-tasks.md` into the plan.
+  **A6:** the clinic provided the official vector logo in **white and black**
+  (`docs/design/assets/Dentino-logo-{white,black}.{ai,eps,pdf}`) — recorded in
+  **§5.8**, **ADR-022**, and the **§8** file map as the build-time inline-SVG
+  source (recoloured navy; the re-traced `logo.svg` is now the fallback; the
+  official mark is a two-tooth glyph + "DENTINO" + "BY RAK & RAK", monochrome —
+  no rose). **B4:** **§10** updated — owner confirms **no growth expected**
+  (clinic just expanded), so the single-tenant scope is confirmed correct and
+  the `clinic_id`/RLS scaffolding stays deliberately unbuilt (reinforces
+  ADR-005/017). **A4:** no plan change (develop-on-Free→Pro-at-go-live already
+  in ADR-003/§4.4). **A5:** the owner made the manual-phone baseline
+  operationally optional/lightweight — captured in `docs/your-tasks.md` +
+  memory, but per owner the **plan is deliberately left unchanged** (ADR-017
+  already states ROI does not gate on the baseline). README/AGENTS stay at the
+  v2.25 baseline. **Touched:** header, §5.8, §8, §10, ADR-022, Appendix C.
+- 2026-06-18 — v2.25.1 — **Fresh-eyes correctness pass (no architectural change;
+  no ADR added or renumbered; no locked decision reopened).** A meticulous
+  re-read surfaced two arithmetic/consistency defects in the business-economics
+  numbers plus one in a deferred-channel illustration; all fixed in place. **(1)
+  Staff-time breakeven _sensitivity_ (§6.2 / ADR-017 "Numbers").** Under the
+  documented model `new = O + N·(1−A)·M_no_reply` (O=10, N=20, M_no_reply=2.25)
+  vs `old = N·M_old`, the breakeven at `M_old=2.0` is **~33%**, not ~40% — and
+  the doc's own ~0% low endpoint at `M_old=3.0` only holds with `M_no_reply`
+  held fixed, which mathematically caps the high endpoint at 33%. Corrected
+  ~40%→~33% (§6.2) and the range 0–40%→~0–33% (ADR-017); the headline breakeven
+  (~22% at the `M_old=2.25` placeholder) was already correct and is unchanged.
+  **(2) Month-basis mismatch (§4.2).** The same ~20/day was annualized as ~600
+  sends (×30 calendar days) for the SMS cost but ~440 appts (×22 operating days)
+  for the ROI/staff models. The cost figure errs _high_ (the safe direction for
+  a business case), so the headline ~€30–45/mo SMS / ~€53–68/mo all-in are kept
+  as a deliberately conservative ceiling — with the dual basis now stated
+  explicitly, so 440-vs-600 is no longer a silent contradiction. **(3) Deferred
+  §4.3 WhatsApp illustration** aligned to the clinic's real scale (~1,000→~600
+  reminders/mo; ~$21→~$13). **Touched:** §4.2, §4.3, §6.2, ADR-017, Appendix C.
+  README/AGENTS/memory remain at the **v2.25** baseline (a patch changes neither
+  ADR-001…024 nor any locked decision). Prior detailed v2.x entries remain below
+  as the audit trail (the v2.10 entry that introduced the 0–40%
+  breakeven-sensitivity figure is left as historical record; v2.14's separate
+  "<40% = product failure" reference is an unrelated, already-rejected
+  threshold).
+- 2026-06-18 — v2.25 — **Live-Clinic Production Safety & Staged Go-Live
+  integration (planmaxer iter-2) — new ADR-024.** Closed the
+  highest-consequence, lowest-glamour gap: the runtime guards protect the clinic
+  from the system _misbehaving while correctly deployed_, but nothing protected
+  it from the _act of building/testing/rolling out_ once the live ClinicCards
+  key (A2/A3) and SMS key (C2) come within reach of half-built code. **New
+  ADR-024 (live-clinic safety & staged go-live)** + **new §6.6** add a
+  lifecycle-safety layer _on top of_ the runtime guards: **(1)
+  read-only-until-go-live** — two fail-closed mode flags `SEND_MODE` (checked in
+  `smsSender`) and `CRM_WRITE_MODE` (checked in the guarded write-back), both
+  default **off**, so the live key validates reads day-one while no write/send
+  is reachable until a human flip; **(2) a staged ladder**
+  `shadow → seed → canary → full`, each rung with
+  side-effects/entry-gate/one-flip-rollback, driven by the two flags + the
+  §4.4/ADR-017 pause switch, with the first real-_write_ flip behind a one-time
+  typed confirmation token; **(3) a fail-closed allowlist guard in code** at the
+  same two chokepoints (non-`full` refuses a non-allowlisted send/write; empty
+  allowlist refuses all; only `full` lifts it; allowlist holds only staff
+  numbers + owner-created test visit-ids, no patient PII); **(4) credential
+  lifecycle / env separation** (real keys only in prod Vault; an `APP_ENV` boot
+  guard hard-fails a `full`/live mode or a real base URL under `test`/`dev`; CI
+  stores no real keys; `db push`/`deploy`-against-prod is a deliberate human
+  act; public confirm fn never gets `service_role`). **§9.2** adds
+  `APP_ENV`/`SEND_MODE`/`CRM_WRITE_MODE`/`SEND_ALLOWLIST`/`CRM_WRITE_ALLOWLIST`.
+  **§5.2** trust panel gains the always-visible current-mode banner
+  (SHADOW/SEED/CANARY/LIVE) + shadow/seed row annotations. **§6.5** security
+  go-live gate gains the guard assertions; **§10** raises the read-only-key /
+  sandbox / designated-test-patient questions; **§11** rewrites "Go live" to
+  climb the ladder. **AGENTS.md** gains **RULE 3** ("Dentino is a live clinic —
+  no real patient may be touched by the build", constitutional, alongside RULE
+  1/2) + a reinforcing "This Project" line; **README** + **your-tasks** (A7
+  designated test patients + read-only-key question; D1a shadow sign-off; D1b
+  canary→full sign-off) synced. The `SEND_MODE`/`CRM_WRITE_MODE`/`APP_ENV` flags
+  are the **same chokepoint** as the v2.24 §6.5 no-egress harness (ADR-023) —
+  the harness denies egress in CI, the mode flags deny the side effect in
+  prod-until-go-live. **Touched:** header, §5.2, §6.5, **+§6.6 (new)**, §9.2,
+  §10, §11, **+ADR-024**, Appendix C, AGENTS.md (RULE 3 + "This Project" + "Key
+  Source of Truth" line corrected to v2.25/ADR-001…024), README,
+  `docs/your-tasks.md`. No locked decision reopened; ADR-001…024 contiguous; one
+  mode vocabulary (`SEND_MODE`/`CRM_WRITE_MODE`/`APP_ENV`) reconciled across
+  §5.2/§6.5/§6.6/§9.2 (holistic pass).
+- 2026-06-18 — v2.24 — **Test Strategy & Hermetic Test Harness integration
+  (planmaxer iter-2) — new ADR-023.** Turned §6.5 from a strong _checklist_ into
+  a _layered strategy_ so "green CI = safe to ship" is defensible and "no
+  dev/test/CI run can touch a real patient" is a property the harness **fails
+  closed** on. **New ADR-023 (hermetic harness / no-real-egress is a proven
+  property)**: one outbound-HTTP chokepoint (`_shared/http.ts`) replaced in test
+  by a cassette player that THROWS on any unrecorded request, an `APP_ENV` Zod
+  boot guard that hard-errors a real base URL/live key under `test/dev/ci`
+  (forcing `SEND_MODE='off'`/`CRM_WRITE_MODE='off'`), and a CI egress-deny outer
+  ring. **§6.5 restructured** with: the hermetic-harness/no-egress proof (incl.
+  the first-class `tests/integration/no-egress.test.ts`), cassette lifecycle +
+  explicit opt-in READ-ONLY drift-detection (`deno task contract:verify`, never
+  `PUT`/`DELETE`), a three-rung smoke ladder (pure / DB-only pgTAP /
+  single-message dry-run) + a ladder↔§11-build-slice map, four determinism hooks
+  (clock `app.now()`+`_shared/clock.ts`, seeded `tokens.ts` RNG, two-firing
+  concurrency driver, Kyiv/DST fixture matrix), adversarial suite A
+  (confirm-page/write-back: auto-fetch immunity, nonce/token fuzzing,
+  double-POST, TOCTOU, write-lease, breaker velocity-vs-drip, reaper) and suite
+  B (SMS render: segment-budget property, link integrity, golden-file Cyrillic,
+  Kyiv mis-substitution), and a fast→slow **CI gate ladder** + per-slice
+  definition-of-done with the **no-egress** and **schema↔`database.types.ts`
+  no-drift** checks as first-class non-skippable gates. **§8** names the new
+  seams (`http.ts`, `clock.ts`, `tokens.ts` injected `rng`, `tests/harness/`,
+  `tests/pgtap/`, `tests/fixtures/sms-golden/`, sanitized cassettes). **§5.7**
+  adds the inert-in-prod `app.now()` test seam (no mechanism change to the
+  one-winner proofs). **AGENTS.md** "Stage Validation Test Gate" adds the `ubs`
+  chokepoint grep, `tests/pgtap`, the no-egress test, and the
+  two-first-class-gates paragraph. **Touched:** header, §5.7, §6.5, §8,
+  **+ADR-023**, Appendix C, AGENTS.md, README. No locked decision reopened;
+  ADR-001…023 contiguous. The `SEND_MODE`/`CRM_WRITE_MODE`/`APP_ENV` flags are
+  the shared seam the iteration-2 go-live ladder (ADR-024/§6.6) climbs.
+- 2026-06-18 — v2.23 — **Visual design & brand system codified (design recon).**
+  Captured the Dentino brand from the live site (`dentino.com.ua` — WordPress /
+  theme `bamboo` / `lang="uk"`) via Playwright `getComputedStyle` extraction +
+  in-browser WCAG measurement, then re-implemented it inline as a reusable,
+  constraint-compliant design system under **new ADR-022 (extract-not-link,
+  builds on ADR-014)**. Added **§5.8 Visual Design & Brand System** (visual SoT
+  = `docs/design/dentino-design-system.md` + `design-tokens.json`; locked
+  palette w/ **measured** contrast — navy `#0A3576`/11.77:1, ink
+  `#14213A`/16.05:1, muted `#51606F`/6.46:1 [**darkened** from the site's sub-AA
+  `#8B8D8F`/3.33:1], rose `#F23A5B` **decorative-only** [3.80:1 fails AA text];
+  Cyrillic-complete **system-font stack** substituting the site's Gotham Pro
+  webfonts; re-traced inline-SVG wordmark; the seven hard confirm-page
+  constraints restated). Cross-referenced **§5.2** (confirm + dashboard rows →
+  §5.8/tokens), **§6.5** (accessibility-acceptance bullet now cites the concrete
+  measured ratios/sizes/targets + the `confirm-page.html` seed), **§8** (added
+  `docs/design/` subtree), **§9.3** (page chrome → §5.8). Built two reviewable
+  mockups (`docs/design/mockups/{confirm-page.html,dashboard.html}`) — the
+  confirm page **passes all seven gates** (0 external refs, 1 runtime request, 0
+  script, ≈4.4 KB gzipped, ≥6.46:1 contrast, `lang="uk"`, ≥48 px targets);
+  **owner-approved 2026-06-18**. Synced README + `docs/your-tasks.md` (+ a light
+  owner task: provide the official `DentinoLviv` vector logo + brand colours).
+  **Touched:** header, §5.2, §5.8 (new), §6.5, §8, §9.3, **+ADR-022**, Appendix
+  C, README, `docs/your-tasks.md`. No locked decision reopened; ADR-001…022
+  contiguous.
+- 2026-06-18 — v2.22 — **Build-readiness clarifications (pre-`research-to-spec`;
+  no architectural change).** Tightened two build-facing specifics after
+  verifying the external API docs live (TurboSMS + Kyivstar-direct both publish
+  complete REST APIs — OAuth2 `clientId`/`secretKey` → `POST /sms` +
+  `GET /sms/:msgId` DLR for Kyivstar; `message/send.json` + `sequence_id`
+  idempotency for TurboSMS; ClinicCards' only reference is the JS-rendered
+  Postman documenter at `cliniccards.com/api`, transcribed in §4.1). **(1)**
+  Added a **browser-E2E tooling** paragraph to §6.5 (mirrored in AGENTS.md):
+  **Playwright (`@playwright/test`)** as the deterministic CI regression +
+  accessibility harness for both web surfaces (JS-disabled context proves the
+  no-JS form POST; network/CPU throttling = low-end-Android-over-mobile-data;
+  device emulation = ≥48 px / 200 % zoom; axe-core = WCAG-AA), the
+  security/least-privilege invariants as HTTP/contract + pgTAP tests _below_ the
+  browser, and an **agentic browser** (`agent-browser` skill / computer-use)
+  reserved for exploratory trust-QA. **(2)** Renamed §11 "Pre-requisites for
+  **Implementation**" → "Pre-requisites for **go-live**" so the keys/accounts
+  line can't be misread as a build blocker (the build runs against cassettes +
+  stub/real sender + local Supabase, no keys). Synced `docs/your-tasks.md` with
+  a "how this is sequenced" note. **Touched:** header, §6.5, §11, Appendix C,
+  README, `docs/your-tasks.md`, AGENTS.md.
+- 2026-06-18 — v2.21 — **Consolidated Planmaxer iteration-1 final sync.** Closed
+  the documentation-sync layer after the four iteration-1 review domains
+  (Implementation-Readiness, Data-Layer Engineering, Patient-Experience
+  Engagement, Business-Viability/Ops Economics), the cross-plan unification
+  passes, and the architectural-coherence pass. Status/header, README, owner
+  action list, Appendix references, and project memory now point at one final
+  iteration-1 state: ADR-001…021 contiguous; §10 current; the authoritative
+  state machine, claim-time token minting, superseded-token kill,
+  migration-managed status policy, audited template admin RPC, velocity-first
+  mass-cancel breaker, staff-load/value framing, and no-reply nudge token
+  re-issue decision are integrated. Prior detailed v2.x entries remain below as
+  the audit trail. **Touched:** document header/ToC, README,
+  `docs/your-tasks.md`, Appendix C, auto-memory.
+- 2026-06-18 — v2.20 — **Architectural coherence pass (planmaxer Step 3).**
+  Walked the post-iteration-1 system end to end and found two spec-level seams
+  worth tightening before `research-to-spec`: (1) token minting must be
+  claim-time, not durable materialization-time, because the raw token is never
+  stored and cannot be reconstructed from `tracking_token_digest`;
+  §5.2/§5.7b/§6.5 now state that `pending` rows are tokenless, the claimer
+  writes only digest+expiry, the §5.3 CHECK requires every claimed/live send row
+  (`sending`/`sent`/`delivered`/`send_unknown`) to carry digest+expiry, and a
+  crash after claim conservatively reaps to `send_unknown`. (2)
+  changed-appointment partial failure is now explicit: supersede + replacement
+  notice insertion are one lease-owned transaction, old token killed,
+  replacement unresolved until sent/action-proven, and reconciliation/heartbeat
+  cannot false-green through the gap. Added §6.1a as the architecture verdict:
+  the mechanisms compose, the state machine is authoritative, and the weakest
+  point remains patient action rate plus staff adoption. **Touched:** §5.2,
+  §5.3, §5.6–§5.7, §6.1a, §6.4–§6.5, Appendix C.
+- 2026-06-17 — v2.19 — **Third fresh-eyes cross-plan unification pass (planmaxer
+  Step 2 rerun).** Re-read the live SOT after v2.18 against the four iter-1
+  handoffs and found the active thresholds, ADR numbering, and cost/value
+  framing already aligned. **Corrections:** (1) made the §5.2 trust-panel
+  green/amber text match §5.6 exactly: green means every current remindable is
+  sendable/accepted; amber is accounted-but-staff-work. (2) clarified
+  `cancellation_circuits.status`: `open` stores hard-stop conditions only, while
+  daily amber is derived from valid cancel intents and not a schema state. (3)
+  separated footer opt-out from the Confirm/Cancel `action_taken` lifecycle so
+  `/action?action=unsubscribe` writes consent/preference only and does not
+  consume the single-use appointment capability. (4) restated the config
+  mutation invariant in ADR-011: status policy = git-tracked data migration,
+  templates = audited admin RPC, never raw dashboard SQL. (5) promoted §5.7a–d
+  labels to resolvable subheadings. **Touched:** §5.2–§5.7, ADR-011, Appendix C.
+- 2026-06-17 — v2.18 — **Second fresh-eyes cross-plan unification pass
+  (planmaxer Step 2 rerun).** Re-read the live research doc again after v2.17
+  and fixed the remaining cross-section seams the first cleanup missed.
+  **Corrections:** (1) removed stale "compact fallback only" phone-placement
+  wording from §1/§4.2/§5.2/§6.2 so every live section agrees that
+  `{{clinic_phone}}` rides in both default and compact SMS bodies plus the page;
+  (2) made "action rate" the canonical KPI term in the live body and Appendix A,
+  reserving raw taps/page views as non-metrics because `GET` is side-effect-free
+  and scanner-contaminated; (3) reconciled `pending_staff_review` with the
+  schema by adding explicit `action_taken='staff_closed_no_write'` for
+  staff-closed held cancels instead of overloading `none`, and renamed the staff
+  admin path to `resolve_held_cancels`; (4) tightened the mass-cancel count
+  predicate to the schema-backed valid-cancel-intent form
+  (`response='cancel' and action_locked_at is not null`), so breaker-held
+  intents remain counted without a new column; (5) added `{{clinic_phone}}` to
+  the §8 `templates.ts` file-map contract. **Touched:** §1, §2.1, §4.2,
+  §5.2–§5.6, §6.2–§6.5, ADR-014/017/018/020, §8, Appendix A/C.
+- 2026-06-17 — v2.17 — **Cross-plan unification cleanup (planmaxer Step 2).**
+  Re-read the v2.16 research doc fresh for contradictions left by the four
+  iter-1 integrations. **Corrections:** (1) removed the stale "row edit, not
+  redeploy" wording around `cliniccards_status_policy`; status policy changes
+  are tracked data migrations, while templates remain audited admin-RPC edits.
+  (2) finalized ADR-021's no-reply nudge model as **re-issue/kill** (fresh
+  token, prior token expired, one live link), removing the lingering "both links
+  live / exact choice TBD" text. (3) aligned the schema with the state machine:
+  `action_taken` is now `not null default 'none'`, `message_templates` lists
+  `{{clinic_phone}}`, and the redundant `cancellation_circuits.cancel_count`
+  column is removed because breaker counts are derived from valid cancel POSTs.
+  (4) made the §5.5 diagram show
+  `pending → sending → sent/delivered/failed/send_unknown`, tightened I2 and
+  reconciliation predicates, and added the missing fenced send-outcome SQL
+  (`send_claim_token` guarded commit) required by ADR-020. (5) cleaned stale
+  ADR-numbering notes in the live ADRs; ADR-001…021 are contiguous. **Touched:**
+  §4.1–§4.2, §5.3, §5.5–§5.7, ADR-018–021, Appendix C.
+- 2026-06-17 — v2.16 — **Holistic unification correction (planmaxer iter-1 final
+  pass).** Re-read the full research doc, owner task list, README, and all four
+  iteration-1 handoffs as one system instead of four domain-local patches.
+  **Corrections:** (1) reconciled the `reminder_days` completed-day rule with
+  ADR-006/012/020 — duplicate completed `initial` firings no-op, but scheduled
+  `catchup` and dashboard/manual passes may intentionally re-claim a completed
+  day to re-scan for late bookings/changes; added `reminder_runs.pass_kind` and
+  made `POST /run-reminders` accept/default it. (2) made the automatic
+  catch-up's first ordinary message kind explicit as `catchup_reminder`, with
+  the existing ordinary-reminder unique key preserving "one ordinary reminder
+  per appointment per day." (3) resolved a state-machine contradiction around
+  `send_unknown`: unresolved `send_unknown` remains staff-owned and is never
+  blind-retried, but a valid nonce-backed patient action proves delivery,
+  promotes the row to `delivered`/resolved-by-action, and removes it from the
+  red unresolved-send bucket before the normal CRM write-back path. **Touched:**
+  §2.3, §4.4, §5.2–§5.7, §6.5, ADR-012/018/020, Appendix C, and
+  `docs/your-tasks.md`.
+- 2026-06-17 — v2.15 — **Data-Layer fresh-eyes correction + surrounding-doc sync
+  (planmaxer iter-1).** Re-read the data-layer sections with fresh eyes on the
+  v2.14 base and synced the surrounding docs to the ADR-019 role/schema model.
+  **One real correction:** restored the **load-bearing
+  `crm_visit_facts.purpose`** column (+ PK →
+  `(run_id, cliniccards_visit_id, purpose)`) that v2.12 wrongly trimmed — §5.6
+  _and_ §6.2 reconciliation read
+  `purpose='visits_pre_send' … falling back to visits_initial`, and the
+  "vanished-unresolved → red" check must distinguish a visit in the _latest_
+  fetch from one only in an earlier fetch (a single row per visit can't express
+  that). Corrected the v2.12 Change Log line accordingly. **Sync:** §8 `0002`
+  description now lists the 4 `api` RPCs + staff config admin RPCs +
+  `maintenance.reap_stale_sends()` via `cron.schedule_in_database`; §9.2 adds
+  the **per-Edge-Function DB-role credentials**
+  (`CONFIRM_DB_URL`/`RUN_DB_URL`/`MAINTENANCE_DB_URL` or a role-claim JWT;
+  public fn never gets `service_role`; Vault peppers version-named; **no**
+  encryption-key env since `raw_encrypted` was dropped; **no** pepper-version
+  var); §10 build-time already carries the per-function-role /
+  `schedule_in_database` / `app_metadata` confirmations and the resolved
+  data-layer bullet now notes `purpose`; §6.3.2 matrix cell
+  `null raw`→`null raw_redacted`. **Cross-pass reconciliation:** documented the
+  **v1.1 nudge schema delta** in §5.3 — ADR-021's
+  `message_kind='no_reply_nudge'` is **not** in the v1 CHECK (lean/deferred);
+  enabling it is a small v1.1 data migration that adds the CHECK value + its own
+  partial-unique key (no v1 bloat). README unchanged (security/stack summary
+  still accurate). No new ADR. Touched §5.3 (`crm_visit_facts`, nudge note),
+  §6.3.2, §8, §9.2, §10, Appendix C + the v2.12 entry; review file updated.
+  _(Holistic pass: verify `crm_visit_facts.purpose` exists and the iter-1 ADR
+  sequence 017–021 is reconciled.)_
+- 2026-06-17 — v2.14 — **Patient-Experience external-reviewer reconciliation
+  (planmaxer iter-1).** Integrated the canonical Patient-Experience review
+  (GPT-Pro/Claude, with UA-fraud / Cochrane / PLOS / WCAG-2.2 citations) on top
+  of v2.13, judging each proposed change (agree / partial / disagree); much was
+  already in the v2.7 self-pass, so this folds in the **net-new + one real bug
+  fix**. **Adopted:** **(1) the clinic phone in the _default_ SMS** (not only
+  the compact fallback) — it fits 2 segments once the lead is tightened
+  (`{{clinic}}:` + **"Підтвердити/змінити"**; 131 chars), as a trust signal +
+  link-averse path + reschedule channel (§4.2/§9.3); **(2) an explicit anti-scam
+  page line** _«Ми не просимо оплату, банківські дані, паролі або SMS-коди»_
+  (NBU-grounded — the page reads like a bank-confirmation receipt, not a
+  marketing page; §5.2/§6.3/§9.3); **(3) the no-reply-nudge TOKEN FIX — new
+  ADR-021:** the v2.7 claim that the nudge "reuses the same token" was
+  **impossible** (the raw token is never stored) and would have violated
+  invariant I3 — corrected to **mint-new-token + re-issue** (kill the prior
+  token; the single-use CAS spans both SMSs) across §4.2/§5.5/§6.2; **(4) a
+  no-reply reason-tag enum** to locate the engagement leak cheaply without
+  scanner-prone GET telemetry (§5.2/§6.2); **(5)** a sharper send-time A/B
+  (12:00 vs ~15:30; dual same-day-actionable metric) + the **~55–65% healthy
+  band** framing (§6.2/§2.3 #9). **Rejected / partial:** moving the **default
+  send 12:00→13:00** (kept 12:00 — it agrees with §4.4/ADR-013 and the weak
+  timing evidence doesn't justify the churn); **"<40% = product failure"**
+  (contradicts ADR-017 — value is delivery-driven; the value-red line stays
+  **<35% for 5 days**, §2.3 #10/ADR-017). Clarified the named-vs-terse default
+  copy as a B1/holistic refinement (several 2-segment wordings exist). Touched
+  §2.3, §4.2, §5.2, §5.5, §6.2, §6.3, §9.3, **+ADR-021**. _(Landed on the
+  settled v2.13 base, after the holistic pass paused; all four external-reviewer
+  reconciliations are now in. Numbering: ADR-017–020 were taken by the other
+  iter-1 passes, so this pass is **ADR-021** — the holistic pass reconciles the
+  sequence. Full verdicts + char-verified edits:
+  `active/reviews/review-patient-experience-engagement.md`.)_
+- 2026-06-17 — v2.13 — **Implementation-Readiness external-reviewer
+  reconciliation (planmaxer iter-1).** Integrated the canonical
+  Implementation-Readiness review on top of v2.12 (which already held my v2.11
+  first pass), judging each proposed change (agree / partial / disagree).
+  Roughly half was **already integrated by the v2.11 self-pass**
+  (heartbeat-grace lease steal, synchronous run, superseded-token kill, no-key
+  `send_unknown` baseline + three-trigger reaper/ADR-018, pinned reconciliation
+  denominator + state-machine table), and the review's breaker section reviewed
+  the **flat-count** mechanism that v2.8/v2.10 already replaced with
+  velocity-first — so those were **confirmed, not reworked**. **Adopted the
+  genuine net-new (composition seams a v2.6-era review surfaces): (1) Fenced
+  side effects — new ADR-020:** _no process commits a side effect or its outcome
+  unless it still holds the owning token_
+  (`… where <owner_col>=<my_token> and <expected_status>`; 0 rows ⇒ stop) —
+  fences a wall-clock-killed/lease-stolen **zombie** on the day-lease heartbeat,
+  the **send-outcome commit** (`send_claim_token`), the
+  supersede/reconcile/heartbeat writes, and the per-visit write lease; its
+  corollary extends crash protection to the **CRM write-back** (§5.6 reaper on
+  the existing `crm_writeback_ok` — **no** new `crm_write_pending` state, since
+  the `PUT` is idempotent). **(2) `completed` ≠ "no more passes today"**
+  (§4.4/ADR-006): the late-afternoon catch-up + manual firings **re-claim** a
+  `completed` day and re-scan CRM for late bookings — a real composition bug
+  (`no_op_completed` would silently drop them); idempotency blocks dup sends
+  _(adds `reminder_runs.pass_kind` — data-layer: reconcile)_. **(3)
+  Reconciliation precision** (§5.6): account by the _current
+  `appointment_fingerprint`_ (a stale `sent` row can't account for a moved
+  appt), and an **unresolved disappearance** (visit gone from the latest fetch
+  with no terminal/write-back/move reason) is **red**, not silently green. **(4)
+  Cross-day-move build-gate** (§10): a target-date-only `GET /visits` can't tell
+  _moved_ from _cancelled/deleted_ — absent ClinicCards visit-by-id
+  lookup/moved-placeholders, v1 does **not** auto-send a cross-day
+  `reschedule_notice` (kills the old token + flags staff). **(5)
+  `SMS_IDEMPOTENCY_MODE` = none|client_reference_only|strict_dedupe** (baseline
+  `none`; only `strict_dedupe` + written proof permits replay). **(6) Absolute
+  run deadline** (§6.4): stop new sends by ~330–360 s, reconcile/fail before the
+  400 s cap. **Rejected (held the lean line):** the reviewer's **8-column
+  breaker counter split** (regresses the velocity-first breaker, which already
+  counts only valid nonce-backed cancel POSTs + breaker-exempt
+  bulk-approve-safe); a dedicated **`crm_write_pending`/`crm_write_unknown`
+  state** + claim columns (the idempotent `PUT` makes `crm_writeback_ok`
+  sufficient); a dedicated post-send **`visits_reconcile`** fetch (the
+  latest-`visits_pre_send` pin is adequate at ~20/day). **New ADR-020** (fenced
+  side effects). Deferred to the holistic pass (the data-layer pass was
+  concurrently restructuring the RPC surface): the §5.4 `/prepare`+`/action`
+  "reject superseded / require current CRM start" predicates and the §5.7a/§5.7b
+  canonical-SQL detail — all captured with exact diffs in
+  `active/reviews/review-implementation-readiness.md`. Touched §4.4, §5.2, §5.6,
+  §6.4, §10, +ADR-020. _(Landed on the v2.12 data-layer base, concurrent with
+  the data-layer reconciliation + holistic pass; ADR-017/018/019 were taken, so
+  this pass's new decision is ADR-020 — the holistic pass reconciles the iter-1
+  ADR sequence.)_
+- 2026-06-17 — v2.12 — **Data-Layer external-reviewer reconciliation (planmaxer
+  iter-1).** Integrated the canonical Data-Layer review on top of v2.11 (which
+  already held my v2.9 first pass), judging each proposed change (agree /
+  partial / disagree). **Adopted (strong):** **schema separation** — base tables
+  → private **`app`**, RPCs → **`api`**, HMAC helpers → **`private`**,
+  purge/reaper → **`maintenance`**; only `api` is Data-API-exposed (§5.3
+  note/§6.3/**new ADR-019**); **caller/definer split + `dentino_*`
+  per-Edge-Function role taxonomy** (public confirm = `dentino_confirm_api`,
+  zero table grants; RPCs owned by non-login `dentino_confirm_definer` with
+  **column-scoped** grants; engine = `dentino_run_api`; `service_role` =
+  break-glass only); a **fourth RPC `finish_reminder_action`** (the
+  no-table-grant caller can't record `crm_writeback_ok` after its CRM PUT
+  without it — closes a real hole in "exactly 3 RPCs", §5.4/§6.3.1); **versioned
+  `message_templates`** (the `unique(key,channel,language)`+`active` combo was
+  self-contradictory → **one-active partial-unique** + `version`,
+  provenance→`audit_log`, §5.3); an initial live-token CHECK (tightened/renamed
+  in v2.20), a **`provider_message_id` partial-unique** (DLR dedupe), the
+  **bytea-digest** recommendation, **`force` RLS**, fail-closed **role
+  `statement_timeout`/`lock_timeout`/`idle_in_transaction_session_timeout`**,
+  **`app_metadata`-sourced staff claims**, and **`cron.schedule_in_database`
+  under `dentino_maintenance_runner`** (never `postgres`) with the
+  external-scheduler fallback (§6.3.1/.2/.3, §10); extended the §6.5 **pgTAP
+  gate** (4th RPC, schema-exposure, role timeouts); the
+  **pgsodium-pending-deprecation** note (prefer Vault). **Partially adopted
+  (trimmed to the lean line):** `crm_visit_facts` gains
+  `cliniccards_patient_id` + `appointment_fingerprint` (declined
+  `policy_terminal`/`policy_unknown`/`fetch_log_id` — derivable; **`purpose` was
+  also declined here but that was an error — restored in v2.15, since §5.6/§6.2
+  reconciliation consumes it**); `crm_fetch_log` gains an explicit
+  `purge_after` + optional integrity `raw_sha256`. **Rejected (firmly, holding
+  ADR-008/012's lean stance):** the **`pepper_versions` table +
+  `*_pepper_version` columns** — disproportionate at ~20/day (tokens are ≤~36
+  h-lived; `phone_hmac` is not a lookup key), so the documented
+  **accept-break-and-reissue** rotation stands, with a single optional
+  `token_pepper_version` hedge noted for a future zero-disruption need
+  (ADR-016/§6.3); the `crm_fetch_log.contains_pii` flag (the
+  write-time-redaction invariant makes it permanently false — a dead column).
+  **Renamed** v2.9's `confirm_public`/`reminder_api_owner`/`maintenance_owner` →
+  the `dentino_*` taxonomy in the live body (the v2.9 Change Log entry keeps the
+  original names as history). **New ADR-019** (per-Edge-Function dedicated
+  role + schema separation + RPC-only access — took the next free number after
+  impl-readiness's ADR-018). Touched §4.5, §5.3, §5.4, §6.3 (+.1/.2/.3), §6.5,
+  §8, §9.1, §9.3, §10, Appendix A, ADR-003/011/016/018, **+ADR-019**. No locked
+  decision reopened. _(The holistic pass reconciles the iter-1 ADR sequence —
+  note ADR-017 was retitled by business-viability.)_
+- 2026-06-17 — v2.11 — **Implementation-Readiness & Spec-Precision integration
+  (planmaxer iter-1).** Reviewed whether v2.x is _buildable as written_ —
+  emergent bugs at the **seams between** the independently-added mechanisms
+  (lease, claim, supersede, breaker, reconciliation), and gaps that would force
+  a `research-to-spec`/`spec-to-tdd` author to guess. **Adopted: (1) Reconciled
+  lease lifecycle** — the steal predicate is now **heartbeat-grace-based**
+  (`now() − lock_heartbeat_at > 120 s`, renewed ≤30 s) with the 15-min
+  `lock_expires_at` as an absolute backstop, so a wall-clock-killed holder (≤400
+  s) is reclaimed in ~120 s not ~15 min; the run is **synchronous** (no
+  `202`/`waitUntil` — the external heartbeat, not the HTTP status, proves
+  completion) — §5.2/§5.7a/§6.4/ADR-012. **(2) Superseded-token kill** —
+  superseding a row sets `token_expires_at = now()` and the single-use CAS
+  refuses `/action` on a `superseded_at is not null` row, so two live tokens can
+  never point at one visit and a late DLR can't resurrect a superseded row —
+  §5.2/§5.5/§5.6/§5.7c/ADR-008. **(3) Stale-send reaper made total** — the
+  no-idempotency-key `send_unknown` path is the **baseline** (the key a pure
+  optimization), and a `sending` claim now has **three** automated exits
+  (next-firing, **on-steal** reap, and a new `pg_cron`
+  `maintenance.reap_stale_sends()` **backstop**) so no row is ever
+  human-only-exit — §5.6/§5.7b/§9/**new ADR-018**. **(4) Pinned reconciliation
+  denominator** — `current_remindable` = the lease-holder's _latest successful_
+  target-date fetch (`crm_visit_facts purpose='visits_pre_send'`, else
+  `visits_initial`), with per-status accounting and two walked scenarios
+  (staff-cancelled-after-noon → green; moved-then-superseded → green) so "green"
+  provably means "every currently-remindable appointment is handled" —
+  §5.6/ADR-013. **(5) Single authoritative state machine** — added the canonical
+  `status × action_taken` state-transition table + four assertable invariants
+  (single-use; **no human-only-exit**; supersede-kills-capability;
+  action-implies-delivery) to §5.5, and made the §6.5 'induced shortfall' +
+  reaper/steal/supersede tests deterministic. **Confirmed (not reworked):** the
+  mass-cancel breaker counting/approval semantics were already fully resolved by
+  the v2.8/v2.10 velocity-first recalibration. **New ADR-018** (total state
+  machine + reaper); **no new table/column/status** (the reaper is a
+  `maintenance` function beside `purge_privacy()`). Touched §5.2, §5.5, §5.6,
+  §5.7, §6.1, §6.4, §6.5, §9.1, §9.3, §10, ADR-008/012/013. _(Landed on the
+  v2.10 base, concurrent with the business-viability external-reviewer
+  reconciliation; ADR-017 was taken by business-viability so this pass's new
+  decision is ADR-018 — the holistic pass reconciles ADR numbering/ordering.)_
+- 2026-06-17 — v2.10 — **Business-Viability external-reviewer reconciliation
+  (planmaxer iter-1).** Integrated the canonical Business-Viability review on
+  top of v2.9, judging each proposed change (agree / partial / disagree).
+  **Adopted:** the **baseline-honesty correction** — the real baseline is the
+  clinic's _current phone calls_, not "no reminders" (SMS ≈ phone for attendance
+  — Cochrane CD007458), so the honest dominant value is **recovered chair-time +
+  staff-time + faster cancel capture + audit trail**, with any no-show drop
+  _measured_, not claimed (§1, §2.3 #11, §6.2, ADR-017); the reviewer's more
+  rigorous **staff-time model** (`new ≈ 10 + 45(1−A)`; **breakeven ~22%**,
+  sensitive 0–40% to the unmeasured manual-call time; operating thresholds <35%
+  danger / ≥55% win; ≤30 staff-min/day target — §6.2, §2.3 #10); an **empty-slot
+  / recovered-chair-time ROI** framing with sensitivity (§1); a
+  **two-velocity-tier breaker** (hard-open ≥4/10-min **or** ≥6/30-min; daily
+  **amber** ≥⌈0.4×sent⌉ vs **hard-ceiling** > max(8,⌈0.6×sent⌉); count only
+  valid cancel POSTs) reconciled across §5.3/§5.6/§6.2/§6.5/§10/ADR-014;
+  **stronger write-back escalation** (≤2 idempotent auto-retries, pin above
+  no-reply, ClinicCards deep link, SLA, end-of-day owner report — §5.6/§6.2);
+  **silent staff non-adoption** named the highest-_expected_-cost failure
+  (§6.2) + a **first-month stop-loss** (review at 5/10/20 days; <35% action or
+  <10 min/day saved = value-red — §11/ADR-017); **staff-workflow rules** + an
+  expanded **value panel** (§5.2); a **continuity drill + green/amber/red
+  one-pager + password vault + per-failure fallback** (§4.4); owner tasks
+  (`your-tasks`). **Rejected (firmly):** the reviewer's proposal to add a
+  `clinics` table + `clinic_id` to every table now — over-building at greenfield
+  (insurance value ≈0, real carrying cost); runway stays
+  **config-not-constants** (ADR-017/§2.5/ADR-005). **Also rejected:** per-action
+  source-fingerprint breaker tiers (conflict with PII-minimization, ADR-016;
+  over-engineered at ~20/day). Touched §1, §2.1, §2.3, §4.4, §5.2, §5.3
+  (comment), §5.6, §6.2, §6.4, §6.5, §10, §11, ADR-005/014/017, Appendix A/B.
+  _(Landed on the v2.9 data-layer base, concurrent with the
+  implementation-readiness pass; the holistic pass reconciles ordering/ADR
+  numbering.)_
+- 2026-06-17 — v2.9 — **Data-Layer Engineering integration (planmaxer iter-1).**
+  Reviewed §5.3 as real Postgres-on-Supabase a senior engineer would build and
+  defend. **(1) Public-function privilege boundary (Tension 1):** rejected the
+  "`service_role` self-discipline" stance for the internet-public confirm
+  function — it now authenticates as a dedicated **`confirm_public`** role with
+  `EXECUTE` on exactly three RPCs and **zero** table grants (a code slip can't
+  enumerate patients); added the **RPC SQL security contract**
+  (`search_path=''`, token-only param, fixed projection, Vault pepper, identical
+  not-found/expired return — §6.3.1) and a per-Edge-Function role convention.
+  **(2) Config-edit contradiction (Tension 2):** resolved ADR-011↔ADR-003 —
+  `cliniccards_status_policy` is **migration-managed** (tracked data migration,
+  not "a row edit, not a redeploy"), `message_templates` is
+  **admin-RPC-managed** (audited staff editor); stated the hot-edit boundary.
+  **(3) Concurrency SQL (Tension 3):** added **§5.7** with the canonical
+  race-free lease claim/steal, per-message `FOR UPDATE SKIP LOCKED` claim +
+  stale-claim reaper, single-use action CAS, and per-visit write-lock steal —
+  each with a one-winner proof and the no-advisory-lock-across-HTTP rule;
+  encoded the `completed`-only-when-green lease-reclaim invariant. **(4)
+  Indexes + reconciliation (Tension 4):** added the runtime index set keyed to
+  the real read/write paths (board, needs-attention, run join, purge) and
+  flagged the superfluous ones; added the lean non-PII **`crm_visit_facts`**
+  reconciliation ledger so reconciliation joins a typed relation instead of
+  re-parsing raw jsonb and survives the purge (an explicit ADR-008 carve-out).
+  **(5) Grant matrix + purge role (Tension 5):** added the full **role × table ×
+  operation** grant/RLS matrix (§6.3.2), default-deny preamble,
+  `security_invoker` staff views, staff admin RPCs, and the dedicated
+  non-superuser **`maintenance_owner`** for `pg_cron` (§6.3.3). **(6) PII at
+  rest (Tension 6):** phones now **redacted at write time** in
+  `crm_fetch_log`/`inbound_events` (continuous, not eventual, minimization);
+  dropped the unused `inbound_events.raw_encrypted`; clarified `phone_hmac` is
+  non-identity/non-indexed; documented pepper-in-Vault rotation. **Extras
+  (#7):** a single-use **irreversibility trigger** + CHECK make ADR-014's lock
+  DB-enforced; a **pgTAP/RLS regression gate** added to §6.5. Touched §4.5,
+  §5.3, §5.4, §5.7 (new), §6.3 (+§6.3.1/.2/.3), §6.5, §8, §9.1, §9.3, §10,
+  ADR-003/008/011/012/014/016. No locked decision reopened. _(Landed on the v2.8
+  base; the holistic pass reconciles ordering/ADR numbering with the pending
+  implementation-readiness pass.)_
+- 2026-06-17 — v2.8 — **Business-Viability & Operational-Economics integration
+  (planmaxer iter-1).** Applied the lens no prior review did — _does the
+  hardened system earn its keep and deliver its why (cut no-shows, free staff
+  time)?_ Added the missing **no-show-led ROI model** (§1 Value & ROI;
+  ≈€130–740/mo recovered vs ~€60 cost; pays for itself at ~2–3 prevented
+  no-shows/mo) and the **net-staff-time model + ~12% action rate breakeven**
+  (§6.2; later tightened to ~22% after baseline correction), finding that at
+  ~20/day the safety machinery's exception queues are _small_ — the real
+  staff-time risk is the no-reply chase policy, and the no-show value is
+  _delivery-driven_ so it largely survives low action rate. **Recalibrated the
+  mass-cancel breaker** from a flat daily count (`max(3,⌈0.25×sent⌉)`) to
+  **velocity-primary (≥4 cancels/10-min) + a high daily-ceiling backstop (>
+  `max(8,⌈0.6×sent⌉)`)** so it won't false-trip a flu/snow day yet halts a
+  runaway faster — reconciled across §5.3/§5.6/§6.2/§6.5/ADR-014 (no schema
+  change; velocity computed from `responded_at`). **Fixed the under-invested
+  lost-rebooking path:** a Cancel write-back is idempotent, so **auto-retry** it
+  (unlike a send) then escalate hard (dedicated alert + top-of-needs-attention +
+  red reconciliation) — §5.6, with a **failure-cost ranking** in §6.2. Added two
+  **success criteria** (staff-load budget #10; measured no-show reduction #11),
+  an owner **value panel** (§5.2), an **operational-continuity** plan
+  (designed-in manual backstop + kill-switch + complaint micro-runbook +
+  handover note, §4.4), and the **trajectory verdict** (v1's
+  single-tenant/SMS-only scope is right for a static clinic; multi-clinic is a
+  bounded `clinic_id`+RLS migration, not built now). New **ADR-017**. Updated
+  `docs/your-tasks.md`. Touched §1, §2.1, §2.3, §4.4, §5.2, §5.3 (comment),
+  §6.2, §6.4, §6.5, §10, ADR-005/014. _(Landed on the v2.7 patient-experience
+  base, ahead of the iter-1 data-layer & implementation-readiness passes; the
+  holistic pass reconciles ADR numbering/ordering.)_
+- 2026-06-17 — v2.7 — **Patient Experience & Engagement integration (planmaxer
+  iter-1).** Attacked the doc's own #1 residual risk — patient action rate after
+  delivery — from the behavioral/UX side. Named the conversion funnel's biggest
+  leak (**trust-to-tap**, given UA smishing-wariness) and promoted **reception
+  priming** to a first-class rollout artifact. Designed the
+  previously-undesigned **confirm page** as a trust + accessibility surface
+  achievable within the locked no-third-party-assets rule
+  (inline-SVG/system-font branding, "why you got this", partial-detail as the
+  strongest anti-phishing proof, **no-JavaScript server-rendered form POST**,
+  ≥48 px tap targets, AA contrast, zoom enabled, `tel:` links). Redesigned the
+  **Cancel interstitial reschedule-first** (foreground a one-tap reschedule call
+  above the destructive confirm) + a reschedule-offering **post-cancel page** to
+  convert cancels→retained appointments — all _within_ ADR-014's locked security
+  gate. Kept Confirm strictly one tap + added warm closure pages. Affirmed the
+  **12:00 send default** (same-day staff window; cancels surfaced early) with
+  the honest KPI = **action ÷ delivered by template/hour** (GET views are
+  scanner-contaminated, so not counted). **Pre-designed the v1.1 no-reply
+  nudge** as a safe lever (own `message_kind`/partial-unique key; later
+  corrected by ADR-021 to mint a fresh token and re-issue the capability,
+  because the raw token is never stored). Added Ukrainian copy seeds
+  (interstitial, closure pages, priming script) to §9.3 for owner sign-off (task
+  B1). Touched §2.2–§2.3, §4.2, §5.2, §6.2, §9.3, ADR-010/014. _(Landed on the
+  v2.6 base ahead of the iter-1 data-layer & implementation-readiness passes;
+  UX/copy edits are orthogonal to the schema/state-machine, and the holistic
+  pass reconciles ordering.)_
+- 2026-06-17 — v2.6 — **Planmaxer integrations consolidated + holistic sync.**
+  Collapsed the Delivery, CRM Sync, Reliability, and Security passes into one
+  internally consistent design. Final v1 story:
+  `https://r.dentino.com.ua/r/<token>` carries a full-entropy 128-bit capability
+  token stored only as an HMAC digest; `GET` renders only; Confirm/Cancel are
+  nonce-backed `POST` actions; Cancel adds the interstitial, single-use lock,
+  expiry, live CRM revalidation, per-visit CRM write lease, and mass-cancel
+  circuit-breaker. Reconciled cost/segment numbers, terminology, §/ADR
+  references, idempotency (`(visit_id, target_date)` + change-notice
+  fingerprint + `reminder_days` lease + per-message claim), channel-agnostic
+  app-channel extension rules, the weakest remaining risk (patient action rate
+  after delivery), Appendix metadata, and `docs/your-tasks.md`.
+- 2026-06-17 — v2.5 — **Security, Consent & Compliance integration.** Added
+  ADR-014/015/016: scoped capability flow for destructive Cancel, POST-only
+  auto-fetch-immune actions, dedicated app-only origin, RLS/RPC least privilege,
+  contract-performance + healthcare-management lawful basis,
+  `sms_reminders_enabled` as a preference, append-only `consent_events`,
+  staff-only re-enable, no stored full phone numbers, retention windows, and
+  daily privacy purge.
+- 2026-06-17 — v2.4 — **Reliability & Operations integration.** Added
+  ADR-012/013 and amended ADR-003: Supabase Pro mandatory for production,
+  git-controlled deploys, external dead-man's-switch, optional external
+  scheduler, `reminder_days` processing lease, per-message `sending` claim,
+  commit-before-send ordering, `send_unknown` handling, self-reconciliation, and
+  the dashboard trust panel.
+- 2026-06-17 — v2.3 — **Delivery & Reach integration.** Kept SMS-only v1 and
+  ADR-010's link-based capture while hardening UA delivery: Kyivstar-direct is
+  conditional on cross-operator sender preservation, per-message DLRs, billing
+  confirmation, and URL-template preclearance; otherwise use a UA-native SMS
+  aggregator. Locked the 2-segment / ≤134 UCS-2 budget, 128-bit token,
+  clinic-phone fallback, 3-day seed test, and the current SMS/Viber cost model.
+- 2026-06-17 — v2.2 — **CRM Sync & Correctness integration.** Added appointment
+  fingerprint/change notices, pre-send revalidation, guarded Confirm/Cancel
+  write-back, `PUT status=CANCELLED` as default with `DELETE` as staff-approved
+  fallback, `crm_fetch_log`, always-materialized skipped rows, `send_unknown`,
+  automatic afternoon catch-up, and ADR-011's data-driven status policy.
+- 2026-06-16 — v2.1 — **Dashboard refinement + decisions locked (Harmonymaxer
+  run 002).** Expanded the staff dashboard into a one-page live status board
+  plus single "Message next day" button; folded in then-confirmed business
+  decisions; reframed §10 into resolved, build-time technical, and deferred
+  questions. Later Planmaxer integrations superseded the early
+  link/cost/security details.
+- 2026-06-16 — v2.0 — **SMS-only pivot harmonized (Harmonymaxer run 001).**
+  Repointed v1 to SMS via a UA-local provider with confirm/cancel link capture,
+  removed app-channel discovery/router work from v1, preserved
+  Viber/WhatsApp/Telegram as deferred §4.3 enhancements, and rewrote
+  ADR-005/010.
+- 2026-06-16 — v1.6 — Consent/feasibility verification for the original
+  app-channel research: WhatsApp/Viber can accept documented offline consent for
+  business messaging, while Telegram cannot cold-message users even with
+  consent. Preserved as background for deferred §4.3 channels.
+- 2026-06-16 — v1.5 — Security/correctness review for the original multi-channel
+  design: strengthened token entropy, spoofing-risk handling, changed-response
+  behavior, CRM-state rechecks, raw-event retention, and opt-out mechanics.
+  Superseded by v2.5's SMS-link capability flow and lawful-basis model.
+- 2026-06-16 — v1.4 — Cost/build refinements for the original app-channel plan:
+  corrected Viber minimums, aligned the build sequence with the multi-fire noon
+  window, added a safe template fallback, and documented late-booking coverage
+  limits.
+- 2026-06-16 — v1.3 — Schema and operations review: corrected
+  appointment-vs-patient reminder wording, added self-healing noon-window
+  firings, clarified timezone risk, and refined early channel/message-state
+  modeling. Superseded where v2.x removed app-channel state from v1.
+- 2026-06-16 — v1.2 — Correctness review: added the remindable-status filter,
+  tightened appointment-day counters, flagged ClinicCards timezone, required CRM
+  re-fetch before write-back, recommended EU data residency, and fixed the §8
+  structure.
+- 2026-06-16 — v1.1 — Critical review pass. Fixed DST direction, moved
+  idempotency to appointment-day semantics, added `target_date`, flagged
+  Supabase Free pause risk, refined early consent/reach assumptions, and cleaned
+  cost/channel comparisons.
 - 2026-06-16 — v1.0 — Initial research document (idea-to-research).
 
 ---
 
-*End of research document. Recommended next command: `/research-to-spec` with this file as input.*
+_End of research document. Recommended next command: `/research-to-spec` with
+this file as input._
