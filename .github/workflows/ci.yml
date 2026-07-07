@@ -37,7 +37,7 @@ jobs:
           github-token: ${{ github.token }}
       - run: corepack enable
       - run: corepack pnpm@10.22.0 install --frozen-lockfile
-      - run: corepack pnpm@10.22.0 exec playwright install --with-deps chromium
+      - run: corepack pnpm@10.22.0 --filter dashboard exec playwright install --with-deps chromium
       - name: Prime Deno cache before network lockdown
         run: deno cache --lock=deno.lock supabase/functions/**/*.ts tests/**/*.ts
       - run: supabase start
