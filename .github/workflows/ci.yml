@@ -43,44 +43,6 @@ jobs:
       - name: Prime Deno cache before network lockdown
         run: deno cache --lock=deno.lock supabase/functions/**/*.ts tests/**/*.ts
       - run: supabase start
-      - name: Enable CI egress deny ring
-        run: |
-          set -euo pipefail
-          sudo iptables -I OUTPUT ! -o lo -j REJECT
-          sudo ip6tables -I OUTPUT ! -o lo -j REJECT
-      - name: Prove outbound network is denied
-        run: |
-          set -euo pipefail
-          deno run --allow-net=1.1.1.1:80 --no-prompt - <<'TS'
-            const controller = new AbortController();
-            const timeout = setTimeout(() => controller.abort(), 5000);
-            try {
-              const response = await fetch("http://1.1.1.1/ci-egress-negative-control", {
-                signal: controller.signal,
-              });
-              console.error(`Unexpected outbound network access: HTTP ${response.status}`);
-              Deno.exit(1);
-            } catch (error) {
-              if (error instanceof DOMException && error.name === "AbortError") {
-                console.error("Outbound network probe timed out instead of being denied");
-                Deno.exit(1);
-              }
-              console.log(`Outbound network denied: ${error}`);
-            } finally {
-              clearTimeout(timeout);
-            }
-          TS
-      - run: deno fmt --check
-      - run: deno lint
-      - run: deno check supabase/functions/**/*.ts
-      # `ubs` is a local-only dev meta-runner. CI keeps the covered gates explicit here.
-      - run: deno task check:no-egress-static
-      - run: deno test tests/unit
-      - run: deno test --allow-run=docker tests/pgtap
-      - run: deno test tests/integration
-      - run: deno test tests/integration/no-egress.test.ts
-      - run: corepack pnpm@10.22.0 --filter dashboard typecheck
-      - run: corepack pnpm@10.22.0 --filter dashboard test:e2e
       - name: Run supabase db lint
         run: |
           set -euo pipefail
@@ -127,6 +89,44 @@ jobs:
           done
       - run: deno fmt supabase/functions/_shared/database.types.ts
       - run: git diff --exit-code supabase/functions/_shared/database.types.ts
+      - name: Enable CI egress deny ring
+        run: |
+          set -euo pipefail
+          sudo iptables -I OUTPUT ! -o lo -j REJECT
+          sudo ip6tables -I OUTPUT ! -o lo -j REJECT
+      - name: Prove outbound network is denied
+        run: |
+          set -euo pipefail
+          deno run --allow-net=1.1.1.1:80 --no-prompt - <<'TS'
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 5000);
+            try {
+              const response = await fetch("http://1.1.1.1/ci-egress-negative-control", {
+                signal: controller.signal,
+              });
+              console.error(`Unexpected outbound network access: HTTP ${response.status}`);
+              Deno.exit(1);
+            } catch (error) {
+              if (error instanceof DOMException && error.name === "AbortError") {
+                console.error("Outbound network probe timed out instead of being denied");
+                Deno.exit(1);
+              }
+              console.log(`Outbound network denied: ${error}`);
+            } finally {
+              clearTimeout(timeout);
+            }
+          TS
+      - run: deno fmt --check
+      - run: deno lint
+      - run: deno check supabase/functions/**/*.ts
+      # `ubs` is a local-only dev meta-runner. CI keeps the covered gates explicit here.
+      - run: deno task check:no-egress-static
+      - run: deno test tests/unit
+      - run: deno test --allow-run=docker tests/pgtap
+      - run: deno test tests/integration
+      - run: deno test tests/integration/no-egress.test.ts
+      - run: corepack pnpm@10.22.0 --filter dashboard typecheck
+      - run: corepack pnpm@10.22.0 --filter dashboard test:e2e
       - name: Disable CI egress deny ring
         if: always()
         run: |

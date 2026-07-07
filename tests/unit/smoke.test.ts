@@ -247,11 +247,37 @@ Deno.test("CI no-egress ring denies non-local outbound network", () => {
   const denyRingIndex = ciWorkflowSource.indexOf(
     "name: Enable CI egress deny ring",
   );
+  const dbLintIndex = ciWorkflowSource.indexOf("name: Run supabase db lint");
+  const genTypesIndex = ciWorkflowSource.indexOf(
+    "name: Generate database types",
+  );
+  const unitTestIndex = ciWorkflowSource.indexOf("- run: deno test tests/unit");
+  const integrationTestIndex = ciWorkflowSource.indexOf(
+    "- run: deno test tests/integration",
+  );
 
   assert(supabaseStartIndex >= 0, "CI must start local Supabase");
+  assert(dbLintIndex >= 0, "CI must lint the local database schema");
+  assert(genTypesIndex >= 0, "CI must regenerate database types");
   assert(
-    denyRingIndex > supabaseStartIndex,
-    "CI must deny egress after local Supabase is available",
+    dbLintIndex > supabaseStartIndex,
+    "CI must lint the local database after Supabase starts",
+  );
+  assert(
+    genTypesIndex > dbLintIndex,
+    "CI must regenerate database types after db lint",
+  );
+  assert(
+    denyRingIndex > genTypesIndex,
+    "CI must deny egress after local Supabase schema gates complete",
+  );
+  assert(
+    unitTestIndex > denyRingIndex,
+    "CI must run unit tests after the egress deny ring is enabled",
+  );
+  assert(
+    integrationTestIndex > denyRingIndex,
+    "CI must run integration tests after the egress deny ring is enabled",
   );
   assertMatch(
     ciWorkflowSource,
