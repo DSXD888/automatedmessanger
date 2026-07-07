@@ -443,10 +443,18 @@ begin
          last_attempt_at = p_now
    where message.id in (
      select candidate.id
-       from app.reminder_messages candidate
+      from app.reminder_messages candidate
       where candidate.id = p_message_id
-        and candidate.status = 'pending'
-        and candidate.tracking_token_digest is null
+        and (
+          (
+            candidate.status = 'pending'
+            and candidate.tracking_token_digest is null
+          )
+          or (
+            candidate.status = 'failed'
+            and candidate.skip_reason = 'provider_pre_submit_failure'
+          )
+        )
       for update skip locked
    )
   returning message.id, message.target_date

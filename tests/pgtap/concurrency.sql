@@ -12,7 +12,7 @@ begin
 end;
 $$;
 
-select plan(44);
+select plan(49);
 
 create or replace function pg_temp.claim_day(
   p_target_date date,
@@ -83,9 +83,11 @@ begin
     select id
       from app.reminder_messages
      where id = p_message_id
-       and tracking_token_digest is null
        and (
-         status = 'pending'
+         (
+           status = 'pending'
+           and tracking_token_digest is null
+         )
          or (status = 'failed' and skip_reason = 'provider_pre_submit_failure')
        )
      for update skip locked
@@ -213,7 +215,8 @@ retry_message as (
     message_kind,
     appointment_fingerprint,
     status,
-    skip_reason
+    skip_reason,
+    tracking_token_digest
   )
   select
     id,
@@ -223,7 +226,8 @@ retry_message as (
     'initial_reminder',
     'retry-fingerprint',
     'failed',
-    'provider_pre_submit_failure'
+    'provider_pre_submit_failure',
+    decode(repeat('b', 64), 'hex')
   from run
   returning id
 ),
@@ -761,6 +765,15 @@ select is(
 );
 
 select ok(
+  (
+    select encode(tracking_token_digest, 'hex') <> repeat('b', 64)
+      from app.reminder_messages
+     where id = (select retry_message_id from message_claim_case)
+  ),
+  'retryable pre-submit failure remints the retained undelivered token digest'
+);
+
+select ok(
   pg_temp.claim_message_for_send(
     (select terminal_message_id from message_claim_case),
     (select second_token from message_claim_case),
@@ -1092,6 +1105,132 @@ select is(
   ),
   'sending:' || repeat('a', 64),
   'run_claim_message_for_send stores only the token digest and moves status to sending'
+);
+
+do $$
+declare
+  rpc_run_id bigint;
+begin
+  insert into app.reminder_runs(run_date, target_date, trigger, pass_kind)
+  values ('2026-06-30', '2026-07-10', 'manual', 'initial')
+  returning id into rpc_run_id;
+
+  insert into app.reminder_messages(
+    run_id,
+    cliniccards_visit_id,
+    target_date,
+    target_at,
+    message_kind,
+    appointment_fingerprint,
+    status,
+    skip_reason,
+    tracking_token_digest,
+    send_attempt_count
+  )
+  values (
+    rpc_run_id,
+    'visit-rpc-retry-pre-submit',
+    '2026-07-10',
+    '2026-07-10 09:00:00+00',
+    'initial_reminder',
+    'fingerprint-rpc-retry-pre-submit',
+    'failed',
+    'provider_pre_submit_failure',
+    decode(repeat('b', 64), 'hex'),
+    1
+  );
+
+  insert into app.reminder_messages(
+    run_id,
+    cliniccards_visit_id,
+    target_date,
+    target_at,
+    message_kind,
+    appointment_fingerprint,
+    status,
+    skip_reason,
+    tracking_token_digest,
+    send_attempt_count
+  )
+  values (
+    rpc_run_id,
+    'visit-rpc-terminal-failure',
+    '2026-07-10',
+    '2026-07-10 10:00:00+00',
+    'initial_reminder',
+    'fingerprint-rpc-terminal-failure',
+    'failed',
+    'send_ambiguous',
+    decode(repeat('d', 64), 'hex'),
+    1
+  );
+end;
+$$;
+
+select lives_ok(
+  $$
+    set local role dentino_run_api;
+    select api.run_claim_message_for_send(
+      (
+        select id
+          from app.reminder_messages
+         where cliniccards_visit_id = 'visit-rpc-retry-pre-submit'
+         order by id desc
+         limit 1
+      ),
+      '00000000-0000-0000-0000-000000000110'::uuid,
+      repeat('c', 64),
+      '2026-07-11 09:00:00+00'::timestamptz,
+      '2026-06-30 09:05:00+00'::timestamptz,
+      '2026-06-30 09:00:05+00'::timestamptz
+    );
+    reset role;
+  $$,
+  'run_claim_message_for_send re-claims a retryable pre-submit failure'
+);
+
+select is(
+  (
+    select status || ':' || encode(tracking_token_digest, 'hex') || ':' ||
+      send_attempt_count::text
+      from app.reminder_messages
+     where cliniccards_visit_id = 'visit-rpc-retry-pre-submit'
+  ),
+  'sending:' || repeat('c', 64) || ':2',
+  'run_claim_message_for_send remints the retained token digest on retry'
+);
+
+select lives_ok(
+  $$
+    set local role dentino_run_api;
+    select api.run_claim_message_for_send(
+      (
+        select id
+          from app.reminder_messages
+         where cliniccards_visit_id = 'visit-rpc-terminal-failure'
+         order by id desc
+         limit 1
+      ),
+      '00000000-0000-0000-0000-000000000111'::uuid,
+      repeat('e', 64),
+      '2026-07-11 10:00:00+00'::timestamptz,
+      '2026-06-30 09:05:00+00'::timestamptz,
+      '2026-06-30 09:00:05+00'::timestamptz
+    );
+    reset role;
+  $$,
+  'run_claim_message_for_send does not claim terminal post-accept failures'
+);
+
+select is(
+  (
+    select status || ':' || encode(tracking_token_digest, 'hex') || ':' ||
+      send_attempt_count::text
+      from app.reminder_messages
+     where cliniccards_visit_id = 'visit-rpc-terminal-failure'
+  ),
+  'failed:' || repeat('d', 64) || ':1',
+  'run_claim_message_for_send leaves terminal failure state untouched'
 );
 
 select lives_ok(

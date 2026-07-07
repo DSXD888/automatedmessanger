@@ -1506,10 +1506,7 @@ export function createInMemoryReminderRunStore(
       const message = messages.find((candidate) =>
         candidate.id === input.messageId
       );
-      if (
-        !message || !messageStatusIn(message, pendingMessageStatuses) ||
-        message.trackingTokenDigestHex
-      ) {
+      if (!message || !messageCanEnterSendClaim(message)) {
         return Promise.resolve(null);
       }
 
@@ -2141,7 +2138,7 @@ async function materializeObservedVisits(input: {
     if (
       !skipReason &&
       patient?.mobileE164 &&
-      messageStatusIn(message, pendingMessageStatuses) &&
+      messageCanEnterSendClaim(message) &&
       !message.sendClaimToken
     ) {
       sendable.push({ message, patient, patientName });
@@ -2664,6 +2661,14 @@ function messageStatusIn(
   statuses: ReadonlySet<ReminderMessageStatus>,
 ): boolean {
   return statuses.has(message.status);
+}
+
+function messageCanEnterSendClaim(message: ReminderMessageRecord): boolean {
+  if (messageStatusIn(message, pendingMessageStatuses)) {
+    return !message.trackingTokenDigestHex;
+  }
+  return messageStatusIn(message, failedMessageStatuses) &&
+    message.skipReason === "provider_pre_submit_failure";
 }
 
 function crmActionForMessageAction(

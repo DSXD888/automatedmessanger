@@ -3,6 +3,7 @@ import {
   assertEquals,
   assertFalse,
   assertMatch,
+  assertNotEquals,
   assertRejects,
 } from "@std/assert";
 import {
@@ -768,6 +769,88 @@ Deno.test("IT-TOKEN-CLAIM-01 crash before send claim leaves no stored token or S
   assertEquals(store.messages[0].tokenExpiresAt, undefined);
   assertEquals(store.messages[0].sendClaimToken, undefined);
   assertEquals(store.messages[0].sendClaimExpiresAt, undefined);
+});
+
+Deno.test("IT-RUN-02 retryable pre-submit failures re-enter sending exactly once", async () => {
+  const retryVisit = visit("visit-pre-submit-retry");
+  const terminalVisit = visit("visit-terminal-failure", "PLANNED", {
+    targetAt: "2026-07-01T10:00:00+03:00",
+  });
+  const retainedDigestHex = "b".repeat(64);
+  const terminalDigestHex = "d".repeat(64);
+  const store = createInMemoryReminderRunStore({
+    messages: [
+      messageRecord({
+        id: 1,
+        cliniccardsVisitId: retryVisit.id,
+        cliniccardsPatientId: retryVisit.patientId,
+        targetAt: retryVisit.targetAt,
+        appointmentFingerprint: await clinicCardsAppointmentFingerprint(
+          retryVisit,
+        ),
+        status: "failed",
+        skipReason: "provider_pre_submit_failure",
+        sendAttemptCount: 1,
+        lastAttemptAt: "2026-06-30T08:55:00.000Z",
+        trackingTokenDigestHex: retainedDigestHex,
+        tokenExpiresAt: retryVisit.targetAt,
+      }),
+      messageRecord({
+        id: 2,
+        cliniccardsVisitId: terminalVisit.id,
+        cliniccardsPatientId: terminalVisit.patientId,
+        targetAt: terminalVisit.targetAt,
+        appointmentFingerprint: await clinicCardsAppointmentFingerprint(
+          terminalVisit,
+        ),
+        status: "failed",
+        skipReason: "send_ambiguous",
+        sendAttemptCount: 1,
+        lastAttemptAt: "2026-06-30T08:55:00.000Z",
+        trackingTokenDigestHex: terminalDigestHex,
+        tokenExpiresAt: terminalVisit.targetAt,
+      }),
+    ],
+  });
+  const sender = captureSender();
+
+  const result = await runReminders({
+    config,
+    clock: fixedClock(),
+    clinicCardsClient: mutableClinicCardsClient([retryVisit, terminalVisit])
+      .client,
+    sender: sender.sender,
+    store,
+    writeBack: noopWriteBack,
+    rng: createSeededByteStreamRng(byteRange(0, 32)),
+    sendClaimTokenFactory: () => syntheticFenceValue("pre-submit-retry"),
+    trigger: "cron",
+  });
+
+  const retried = store.messages.find((message) =>
+    message.cliniccardsVisitId === retryVisit.id
+  );
+  const terminal = store.messages.find((message) =>
+    message.cliniccardsVisitId === terminalVisit.id
+  );
+  assert(retried);
+  assert(terminal);
+  assertEquals(sender.requests.length, 1);
+  assertEquals(
+    sender.requests[0].idempotencyKey,
+    `${retried.id}:${retried.appointmentFingerprint}:2`,
+  );
+  assertEquals(retried.status, "sent");
+  assertEquals(retried.sendAttemptCount, 2);
+  assert(retried.trackingTokenDigestHex);
+  assertNotEquals(retried.trackingTokenDigestHex, retainedDigestHex);
+  assertEquals(retried.sendClaimToken, undefined);
+  assertEquals(terminal.status, "failed");
+  assertEquals(terminal.skipReason, "send_ambiguous");
+  assertEquals(terminal.sendAttemptCount, 1);
+  assertEquals(terminal.trackingTokenDigestHex, terminalDigestHex);
+  assertEquals(result.status, "failed");
+  assertEquals(result.reconciliation?.failedTotal, 1);
 });
 
 Deno.test("IT-SUPERSEDE-01 changed appointment fingerprint kills the old token before sending replacement", async () => {
