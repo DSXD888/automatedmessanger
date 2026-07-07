@@ -81,7 +81,22 @@ jobs:
       - run: deno test tests/integration/no-egress.test.ts
       - run: corepack pnpm@10.22.0 --filter dashboard typecheck
       - run: corepack pnpm@10.22.0 --filter dashboard test:e2e
-      - run: supabase db lint --local
+      - name: Run supabase db lint --local
+        run: |
+          set -euo pipefail
+          connection_error_pattern='failed to connect to postgres|failed to receive message|connection reset by peer|connection refused'
+          for attempt in 1 2 3 4 5; do
+            if lint_output=$(supabase db lint --local 2>&1); then
+              printf '%s\n' "$lint_output"
+              exit 0
+            fi
+            status=$?
+            printf '%s\n' "$lint_output"
+            if [[ ! "$lint_output" =~ $connection_error_pattern || "$attempt" == "5" ]]; then
+              exit "$status"
+            fi
+            sleep "$((attempt * 2))"
+          done
       - run: supabase gen types --db-url 'postgresql://postgres:postgres@127.0.0.1:54322/postgres' --lang typescript --schema api,app,maintenance,private > supabase/functions/_shared/database.types.ts
       - run: deno fmt supabase/functions/_shared/database.types.ts
       - run: git diff --exit-code supabase/functions/_shared/database.types.ts

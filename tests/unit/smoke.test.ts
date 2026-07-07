@@ -273,6 +273,12 @@ Deno.test("CI no-egress ring denies non-local outbound network", () => {
     /http:\/\/1\.1\.1\.1\/ci-egress-negative-control/u,
   );
   assertMatch(ciWorkflowSource, /Unexpected outbound network access/u);
+  assertMatch(ciWorkflowSource, /supabase db lint --local 2>&1/u);
+  assertMatch(
+    ciWorkflowSource,
+    /connection_error_pattern='failed to connect to postgres\|failed to receive message\|connection reset by peer\|connection refused'/u,
+  );
+  assertNoMatch(ciWorkflowSource, /supabase db lint --local\s*\|\|\s*true/u);
 });
 
 function assertNoMatch(value: string, pattern: RegExp): void {
