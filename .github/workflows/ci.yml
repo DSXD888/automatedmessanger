@@ -97,7 +97,26 @@ jobs:
             fi
             sleep "$((attempt * 2))"
           done
-      - run: supabase gen types --db-url 'postgresql://postgres:postgres@127.0.0.1:54322/postgres' --lang typescript --schema api,app,maintenance,private > supabase/functions/_shared/database.types.ts
+      - name: Generate database types
+        run: |
+          set -euo pipefail
+          connection_error_pattern='failed to connect to postgres|failed to receive message|connection reset by peer|connection refused'
+          types_output=/tmp/dentino-database.types.ts
+          gen_log=/tmp/dentino-supabase-gen-types.log
+          for attempt in 1 2 3 4 5; do
+            if supabase gen types --db-url 'postgresql://postgres:postgres@127.0.0.1:54322/postgres' --lang typescript --schema api,app,maintenance,private > "$types_output" 2> "$gen_log"; then
+              cat "$gen_log"
+              cp "$types_output" supabase/functions/_shared/database.types.ts
+              exit 0
+            fi
+            status=$?
+            gen_error=$(cat "$gen_log")
+            printf '%s\n' "$gen_error"
+            if [[ ! "$gen_error" =~ $connection_error_pattern || "$attempt" == "5" ]]; then
+              exit "$status"
+            fi
+            sleep "$((attempt * 2))"
+          done
       - run: deno fmt supabase/functions/_shared/database.types.ts
       - run: git diff --exit-code supabase/functions/_shared/database.types.ts
       - name: Disable CI egress deny ring
