@@ -76,6 +76,29 @@ const dashboardRuntimeSourceCorpus = [
   dashboardRollupsSource,
   dashboardTemplateValidationSource,
 ].join("\n");
+type PackageJson = {
+  dependencies?: Record<string, string>;
+  devDependencies?: Record<string, string>;
+  optionalDependencies?: Record<string, string>;
+  peerDependencies?: Record<string, string>;
+};
+const playwrightPackageNames = [
+  "@axe-core/playwright",
+  "@playwright/test",
+  "playwright",
+];
+
+function packageDeclaresDependency(
+  packageJson: PackageJson,
+  dependencyName: string,
+): boolean {
+  return [
+    packageJson.dependencies,
+    packageJson.devDependencies,
+    packageJson.optionalDependencies,
+    packageJson.peerDependencies,
+  ].some((dependencies) => dependencies?.[dependencyName] !== undefined);
+}
 
 Deno.test("Rung A smoke covers clock, token digest, and phone normalization", async () => {
   assertEquals(
@@ -189,6 +212,34 @@ Deno.test("L1 CI wiring keeps real-key and deliverability seed gates out of norm
   assertNoMatch(ciGateCorpus, /https:\/\/r\.dentino\.com\.ua/iu);
 });
 
+Deno.test("CI installs Playwright browsers from the dashboard workspace", () => {
+  const rootPackage = JSON.parse(rootPackageSource) as PackageJson;
+  const dashboardPackage = JSON.parse(dashboardPackageSource) as PackageJson;
+
+  assertMatch(
+    ciWorkflowSource,
+    /corepack pnpm@10\.22\.0 --filter dashboard exec playwright install --with-deps chromium/u,
+  );
+  assertNoMatch(
+    ciWorkflowSource,
+    /corepack pnpm@10\.22\.0 exec playwright install --with-deps chromium/u,
+  );
+  for (const packageName of playwrightPackageNames) {
+    assertFalse(
+      packageDeclaresDependency(rootPackage, packageName),
+      `root package must not own ${packageName} while CI installs browsers through dashboard scope`,
+    );
+  }
+  assert(
+    packageDeclaresDependency(dashboardPackage, "@playwright/test"),
+    "dashboard package must own @playwright/test",
+  );
+  assert(
+    packageDeclaresDependency(dashboardPackage, "@axe-core/playwright"),
+    "dashboard package must own @axe-core/playwright",
+  );
+});
+
 Deno.test("CI no-egress ring denies non-local outbound network", () => {
   const supabaseStartIndex = ciWorkflowSource.indexOf(
     "- run: supabase start",
@@ -212,8 +263,9 @@ Deno.test("CI no-egress ring denies non-local outbound network", () => {
   );
   assertMatch(
     ciWorkflowSource,
-    /--allow-net=1\.1\.1\.1:80/u,
+    /deno run --allow-net=1\.1\.1\.1:80 --no-prompt - <<'TS'/u,
   );
+  assertNoMatch(ciWorkflowSource, /deno eval --allow-net/u);
   assertMatch(
     ciWorkflowSource,
     /http:\/\/1\.1\.1\.1\/ci-egress-negative-control/u,
