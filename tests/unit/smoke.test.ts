@@ -287,6 +287,24 @@ Deno.test("CI no-egress ring denies non-local outbound network", () => {
     ciWorkflowSource,
     /connection_error_pattern='failed to connect to postgres\|failed to receive message\|connection reset by peer\|connection refused'/u,
   );
+  assertMatch(
+    ciWorkflowSource,
+    /if lint_output=\$\(supabase db lint --local 2>&1\); then[\s\S]*?else\s+status=\$\?[\s\S]*?supabase db lint failed on attempt/u,
+  );
+  assertNoMatch(
+    ciWorkflowSource,
+    /if lint_output=\$\(supabase db lint --local 2>&1\); then[\s\S]*?\n\s*fi\n\s*status=\$\?/u,
+  );
+  assertMatch(
+    ciWorkflowSource,
+    /if supabase gen types[\s\S]*?> "\$types_output" 2> "\$gen_log"; then[\s\S]*?else\s+status=\$\?[\s\S]*?supabase gen types failed on attempt/u,
+  );
+  assertNoMatch(
+    ciWorkflowSource,
+    /if supabase gen types[\s\S]*?> "\$types_output" 2> "\$gen_log"; then[\s\S]*?\n\s*fi\n\s*status=\$\?/u,
+  );
+  assertMatch(ciWorkflowSource, /supabase db lint succeeded on attempt/u);
+  assertMatch(ciWorkflowSource, /supabase gen types succeeded on attempt/u);
   assertNoMatch(ciWorkflowSource, /supabase db lint --local\s*\|\|\s*true/u);
   assertNoMatch(ciWorkflowSource, /supabase gen types[^\n]*\|\|\s*true/u);
 });

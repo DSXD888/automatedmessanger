@@ -88,10 +88,13 @@ jobs:
           for attempt in 1 2 3 4 5; do
             if lint_output=$(supabase db lint --local 2>&1); then
               printf '%s\n' "$lint_output"
+              echo "supabase db lint succeeded on attempt $attempt"
               exit 0
+            else
+              status=$?
             fi
-            status=$?
             printf '%s\n' "$lint_output"
+            echo "supabase db lint failed on attempt $attempt with exit code $status"
             if [[ ! "$lint_output" =~ $connection_error_pattern || "$attempt" == "5" ]]; then
               exit "$status"
             fi
@@ -107,11 +110,14 @@ jobs:
             if supabase gen types --db-url 'postgresql://postgres:postgres@127.0.0.1:54322/postgres' --lang typescript --schema api,app,maintenance,private > "$types_output" 2> "$gen_log"; then
               cat "$gen_log"
               cp "$types_output" supabase/functions/_shared/database.types.ts
+              echo "supabase gen types succeeded on attempt $attempt"
               exit 0
+            else
+              status=$?
             fi
-            status=$?
             gen_error=$(cat "$gen_log")
             printf '%s\n' "$gen_error"
+            echo "supabase gen types failed on attempt $attempt with exit code $status"
             if [[ ! "$gen_error" =~ $connection_error_pattern || "$attempt" == "5" ]]; then
               exit "$status"
             fi
