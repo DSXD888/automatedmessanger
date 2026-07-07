@@ -81,12 +81,13 @@ jobs:
       - run: deno test tests/integration/no-egress.test.ts
       - run: corepack pnpm@10.22.0 --filter dashboard typecheck
       - run: corepack pnpm@10.22.0 --filter dashboard test:e2e
-      - name: Run supabase db lint --local
+      - name: Run supabase db lint
         run: |
           set -euo pipefail
           connection_error_pattern='failed to connect to postgres|failed to receive message|connection reset by peer|connection refused'
+          local_db_url='postgresql://postgres:postgres@127.0.0.1:54322/postgres?sslmode=disable'
           for attempt in 1 2 3 4 5; do
-            if lint_output=$(supabase db lint --local 2>&1); then
+            if lint_output=$(supabase db lint --db-url "$local_db_url" 2>&1); then
               printf '%s\n' "$lint_output"
               echo "supabase db lint succeeded on attempt $attempt"
               exit 0
@@ -104,10 +105,11 @@ jobs:
         run: |
           set -euo pipefail
           connection_error_pattern='failed to connect to postgres|failed to receive message|connection reset by peer|connection refused'
+          local_db_url='postgresql://postgres:postgres@127.0.0.1:54322/postgres?sslmode=disable'
           types_output=/tmp/dentino-database.types.ts
           gen_log=/tmp/dentino-supabase-gen-types.log
           for attempt in 1 2 3 4 5; do
-            if supabase gen types --db-url 'postgresql://postgres:postgres@127.0.0.1:54322/postgres' --lang typescript --schema api,app,maintenance,private > "$types_output" 2> "$gen_log"; then
+            if supabase gen types --db-url "$local_db_url" --lang typescript --schema api,app,maintenance,private > "$types_output" 2> "$gen_log"; then
               cat "$gen_log"
               cp "$types_output" supabase/functions/_shared/database.types.ts
               echo "supabase gen types succeeded on attempt $attempt"

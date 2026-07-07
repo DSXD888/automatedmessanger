@@ -273,11 +273,18 @@ Deno.test("CI no-egress ring denies non-local outbound network", () => {
     /http:\/\/1\.1\.1\.1\/ci-egress-negative-control/u,
   );
   assertMatch(ciWorkflowSource, /Unexpected outbound network access/u);
-  assertMatch(ciWorkflowSource, /supabase db lint --local 2>&1/u);
+  assertMatch(
+    ciWorkflowSource,
+    /local_db_url='postgresql:\/\/postgres:postgres@127\.0\.0\.1:54322\/postgres\?sslmode=disable'/u,
+  );
+  assertMatch(
+    ciWorkflowSource,
+    /supabase db lint --db-url "\$local_db_url" 2>&1/u,
+  );
   assertMatch(ciWorkflowSource, /name: Generate database types/u);
   assertMatch(
     ciWorkflowSource,
-    /supabase gen types --db-url 'postgresql:\/\/postgres:postgres@127\.0\.0\.1:54322\/postgres' --lang typescript --schema api,app,maintenance,private > "\$types_output" 2> "\$gen_log"/u,
+    /supabase gen types --db-url "\$local_db_url" --lang typescript --schema api,app,maintenance,private > "\$types_output" 2> "\$gen_log"/u,
   );
   assertMatch(
     ciWorkflowSource,
@@ -289,11 +296,11 @@ Deno.test("CI no-egress ring denies non-local outbound network", () => {
   );
   assertMatch(
     ciWorkflowSource,
-    /if lint_output=\$\(supabase db lint --local 2>&1\); then[\s\S]*?else\s+status=\$\?[\s\S]*?supabase db lint failed on attempt/u,
+    /if lint_output=\$\(supabase db lint --db-url "\$local_db_url" 2>&1\); then[\s\S]*?else\s+status=\$\?[\s\S]*?supabase db lint failed on attempt/u,
   );
   assertNoMatch(
     ciWorkflowSource,
-    /if lint_output=\$\(supabase db lint --local 2>&1\); then[\s\S]*?\n\s*fi\n\s*status=\$\?/u,
+    /if lint_output=\$\(supabase db lint --db-url "\$local_db_url" 2>&1\); then[\s\S]*?\n\s*fi\n\s*status=\$\?/u,
   );
   assertMatch(
     ciWorkflowSource,
