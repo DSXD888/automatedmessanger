@@ -11,7 +11,7 @@ begin
 end;
 $$;
 
-select plan(31);
+select plan(45);
 
 insert into app.reminder_messages (
   cliniccards_visit_id,
@@ -256,7 +256,222 @@ values
     'contract',
     app.now() - interval '1 day',
     'staff-purge-new',
-    '{"fixture":"purge-consent-keep"}'
+      '{"fixture":"purge-consent-keep"}'
+  );
+
+insert into app.patients(cliniccards_id)
+values
+  ('patient-action-old'),
+  ('patient-action-keep');
+
+insert into app.reminder_runs(
+  run_date,
+  target_date,
+  trigger,
+  pass_kind,
+  status,
+  total,
+  sent,
+  failed,
+  skipped,
+  started_at,
+  finished_at
+)
+values
+  (
+    '2026-01-31',
+    '2026-02-01',
+    'cron',
+    'initial',
+    'completed',
+    3,
+    2,
+    1,
+    0,
+    app.now() - interval '150 days',
+    app.now() - interval '150 days' + interval '2 minutes'
+  ),
+  (
+    '2026-02-01',
+    '2026-02-02',
+    'cron',
+    'initial',
+    'failed',
+    7,
+    5,
+    1,
+    1,
+    app.now() - interval '149 days',
+    app.now() - interval '149 days' + interval '3 minutes'
+  ),
+  (
+    '2026-06-14',
+    '2026-06-15',
+    'cron',
+    'initial',
+    'completed',
+    4,
+    4,
+    0,
+    0,
+    app.now() - interval '16 days',
+    app.now() - interval '16 days' + interval '2 minutes'
+  );
+
+insert into app.reminder_days(
+  target_date,
+  status,
+  locked_by_run_id,
+  lock_token,
+  lock_started_at,
+  lock_heartbeat_at,
+  lock_expires_at,
+  cliniccards_total,
+  remindable_total,
+  sendable_total,
+  sent_total,
+  skipped_total,
+  failed_total,
+  send_unknown_total,
+  pending_total,
+  unaccounted_total,
+  health,
+  reconciled_at
+)
+values
+  (
+    '2026-02-01',
+    'completed',
+    (select id from app.reminder_runs where target_date = '2026-02-01'),
+    '10000000-0000-0000-0000-000000000001',
+    app.now() - interval '150 days',
+    app.now() - interval '150 days' + interval '1 minute',
+    app.now() - interval '150 days' + interval '15 minutes',
+    3,
+    3,
+    3,
+    2,
+    0,
+    1,
+    0,
+    0,
+    0,
+    'red',
+    app.now() - interval '150 days' + interval '4 minutes'
+  ),
+  (
+    '2026-06-15',
+    'completed',
+    (select id from app.reminder_runs where target_date = '2026-06-15'),
+    '10000000-0000-0000-0000-000000000002',
+    app.now() - interval '16 days',
+    app.now() - interval '16 days' + interval '1 minute',
+    app.now() - interval '16 days' + interval '15 minutes',
+    4,
+    4,
+    4,
+    4,
+    0,
+    0,
+    0,
+    0,
+    0,
+    'green',
+    app.now() - interval '16 days' + interval '4 minutes'
+  );
+
+insert into app.crm_visit_facts(
+  run_id,
+  purpose,
+  target_date,
+  cliniccards_visit_id,
+  cliniccards_patient_id,
+  source_status,
+  remindable,
+  target_at,
+  appointment_fingerprint
+)
+select
+  id,
+  'visits_initial',
+  '2026-02-02',
+  'visit-retained-fact',
+  'patient-retained-fact',
+  'PLANNED',
+  true,
+  '2026-02-02T10:00:00+02:00',
+  'fingerprint-retained-fact'
+from app.reminder_runs
+where target_date = '2026-02-02';
+
+insert into app.reminder_messages (
+  cliniccards_visit_id,
+  patient_id,
+  target_date,
+  target_at,
+  message_kind,
+  appointment_fingerprint,
+  source_status,
+  status,
+  provider_message_id,
+  tracking_token_digest,
+  token_expires_at,
+  response,
+  responded_at,
+  action_locked_at,
+  action_taken,
+  crm_writeback_ok
+) values
+  (
+    'visit-action-old',
+    (select id from app.patients where cliniccards_id = 'patient-action-old'),
+    '2024-06-29',
+    '2024-06-29T09:00:00+03:00',
+    'initial_reminder',
+    'fingerprint-action-old',
+    'PLANNED',
+    'delivered',
+    'provider-action-old',
+    decode(repeat('d', 64), 'hex'),
+    '2024-06-29T09:00:00+03:00',
+    'confirm',
+    app.now() - interval '2 years 1 day',
+    app.now() - interval '2 years 1 day',
+    'confirmed',
+    true
+  ),
+  (
+    'visit-action-keep',
+    (select id from app.patients where cliniccards_id = 'patient-action-keep'),
+    '2025-07-01',
+    '2025-07-01T09:00:00+03:00',
+    'initial_reminder',
+    'fingerprint-action-keep',
+    'PLANNED',
+    'delivered',
+    'provider-action-keep',
+    decode(repeat('e', 64), 'hex'),
+    '2025-07-01T09:00:00+03:00',
+    'cancel',
+    app.now() - interval '1 year',
+    app.now() - interval '1 year',
+    'cancelled',
+    true
+  );
+
+insert into app.audit_log(actor, action, detail, at)
+values
+  (
+    'staff-user-old',
+    'manual_resolution',
+    '{"fixture":"purge-audit-old","visit":"visit-audit-old"}',
+    app.now() - interval '2 years 1 day'
+  ),
+  (
+    'staff-user-keep',
+    'manual_resolution',
+    '{"fixture":"purge-audit-keep"}',
+    app.now() - interval '1 year'
   );
 
 select lives_ok(
@@ -369,6 +584,129 @@ select ok(
 
 select is(
   (
+    select count(*)::int
+    from app.reminder_days
+    where target_date = '2026-02-01'
+  ),
+  0,
+  'privacy purge deletes delivery day summaries past 90 days'
+);
+
+select is(
+  (
+    select count(*)::int
+    from app.reminder_days
+    where target_date = '2026-06-15'
+  ),
+  1,
+  'privacy purge preserves delivery day summaries inside 90 days'
+);
+
+select is(
+  (
+    select count(*)::int
+    from app.reminder_runs
+    where target_date = '2026-02-01'
+  ),
+  0,
+  'privacy purge deletes unreferenced run summaries past 90 days'
+);
+
+select ok(
+  (
+    select status = 'completed'
+      and total = 0
+      and sent = 0
+      and failed = 0
+      and skipped = 0
+      and finished_at is null
+    from app.reminder_runs
+    where target_date = '2026-02-02'
+  ),
+  'privacy purge anonymizes old run summaries still referenced by retained ledgers'
+);
+
+select ok(
+  (
+    select total = 4
+      and sent = 4
+      and failed = 0
+      and skipped = 0
+      and finished_at is not null
+    from app.reminder_runs
+    where target_date = '2026-06-15'
+  ),
+  'privacy purge preserves run summaries inside 90 days'
+);
+
+select ok(
+  (
+    select cliniccards_visit_id = 'purged-' || id::text
+      and patient_id is null
+      and appointment_fingerprint is null
+      and source_status is null
+      and provider_message_id is null
+    from app.reminder_messages
+    where provider_message_id = 'provider-action-old'
+       or cliniccards_visit_id like 'purged-%'
+    order by id
+    limit 1
+  ),
+  'privacy purge pseudonymizes old action event identifiers'
+);
+
+select ok(
+  (
+    select response = 'confirm'
+      and action_taken = 'confirmed'
+      and action_locked_at is not null
+      and responded_at is not null
+    from app.reminder_messages
+    where cliniccards_visit_id like 'purged-%'
+    order by id
+    limit 1
+  ),
+  'privacy purge preserves non-identifying old action outcome facts'
+);
+
+select ok(
+  (
+    select cliniccards_visit_id = 'visit-action-keep'
+      and patient_id is not null
+      and appointment_fingerprint = 'fingerprint-action-keep'
+      and provider_message_id = 'provider-action-keep'
+    from app.reminder_messages
+    where cliniccards_visit_id = 'visit-action-keep'
+  ),
+  'privacy purge preserves action event identifiers inside the 2-year window'
+);
+
+select ok(
+  (
+    select actor is null
+      and detail ? 'pseudonymized_at'
+      and detail->>'retention_window' = '2 years'
+    from app.audit_log
+    where action = 'manual_resolution'
+      and detail->>'retention_window' = '2 years'
+    order by id
+    limit 1
+  ),
+  'privacy purge pseudonymizes old audit event actor and detail'
+);
+
+select ok(
+  (
+    select actor = 'staff-user-keep'
+      and detail->>'fixture' = 'purge-audit-keep'
+    from app.audit_log
+    where actor = 'staff-user-keep'
+  ),
+  'privacy purge preserves audit event detail inside the 2-year window'
+);
+
+select is(
+  (
     select (detail->>'inbound_events_deleted')::int
     from app.audit_log
     where actor = 'maintenance.purge_privacy'
@@ -402,7 +740,7 @@ select is(
     order by id desc
     limit 1
   ),
-  1,
+  3,
   'privacy purge audit records message anonymization count'
 );
 
@@ -432,6 +770,71 @@ select is(
   'privacy purge audit records consent metadata clear count'
 );
 
+select is(
+  (
+    select (detail->>'reminder_days_deleted')::int
+    from app.audit_log
+    where actor = 'maintenance.purge_privacy'
+      and action = 'purge_privacy'
+    order by id desc
+    limit 1
+  ),
+  1,
+  'privacy purge audit records delivery day delete count'
+);
+
+select is(
+  (
+    select (detail->>'reminder_runs_deleted')::int
+    from app.audit_log
+    where actor = 'maintenance.purge_privacy'
+      and action = 'purge_privacy'
+    order by id desc
+    limit 1
+  ),
+  1,
+  'privacy purge audit records run summary delete count'
+);
+
+select is(
+  (
+    select (detail->>'reminder_runs_anonymized')::int
+    from app.audit_log
+    where actor = 'maintenance.purge_privacy'
+      and action = 'purge_privacy'
+    order by id desc
+    limit 1
+  ),
+  1,
+  'privacy purge audit records run summary anonymization count'
+);
+
+select is(
+  (
+    select (detail->>'reminder_message_actions_pseudonymized')::int
+    from app.audit_log
+    where actor = 'maintenance.purge_privacy'
+      and action = 'purge_privacy'
+    order by id desc
+    limit 1
+  ),
+  1,
+  'privacy purge audit records action event pseudonymization count'
+);
+
+select is(
+  (
+    select (detail->>'audit_events_pseudonymized')::int
+    from app.audit_log
+    where actor = 'maintenance.purge_privacy'
+      and action = 'purge_privacy'
+    order by id desc
+    limit 1
+  ),
+  1,
+  'privacy purge audit records audit event pseudonymization count'
+);
+
 select ok(
   not exists (
     select 1
@@ -444,6 +847,9 @@ select ok(
         or detail::text ~ 'visit-purge-message'
         or detail::text ~ 'patient-purge-inactive'
         or detail::text ~ 'purge-consent-old'
+        or detail::text ~ 'visit-action-old'
+        or detail::text ~ 'visit-audit-old'
+        or detail::text ~ 'staff-user-old'
       )
   ),
   'privacy purge audit row does not include seeded identifiers'

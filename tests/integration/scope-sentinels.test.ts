@@ -29,6 +29,9 @@ import migrationRunReconcile from "../../supabase/migrations/20260701152500_run_
 import migrationPatientMerged from "../../supabase/migrations/20260701154949_add_patient_merged_skip_reason.sql" with {
   type: "text",
 };
+import migrationRetentionWindows from "../../supabase/migrations/20260707074230_complete_privacy_retention_windows.sql" with {
+  type: "text",
+};
 import databaseTypes from "../../supabase/functions/_shared/database.types.ts" with {
   type: "text",
 };
@@ -44,6 +47,7 @@ const migrationCorpus = [
   migrationRunStore,
   migrationRunReconcile,
   migrationPatientMerged,
+  migrationRetentionWindows,
 ].join("\n");
 
 const schemaCorpus = [migrationCorpus, databaseTypes].join("\n");
