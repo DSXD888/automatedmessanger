@@ -261,6 +261,8 @@ Deno.test("CI no-egress ring denies non-local outbound network", () => {
     ciWorkflowSource,
     /sudo ip6tables -I OUTPUT ! -o lo -j REJECT/u,
   );
+  assertMatch(ciWorkflowSource, /SUPABASE_TELEMETRY_DISABLED:\s*"1"/u);
+  assertMatch(ciWorkflowSource, /DO_NOT_TRACK:\s*"1"/u);
   assertMatch(
     ciWorkflowSource,
     /deno run --allow-net=1\.1\.1\.1:80 --no-prompt - <<'TS'/u,

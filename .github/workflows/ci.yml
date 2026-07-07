@@ -23,6 +23,8 @@ jobs:
       SMS_PROVIDER_API_KEY: test-sms-key
       TOKEN_PEPPER: test-token-pepper-32-bytes-min
       PHONE_PEPPER: test-phone-pepper-32-bytes-min
+      SUPABASE_TELEMETRY_DISABLED: "1"
+      DO_NOT_TRACK: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: denoland/setup-deno@v2
